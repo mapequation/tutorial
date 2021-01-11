@@ -6,9 +6,16 @@
     "format": "prettier --write \"src/**/*.{js,jsx,ts,tsx}\"",
     "lint": "prettier --check \"src/**/*.{js,jsx,ts,tsx}\""
   },
+  "repository": "https://github.com/mapequation/map-demo",
+  "license": "MIT",
+  "author": "Daniel Edler, Anton Eriksson",
   "dependencies": {
     "react": "^17.0.0",
-    "react-dom": "^17.0.0"
+    "react-dom": "^17.0.0",
+    "mobx": "^6.0.4",
+    "mobx-react": "^7.0.5",
+    "semantic-ui-react": "^2.0.1",
+    "semantic-ui-css": "^2.4.1"
   },
   "devDependencies": {
     "@snowpack/plugin-dotenv": "^2.0.5",
