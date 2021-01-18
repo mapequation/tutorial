@@ -1,5 +1,5 @@
-import React from 'react';
+import React, { SVGProps } from 'react';
 
-export default ({ r, cx, cy, ...props }) => {
-  return <circle r={r} cx={cx} cy={cy} className="node" {...props} />;
+export default ({ ...props }: SVGProps<SVGCircleElement>) => {
+  return <circle className="node" {...props} />;
 };

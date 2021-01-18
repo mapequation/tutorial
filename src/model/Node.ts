@@ -16,8 +16,6 @@ class Node implements SimulationNodeDatum {
   y: number = 0;
   vx: number = 0;
   vy: number = 0;
-  fx: number = 0;
-  fy: number = 0;
 
   constructor(
     id: Id,

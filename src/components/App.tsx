@@ -1,15 +1,46 @@
 import React from 'react';
 import './App.css';
-import { Button } from 'semantic-ui-react';
+import { modular_wd } from '../networks';
+import { Network } from './network';
+import { Network as NetworkModel } from '../model';
+import { forceDirected } from '../layout';
 
 interface AppProps {}
 
-function App({}: AppProps) {
-  return (
-    <div className="App">
-      <Button>Hello, World!</Button>
-    </div>
-  );
+interface AppState {
+  loading: boolean;
+  network?: NetworkModel;
+}
+
+class App extends React.Component<AppProps> {
+  state: AppState = {
+    loading: true,
+    network: undefined,
+  };
+
+  componentDidMount() {
+    const network = NetworkModel.deserialize(modular_wd);
+
+    forceDirected(network, 600, 600).then(() =>
+      this.setState({
+        loading: false,
+        network,
+      }),
+    );
+  }
+
+  render() {
+    const { loading, network } = this.state;
+
+    return (
+      <div className="App">
+        {loading && <p>Loading...</p>}
+        {!loading && network != null && (
+          <Network network={network} directed={true} />
+        )}
+      </div>
+    );
+  }
 }
 
 export default App;
