@@ -1,4 +1,4 @@
-import { Node, Link } from '.';
+import { Node, Link } from './index';
 import { NetworkReader } from '../io';
 import type { ParserInterface } from '../io/interfaces';
 

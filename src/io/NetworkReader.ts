@@ -1,5 +1,9 @@
-import type { Id, SerializedLink, SerializedNode } from '../model';
-import type { ReaderResult } from './interfaces';
+import type { Id } from '../model';
+import type {
+  ReaderResult,
+  SerializedLink,
+  SerializedNode,
+} from './interfaces';
 
 const enum Context {
   Nodes,
@@ -23,7 +27,11 @@ class NetworkReader {
         let lower = line.toLowerCase();
         if (lower.startsWith('*nodes') || lower.startsWith('*vertices')) {
           context = Context.Nodes;
-        } else if (lower.startsWith('*links') || lower.startsWith('*edges')) {
+        } else if (
+          lower.startsWith('*links') ||
+          lower.startsWith('*edges') ||
+          lower.startsWith('*arcs')
+        ) {
           context = Context.Links;
         } else {
           context = Context.None;
@@ -33,7 +41,7 @@ class NetworkReader {
       }
 
       if (context == Context.Nodes) {
-        let match = line.match(/^(\d+) "(.+)"/);
+        let match = line.trim().match(/^(\d+) "(.+)"/);
         if (match) {
           const [_, id, name] = match;
           nodes.push({ id: +id, name });

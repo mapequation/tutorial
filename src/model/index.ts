@@ -1,3 +1,4 @@
-export { default as Node, SerializedNode } from './Node';
-export { default as Link, SerializedLink } from './Link';
-export { default as Network, Id } from './Network';
+export { default as Node } from './Node';
+export { default as Link } from './Link';
+export { default as Network } from './Network';
+export type { Id } from './Network';

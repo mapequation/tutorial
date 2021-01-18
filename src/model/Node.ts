@@ -1,9 +1,5 @@
 import type { Link, Id } from '.';
-
-export interface SerializedNode {
-  id: Id;
-  name: string;
-}
+import type { SerializedNode } from '../io/interfaces';
 
 interface Vec2 {
   x: number;

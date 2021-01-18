@@ -1,10 +1,5 @@
 import type { Id } from '.';
-
-export interface SerializedLink {
-  source: Id;
-  target: Id;
-  weight: number;
-}
+import type { SerializedLink } from '../io/interfaces';
 
 class Link {
   source: Id;
