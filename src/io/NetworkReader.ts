@@ -1,6 +1,5 @@
 import type { SerializedNode, SerializedLink, Id } from '../model';
 
-
 export interface ReaderResult {
   nodes: SerializedNode[];
   links: SerializedLink[];
@@ -20,15 +19,15 @@ class NetworkReader {
     let context = Context.None;
 
     for (let line of lines) {
-      if (line.startsWith("#") || line.trim().length == 0) {
+      if (line.startsWith('#') || line.trim().length == 0) {
         continue;
       }
 
-      if (line.startsWith("*")) {
+      if (line.startsWith('*')) {
         let lower = line.toLowerCase();
-        if (lower.startsWith("*nodes") || lower.startsWith("*vertices")) {
+        if (lower.startsWith('*nodes') || lower.startsWith('*vertices')) {
           context = Context.Nodes;
-        } else if (lower.startsWith("*links") || lower.startsWith("*edges")) {
+        } else if (lower.startsWith('*links') || lower.startsWith('*edges')) {
           context = Context.Links;
         } else {
           context = Context.None;
@@ -46,14 +45,14 @@ class NetworkReader {
           console.error(`Cannot parse line: "${line}"`);
         }
       } else if (context == Context.Links) {
-        const [source, target, weight] = line.split(" ");
+        const [source, target, weight] = line.split(' ');
         links.push({ source: +source, target: +target, weight: +weight });
       }
     }
 
     const nodeIds: Set<Id> = new Set();
 
-    links.forEach(link => {
+    links.forEach((link) => {
       nodeIds.add(link.source);
       nodeIds.add(link.target);
     });
@@ -64,13 +63,13 @@ class NetworkReader {
         console.error(`Missing node for id ${node.id}`);
       }
     }
-    
+
     // if only links
     if (nodes.length == 0) {
-      nodeIds.forEach(id => nodes.push({ id, name: id.toString() }));
+      nodeIds.forEach((id) => nodes.push({ id, name: id.toString() }));
     }
 
-    return { nodes, links }
+    return { nodes, links };
   }
 }
 

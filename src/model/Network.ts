@@ -10,20 +10,23 @@ class Network {
   links: Link[] = [];
 
   constructor(nodes: Node[], links: Link[]) {
-    nodes.forEach(node => this.nodes.set(node.id, node));
+    nodes.forEach((node) => this.nodes.set(node.id, node));
     this.links = links;
 
-    links.forEach(link => {
+    links.forEach((link) => {
       const node = this.nodes.get(link.source);
       if (node != null) {
         node?.addLink(link);
       }
-    })
+    });
   }
 
   static deserialize(lines: string[]): Network {
     const { nodes, links } = NetworkReader.parse(lines);
-    return new Network(nodes.map(Node.deserialize), links.map(Link.deserialize));
+    return new Network(
+      nodes.map(Node.deserialize),
+      links.map(Link.deserialize),
+    );
   }
 }
 
