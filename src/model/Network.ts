@@ -1,5 +1,6 @@
 import { Node, Link } from '.';
 import { NetworkReader } from '../io';
+import type { ParserInterface } from '../io/interfaces';
 
 export type Id = number;
 
@@ -21,8 +22,11 @@ class Network {
     });
   }
 
-  static deserialize(lines: string[]): Network {
-    const { nodes, links } = NetworkReader.parse(lines);
+  static deserialize(
+    lines: string,
+    parser: ParserInterface = NetworkReader.parse,
+  ): Network {
+    const { nodes, links } = parser(lines);
     return new Network(
       nodes.map(Node.deserialize),
       links.map(Link.deserialize),

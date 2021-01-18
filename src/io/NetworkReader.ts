@@ -1,9 +1,5 @@
-import type { SerializedNode, SerializedLink, Id } from '../model';
-
-export interface ReaderResult {
-  nodes: SerializedNode[];
-  links: SerializedLink[];
-}
+import type { Id, SerializedLink, SerializedNode } from '../model';
+import type { ReaderResult } from './interfaces';
 
 const enum Context {
   Nodes,
@@ -12,13 +8,13 @@ const enum Context {
 }
 
 class NetworkReader {
-  static parse(lines: string[]): ReaderResult {
+  static parse(lines: string): ReaderResult {
     const nodes: SerializedNode[] = [];
     const links: SerializedLink[] = [];
 
     let context = Context.None;
 
-    for (let line of lines) {
+    for (let line of lines.split('\n')) {
       if (line.startsWith('#') || line.trim().length == 0) {
         continue;
       }
