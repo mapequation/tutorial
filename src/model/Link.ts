@@ -1,15 +1,19 @@
-import type { Id } from '.';
+import type { Id, Node } from './index';
 import type { SerializedLink } from '../io/interfaces';
+import type { SimulationLinkDatum } from 'd3';
 
-class Link {
-  source: Id;
-  target: Id;
+class Link implements SimulationLinkDatum<Node> {
+  source: Node;
+  target: Node;
   private _flow: number;
   weight: number;
 
+  // d3
+  index: number = 0;
+
   constructor(
-    source: Id,
-    target: Id,
+    source: Node,
+    target: Node,
     flow: number = 0.0,
     weight: number = 0.0,
   ) {
@@ -19,8 +23,15 @@ class Link {
     this.weight = weight;
   }
 
-  static deserialize(link: SerializedLink): Link {
-    return new Link(link.source, link.target, 0.0, link.weight);
+  static deserialize(link: SerializedLink, nodeMap: Map<Id, Node>): Link {
+    let source = nodeMap.get(link.source);
+    let target = nodeMap.get(link.target);
+
+    if (!source || !target) {
+      throw new Error('Node not found in nodeMap');
+    }
+
+    return new Link(source, target, 0.0, link.weight);
   }
 
   set flow(flow: number) {

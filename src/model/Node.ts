@@ -1,19 +1,23 @@
-import type { Link, Id } from '.';
+import type { SimulationNodeDatum } from 'd3';
+import type { Id, Link } from './index';
 import type { SerializedNode } from '../io/interfaces';
 
-interface Vec2 {
-  x: number;
-  y: number;
-}
-
-class Node {
+class Node implements SimulationNodeDatum {
   id: Id;
   label: string;
   private _flow: number;
   color: string;
   code: string;
   outLinks: Link[] = [];
-  position: Vec2 = { x: 0, y: 0 };
+
+  // d3
+  index: number = 0;
+  x: number = 0;
+  y: number = 0;
+  vx: number = 0;
+  vy: number = 0;
+  fx: number = 0;
+  fy: number = 0;
 
   constructor(
     id: Id,
