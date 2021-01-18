@@ -56,6 +56,10 @@ class Node {
   addLink(link: Link) {
     this.outLinks.push(link);
   }
+
+  randomLink(): Link | undefined {
+    return this.outLinks[Math.floor(Math.random() * this.degree)];
+  }
 }
 
 export default Node;
