@@ -1,4 +1,5 @@
 {
+  "flowModel": "directed",
   "nodes": [
     {
       "id": 0,

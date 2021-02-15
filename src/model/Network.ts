@@ -1,6 +1,6 @@
-import { Link, Node } from './index';
+import { FlowModel, Link, Node } from './index';
 import { NetworkReader } from '../io';
-import type { SerializedNetwork, ParserInterface } from '../io/interfaces';
+import type { ParserInterface, SerializedNetwork } from '../io/interfaces';
 
 export type Id = number;
 
@@ -9,11 +9,17 @@ export type Id = number;
 class Network {
   private _nodes: Map<Id, Node> = new Map();
   links: Link[] = [];
+  flowModel: FlowModel;
 
-  constructor(nodes: Node[], links: Link[]) {
+  constructor(
+    nodes: Node[],
+    links: Link[],
+    flowModel: FlowModel = FlowModel.Directed,
+  ) {
     nodes.forEach((node) => this._nodes.set(node.id, node));
 
     this.links = links;
+    this.flowModel = flowModel;
 
     links.forEach((link) => link.source.addLink(link));
   }
@@ -24,13 +30,23 @@ class Network {
 
   getNode(id: Id): Node | undefined {
     return this._nodes.get(id);
+  set directed(directed: boolean) {
+    this.flowModel = directed ? FlowModel.Directed : FlowModel.Undirected;
+  }
+
+  get directed(): boolean {
+    return this.flowModel === FlowModel.Directed;
   }
 
   static parse(
-    json: SerializedNetwork,
+    network: SerializedNetwork,
     scalePositions: boolean = true,
   ): Network {
-    const { nodes: serializedNodes, links: serializedLinks } = json;
+    const {
+      flowModel,
+      nodes: serializedNodes,
+      links: serializedLinks,
+    } = network;
 
     let nodes = serializedNodes.map(Node.deserialize);
 
@@ -46,10 +62,11 @@ class Network {
     return new Network(
       nodes,
       serializedLinks.map((link) => Link.deserialize(link, nodeMap)),
+      flowModel === 'directed' ? FlowModel.Directed : FlowModel.Undirected,
     );
   }
 
-  static deserialize(
+  static parseString(
     lines: string,
     parser: ParserInterface = NetworkReader.parse,
   ): Network {

@@ -14,6 +14,7 @@ export interface SerializedLink {
 }
 
 export interface SerializedNetwork {
+  flowModel: string;
   nodes: SerializedNode[];
   links: SerializedLink[];
 }

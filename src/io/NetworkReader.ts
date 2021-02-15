@@ -17,6 +17,7 @@ class NetworkReader {
     const links: SerializedLink[] = [];
 
     let context = Context.None;
+    let directed = false;
 
     for (let line of lines.split('\n')) {
       if (line.startsWith('#') || line.trim().length == 0) {
@@ -32,6 +33,7 @@ class NetworkReader {
           lower.startsWith('*edges') ||
           lower.startsWith('*arcs')
         ) {
+          directed = lower.startsWith('*links');
           context = Context.Links;
         } else {
           context = Context.None;
@@ -73,7 +75,9 @@ class NetworkReader {
       nodeIds.forEach((id) => nodes.push({ id, name: id.toString() }));
     }
 
-    return { nodes, links };
+    const flowModel = directed ? 'directed' : 'undirected';
+
+    return { flowModel, nodes, links };
   }
 }
 

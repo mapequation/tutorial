@@ -48,9 +48,7 @@ class App extends React.Component<AppProps> {
     return (
       <div className="App">
         {loading && <p>Loading...</p>}
-        {!loading && network != null && (
-          <Network network={network} directed={true} />
-        )}
+        {!loading && network != null && <Network network={network} />}
       </div>
     );
   }

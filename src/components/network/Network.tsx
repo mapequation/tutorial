@@ -2,23 +2,21 @@ import React, { SVGProps } from 'react';
 import { Link, Node } from './index';
 import ArrowMarker from './ArrowMarker';
 import type {
-  Network as NetworkModel,
   Link as LinkModel,
+  Network as NetworkModel,
   Node as NodeModel,
 } from '../../model';
 
 interface NetworkParams {
   network: NetworkModel;
-  directed: boolean;
 }
 
 function Network({
   network,
-  directed,
   ...props
 }: NetworkParams & SVGProps<SVGSVGElement>) {
   const arrowId = 'arrow';
-  const markerEnd = directed ? `url(#${arrowId})` : undefined;
+  const markerEnd = network.directed ? `url(#${arrowId})` : undefined;
 
   const nodeRadius = (flow: number): number => 10 + 200 * flow;
 
