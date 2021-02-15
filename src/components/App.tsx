@@ -26,10 +26,7 @@ class App extends React.Component<AppProps> {
     const nodeFlow = pageRank(network.links);
 
     for (const [id, flow] of Object.entries(nodeFlow)) {
-      let node = network.getNode(+id);
-      if (node) {
-        node.flow = flow;
-      }
+      network.getNode(+id).flow = flow;
     }
 
     this.setState({ loading: false, network });

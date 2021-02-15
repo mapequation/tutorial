@@ -28,8 +28,16 @@ class Network {
     return Array.from(this._nodes.values());
   }
 
-  getNode(id: Id): Node | undefined {
-    return this._nodes.get(id);
+  getNode(id: Id): Node {
+    let node = this._nodes.get(id);
+
+    if (!node) {
+      throw new Error('Node not found');
+    }
+
+    return node;
+  }
+
   set directed(directed: boolean) {
     this.flowModel = directed ? FlowModel.Directed : FlowModel.Undirected;
   }
