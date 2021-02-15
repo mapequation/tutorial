@@ -1,7 +1,7 @@
 import React, { SVGProps } from 'react';
 import type { Link } from '../../model';
 
-const linkPosition = (link: Link, r: number) => {
+const linkPosition = (link: Link, r1: number, r2: number) => {
   const x1 = link.source.x || 0;
   const y1 = link.source.y || 0;
   const x2 = link.target.x || 0;
@@ -12,24 +12,30 @@ const linkPosition = (link: Link, r: number) => {
   const dir = { x: dx / l, y: dy / l };
 
   return {
-    x1: x1 + r * dir.x,
-    y1: y1 + r * dir.y,
-    x2: x2 - r * dir.x,
-    y2: y2 - r * dir.y,
+    x1: x1 + r1 * dir.x,
+    y1: y1 + r1 * dir.y,
+    x2: x2 - r2 * dir.x,
+    y2: y2 - r2 * dir.y,
   };
 };
 
 interface LinkProps {
   link: Link;
-  nodeRadius: number;
+  sourceRadius: number;
+  targetRadius: number;
 }
 
 export default ({
   link,
-  nodeRadius,
+  sourceRadius,
+  targetRadius,
   ...props
 }: LinkProps & SVGProps<SVGLineElement>) => {
   return (
-    <line className="link" {...linkPosition(link, nodeRadius)} {...props} />
+    <line
+      className="link"
+      {...linkPosition(link, sourceRadius, targetRadius)}
+      {...props}
+    />
   );
 };

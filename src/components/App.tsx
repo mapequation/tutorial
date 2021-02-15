@@ -2,7 +2,7 @@ import React from 'react';
 import './App.css';
 import { modular_wd, modular_wd_json } from '../networks';
 import { Network } from './network';
-import { Network as NetworkModel } from '../model';
+import { Network as NetworkModel, pageRank } from '../model';
 import { forceDirected } from '../layout';
 
 interface AppProps {}
@@ -20,8 +20,17 @@ class App extends React.Component<AppProps> {
 
   componentDidMount() {
     //const network = NetworkModel.deserialize(modular_wd);
-    console.log(modular_wd_json);
     const network = NetworkModel.parse(modular_wd_json);
+
+    console.log(network);
+    const nodeFlow = pageRank(network.links);
+
+    for (const [id, flow] of Object.entries(nodeFlow)) {
+      let node = network.getNode(+id);
+      if (node) {
+        node.flow = flow;
+      }
+    }
 
     this.setState({ loading: false, network });
 

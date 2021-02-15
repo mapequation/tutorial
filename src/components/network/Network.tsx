@@ -20,6 +20,8 @@ function Network({
   const arrowId = 'arrow';
   const markerEnd = directed ? `url(#${arrowId})` : undefined;
 
+  const nodeRadius = (flow: number): number => 10 + 200 * flow;
+
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -41,7 +43,8 @@ function Network({
           link={link}
           stroke="#000"
           strokeWidth={2}
-          nodeRadius={20}
+          sourceRadius={nodeRadius(link.source.flow)}
+          targetRadius={nodeRadius(link.target.flow)}
           markerEnd={markerEnd}
         />
       ))}
@@ -49,7 +52,7 @@ function Network({
       {network.nodes.map((node: NodeModel, i) => (
         <Node
           key={i}
-          r={20}
+          r={nodeRadius(node.flow)}
           cx={node.x}
           cy={node.y}
           fill="#fafafa"
