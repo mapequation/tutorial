@@ -22,15 +22,24 @@ class Network {
     return Array.from(this._nodes.values());
   }
 
-  static parse(json: SerializedNetwork): Network {
+  getNode(id: Id): Node | undefined {
+    return this._nodes.get(id);
+  }
+
+  static parse(
+    json: SerializedNetwork,
+    scalePositions: boolean = true,
+  ): Network {
     const { nodes: serializedNodes, links: serializedLinks } = json;
 
     let nodes = serializedNodes.map(Node.deserialize);
 
-    nodes.forEach((node) => {
-      node.x *= 800;
-      node.y *= 800;
-    });
+    if (scalePositions) {
+      nodes.forEach((node) => {
+        node.x *= 800;
+        node.y *= 800;
+      });
+    }
 
     let nodeMap = new Map(nodes.map((node) => [node.id, node]));
 
@@ -44,16 +53,7 @@ class Network {
     lines: string,
     parser: ParserInterface = NetworkReader.parse,
   ): Network {
-    const { nodes: serializedNodes, links: serializedLinks } = parser(lines);
-
-    let nodes = serializedNodes.map(Node.deserialize);
-
-    let nodeMap = new Map(nodes.map((node) => [node.id, node]));
-
-    return new Network(
-      nodes,
-      serializedLinks.map((link) => Link.deserialize(link, nodeMap)),
-    );
+    return Network.parse(parser(lines), false);
   }
 }
 
