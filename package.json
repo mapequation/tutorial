@@ -10,13 +10,13 @@
   "license": "MIT",
   "author": "Daniel Edler, Anton Eriksson",
   "dependencies": {
-    "react": "^17.0.0",
-    "react-dom": "^17.0.0",
+    "d3": "^6.3.1",
     "mobx": "^6.0.4",
     "mobx-react": "^7.0.5",
-    "semantic-ui-react": "^2.0.1",
+    "react": "^17.0.0",
+    "react-dom": "^17.0.0",
     "semantic-ui-css": "^2.4.1",
-    "d3": "^6.3.1"
+    "semantic-ui-react": "^2.0.1"
   },
   "devDependencies": {
     "@snowpack/plugin-dotenv": "^2.0.5",

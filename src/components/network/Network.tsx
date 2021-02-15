@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { SVGProps } from 'react';
 import { Link, Node } from './index';
 import ArrowMarker from './ArrowMarker';
 import type {
@@ -12,19 +12,32 @@ interface NetworkParams {
   directed: boolean;
 }
 
-function Network({ network, directed }: NetworkParams) {
+function Network({
+  network,
+  directed,
+  ...props
+}: NetworkParams & SVGProps<SVGSVGElement>) {
   const arrowId = 'arrow';
   const markerEnd = directed ? `url(#${arrowId})` : undefined;
 
   return (
-    <svg className="network" style={{ width: '100vw', height: '100vh' }}>
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      version="1.1"
+      className="network"
+      width={800}
+      height={800}
+      viewBox="0 0 800 800"
+      style={{ border: '2px #000' }}
+      {...props}
+    >
       <defs>
         <ArrowMarker id={arrowId} fill="#000" />
       </defs>
 
-      {network.links.map((link: LinkModel) => (
+      {network.links.map((link: LinkModel, i) => (
         <Link
-          key={link.index}
+          key={i}
           link={link}
           stroke="#000"
           strokeWidth={2}
@@ -33,9 +46,9 @@ function Network({ network, directed }: NetworkParams) {
         />
       ))}
 
-      {network.nodes.map((node: NodeModel) => (
+      {network.nodes.map((node: NodeModel, i) => (
         <Node
-          key={node.index}
+          key={i}
           r={20}
           cx={node.x}
           cy={node.y}

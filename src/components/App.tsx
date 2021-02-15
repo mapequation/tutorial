@@ -1,6 +1,6 @@
 import React from 'react';
 import './App.css';
-import { modular_wd } from '../networks';
+import { modular_wd, modular_wd_json } from '../networks';
 import { Network } from './network';
 import { Network as NetworkModel } from '../model';
 import { forceDirected } from '../layout';
@@ -19,14 +19,18 @@ class App extends React.Component<AppProps> {
   };
 
   componentDidMount() {
-    const network = NetworkModel.deserialize(modular_wd);
+    //const network = NetworkModel.deserialize(modular_wd);
+    console.log(modular_wd_json);
+    const network = NetworkModel.parse(modular_wd_json);
 
-    forceDirected(network, 600, 600).then(() =>
+    this.setState({ loading: false, network });
+
+    /*forceDirected(network, 600, 600).then(() =>
       this.setState({
         loading: false,
         network,
       }),
-    );
+    );*/
   }
 
   render() {

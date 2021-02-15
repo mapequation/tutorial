@@ -1,6 +1,6 @@
 import { Link, Node } from './index';
 import { NetworkReader } from '../io';
-import type { ParserInterface } from '../io/interfaces';
+import type { SerializedNetwork, ParserInterface } from '../io/interfaces';
 
 export type Id = number;
 
@@ -20,6 +20,24 @@ class Network {
 
   get nodes(): Node[] {
     return Array.from(this._nodes.values());
+  }
+
+  static parse(json: SerializedNetwork): Network {
+    const { nodes: serializedNodes, links: serializedLinks } = json;
+
+    let nodes = serializedNodes.map(Node.deserialize);
+
+    nodes.forEach((node) => {
+      node.x *= 800;
+      node.y *= 800;
+    });
+
+    let nodeMap = new Map(nodes.map((node) => [node.id, node]));
+
+    return new Network(
+      nodes,
+      serializedLinks.map((link) => Link.deserialize(link, nodeMap)),
+    );
   }
 
   static deserialize(

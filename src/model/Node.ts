@@ -5,34 +5,42 @@ import type { SerializedNode } from '../io/interfaces';
 class Node implements SimulationNodeDatum {
   id: Id;
   label: string;
-  private _flow: number;
+  private _flow: number = 0.0;
   color: string;
   code: string;
+  module: number = 0;
   outLinks: Link[] = [];
 
   // d3
   index: number = 0;
-  x: number = 0;
-  y: number = 0;
+  x: number;
+  y: number;
   vx: number = 0;
   vy: number = 0;
 
   constructor(
     id: Id,
+    x: number = 0,
+    y: number = 0,
+    label: string = '',
     flow: number = 0.0,
     code: string = '',
-    label: string = '',
     color: string = '',
   ) {
     this.id = id;
-    this._flow = flow;
-    this.code = code;
+    this.x = x;
+    this.y = y;
     this.label = label;
+    this.flow = flow;
+    this.code = code;
     this.color = color;
   }
 
   static deserialize(node: SerializedNode): Node {
-    return new Node(node.id, 0.0, '', node.name);
+    const label = node.name || '';
+    const x = node.x || 0;
+    const y = node.y || 0;
+    return new Node(node.id, x, y, label);
   }
 
   set flow(flow: number) {

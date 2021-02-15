@@ -14,8 +14,8 @@ class Link implements SimulationLinkDatum<Node> {
   constructor(
     source: Node,
     target: Node,
-    flow: number = 0.0,
     weight: number = 0.0,
+    flow: number = 0.0,
   ) {
     this.source = source;
     this.target = target;
@@ -31,7 +31,7 @@ class Link implements SimulationLinkDatum<Node> {
       throw new Error('Node not found in nodeMap');
     }
 
-    return new Link(source, target, 0.0, link.weight);
+    return new Link(source, target, link.weight);
   }
 
   set flow(flow: number) {

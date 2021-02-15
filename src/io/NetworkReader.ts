@@ -1,6 +1,6 @@
 import type { Id } from '../model';
 import type {
-  ReaderResult,
+  SerializedNetwork,
   SerializedLink,
   SerializedNode,
 } from './interfaces';
@@ -12,7 +12,7 @@ const enum Context {
 }
 
 class NetworkReader {
-  static parse(lines: string): ReaderResult {
+  static parse(lines: string): SerializedNetwork {
     const nodes: SerializedNode[] = [];
     const links: SerializedLink[] = [];
 

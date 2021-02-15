@@ -1,21 +1,23 @@
 import type { Id } from '../model';
 
+export interface SerializedNode {
+  id: Id;
+  name?: string;
+  x?: number;
+  y?: number;
+}
+
 export interface SerializedLink {
   source: Id;
   target: Id;
   weight: number;
 }
 
-export interface SerializedNode {
-  id: Id;
-  name: string;
-}
-
-export interface ReaderResult {
+export interface SerializedNetwork {
   nodes: SerializedNode[];
   links: SerializedLink[];
 }
 
 export interface ParserInterface {
-  (lines: string): ReaderResult;
+  (lines: string): SerializedNetwork;
 }
