@@ -1,26 +1,7 @@
-import type { Id, Link } from '.';
-import { Teleportation } from './index';
-
-function nodeIds(links: Iterable<Link>): Iterable<Id> {
-  const nodeIds: Set<Id> = new Set();
-
-  for (let link of links) {
-    nodeIds.add(link.source.id);
-    nodeIds.add(link.target.id);
-  }
-
-  return nodeIds.values();
-}
-
-export interface NodeFlow {
-  [nodeId: number]: number;
-}
-
-interface FlowLink {
-  source: number;
-  target: number;
-  flow: number;
-}
+import type { Link } from '../index';
+import { Teleportation } from '../index';
+import type { FlowLink, NodeFlow } from './helpers';
+import { nodeIds } from './helpers';
 
 /*
   Page Rank

@@ -1,10 +1,46 @@
 import { FlowModel, Link, Node } from './index';
 import { NetworkReader } from '../io';
-import type { ParserInterface, SerializedNetwork } from '../io/interfaces';
+import type {
+  ParserInterface,
+  SerializedLink,
+  SerializedNetwork,
+} from '../io/interfaces';
 
 export type Id = number;
 
-// TODO: parse json
+function aggregateLinks(serializedLinks: SerializedLink[]): SerializedLink[] {
+  let sourceTargetMap: {
+    [source: number]: { [target: number]: number };
+  } = {};
+
+  for (let link of serializedLinks) {
+    let [source, target] = [
+      Math.min(link.source, link.target),
+      Math.max(link.source, link.target),
+    ];
+
+    if (source in sourceTargetMap) {
+      if (target in sourceTargetMap[source]) {
+        sourceTargetMap[source][target] += link.weight;
+      } else {
+        sourceTargetMap[source][target] = link.weight;
+      }
+    } else {
+      sourceTargetMap[source] = {};
+      sourceTargetMap[source][target] = link.weight;
+    }
+  }
+
+  let aggregated: SerializedLink[] = [];
+
+  for (const [source, targets] of Object.entries(sourceTargetMap)) {
+    for (const [target, weight] of Object.entries(targets)) {
+      aggregated.push({ source: +source, target: +target, weight });
+    }
+  }
+
+  return aggregated;
+}
 
 class Network {
   private _nodes: Map<Id, Node> = new Map();
@@ -38,10 +74,6 @@ class Network {
     return node;
   }
 
-  set directed(directed: boolean) {
-    this.flowModel = directed ? FlowModel.Directed : FlowModel.Undirected;
-  }
-
   get directed(): boolean {
     return this.flowModel === FlowModel.Directed;
   }
@@ -51,7 +83,7 @@ class Network {
     scalePositions: boolean = true,
   ): Network {
     const {
-      flowModel,
+      flowModel: flowModelStr,
       nodes: serializedNodes,
       links: serializedLinks,
     } = network;
@@ -65,13 +97,19 @@ class Network {
       });
     }
 
-    let nodeMap = new Map(nodes.map((node) => [node.id, node]));
+    const nodeMap = new Map(nodes.map((node) => [node.id, node]));
 
-    return new Network(
-      nodes,
-      serializedLinks.map((link) => Link.deserialize(link, nodeMap)),
-      flowModel === 'directed' ? FlowModel.Directed : FlowModel.Undirected,
-    );
+    const flowModel =
+      flowModelStr === 'directed' ? FlowModel.Directed : FlowModel.Undirected;
+
+    const toParse =
+      flowModel === FlowModel.Undirected
+        ? aggregateLinks(serializedLinks)
+        : serializedLinks;
+
+    const links = toParse.map((link) => Link.deserialize(link, nodeMap));
+
+    return new Network(nodes, links, flowModel);
   }
 
   static parseString(

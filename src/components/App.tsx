@@ -2,7 +2,7 @@ import React from 'react';
 import './App.css';
 import { modular_wd, modular_wd_json } from '../networks';
 import { Network } from './network';
-import { Network as NetworkModel, pageRank } from '../model';
+import { Network as NetworkModel, pageRank, undirectedFlow } from '../model';
 import { forceDirected } from '../layout';
 
 interface AppProps {}
@@ -23,7 +23,9 @@ class App extends React.Component<AppProps> {
     const network = NetworkModel.parse(modular_wd_json);
 
     console.log(network);
-    const nodeFlow = pageRank(network.links);
+    const nodeFlow = network.directed
+      ? pageRank(network.links)
+      : undirectedFlow(network.links);
 
     for (const [id, flow] of Object.entries(nodeFlow)) {
       network.getNode(+id).flow = flow;
