@@ -3,7 +3,7 @@ import './App.css';
 import { modular_wd, modular_wd_json } from '../networks';
 import { Network as NetworkModel, pageRank, undirectedFlow } from '../model';
 import { forceDirected } from '../layout';
-import { Layout } from './Layout';
+import Layout from './Layout';
 
 interface AppProps {}
 

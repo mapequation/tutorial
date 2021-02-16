@@ -7,6 +7,7 @@ import type {
   Node as NodeModel,
 } from '../../model';
 import { observer } from 'mobx-react';
+import Svg from '../Svg';
 
 interface NetworkParams {
   network: NetworkModel;
@@ -35,14 +36,11 @@ function Network({
   };
 
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      version="1.1"
+    <Svg
       className="network"
       width={800}
       height={800}
       viewBox="0 0 800 800"
-      style={{ border: '2px #000' }}
       {...props}
     >
       <defs>
@@ -72,7 +70,7 @@ function Network({
           strokeWidth={2}
         />
       ))}
-    </svg>
+    </Svg>
   );
 }
 

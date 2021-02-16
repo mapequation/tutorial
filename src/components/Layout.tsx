@@ -1,10 +1,11 @@
 import React from 'react';
 import { Button } from 'semantic-ui-react';
+import type { Network as NetworkModel } from '../model';
 import Network from './network';
 import ToggleWalkButton from './ToggleWalkButton';
-import type { Network as NetworkModel } from '../model';
+import Histogram from './histogram';
 
-export function Layout(props: { network: NetworkModel }) {
+export default function Layout(props: { network: NetworkModel }) {
   const { network } = props;
 
   const step = () => props.network.walker.step();
@@ -14,6 +15,7 @@ export function Layout(props: { network: NetworkModel }) {
       <Network network={network} />
       <Button onClick={step}>Step</Button>
       <ToggleWalkButton onClick={step} />
+      <Histogram network={network} />
     </>
   );
 }
