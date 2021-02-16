@@ -1,6 +1,7 @@
 {
   "include": ["src", "types"],
   "compilerOptions": {
+    "experimentalDecorators": true,
     "module": "esnext",
     "target": "esnext",
     "moduleResolution": "node",
@@ -16,6 +17,7 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "allowSyntheticDefaultImports": true,
-    "importsNotUsedAsValues": "error"
+    "importsNotUsedAsValues": "error",
+    "useDefineForClassFields": true
   }
 }
