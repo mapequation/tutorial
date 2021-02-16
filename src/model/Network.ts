@@ -8,40 +8,6 @@ import type {
 
 export type Id = number;
 
-function aggregateLinks(serializedLinks: SerializedLink[]): SerializedLink[] {
-  let sourceTargetMap: {
-    [source: number]: { [target: number]: number };
-  } = {};
-
-  for (let link of serializedLinks) {
-    let [source, target] = [
-      Math.min(link.source, link.target),
-      Math.max(link.source, link.target),
-    ];
-
-    if (source in sourceTargetMap) {
-      if (target in sourceTargetMap[source]) {
-        sourceTargetMap[source][target] += link.weight;
-      } else {
-        sourceTargetMap[source][target] = link.weight;
-      }
-    } else {
-      sourceTargetMap[source] = {};
-      sourceTargetMap[source][target] = link.weight;
-    }
-  }
-
-  let aggregated: SerializedLink[] = [];
-
-  for (const [source, targets] of Object.entries(sourceTargetMap)) {
-    for (const [target, weight] of Object.entries(targets)) {
-      aggregated.push({ source: +source, target: +target, weight });
-    }
-  }
-
-  return aggregated;
-}
-
 class Network {
   private _nodes: Map<Id, Node> = new Map();
   links: Link[] = [];
@@ -118,6 +84,41 @@ class Network {
   ): Network {
     return Network.parse(parser(lines), false);
   }
+}
+
+function aggregateLinks(links: SerializedLink[]): SerializedLink[] {
+  type SourceTargetWeight = {
+    [source: number]: { [target: number]: number };
+  };
+
+  let sourceTargetMap: SourceTargetWeight = {};
+
+  for (let link of links) {
+    let [source, target] = [
+      Math.min(link.source, link.target),
+      Math.max(link.source, link.target),
+    ];
+
+    if (!(source in sourceTargetMap)) {
+      sourceTargetMap[source] = {};
+    }
+
+    if (!(target in sourceTargetMap[source])) {
+      sourceTargetMap[source][target] = 0;
+    }
+
+    sourceTargetMap[source][target] += link.weight;
+  }
+
+  let aggregated: SerializedLink[] = [];
+
+  for (let [source, targets] of Object.entries(sourceTargetMap)) {
+    for (let [target, weight] of Object.entries(targets)) {
+      aggregated.push({ source: +source, target: +target, weight });
+    }
+  }
+
+  return aggregated;
 }
 
 export default Network;
