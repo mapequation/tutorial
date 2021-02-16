@@ -9,6 +9,7 @@ export default class RandomWalk {
   prev: Node;
 
   totalVisits = 0;
+  teleported = false;
 
   teleportRate = 0.15;
   teleportModel = Teleportation.Unrecorded;
@@ -23,11 +24,14 @@ export default class RandomWalk {
     makeObservable(this, {
       totalVisits: observable,
       current: observable,
+      teleported: observable,
       step: action,
     });
   }
 
   step() {
+    this.teleported = false;
+
     if (!this.current) {
       // FIXME should run in constructor only
       this.prev = this.current = this.network.randomNode();
@@ -54,6 +58,8 @@ export default class RandomWalk {
   }
 
   private teleport() {
+    this.teleported = true;
+
     // set teleport-weight of current to 0 to avoid self-teleportation
     let degrees = this.network.nodes.map((node) =>
       node.id === this.current.id ? 0 : node.degree,

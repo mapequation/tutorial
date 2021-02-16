@@ -21,14 +21,14 @@ function Network({
 
   const nodeRadius = (node: NodeModel): number => {
     if (network.showVisitRate) {
-      return 10 + 50 * node.visitRate;
+      return 10 + 200 * node.visitRate;
     }
     return 10 + 200 * node.flow;
   };
 
   const nodeFill = (node: NodeModel) => {
     if (network.showVisitRate && network.walker.current.id == node.id) {
-      return '#00ACDA';
+      return network.walker.teleported ? '#FE3265' : '#00ACDA';
     }
 
     return '#fafafa';
