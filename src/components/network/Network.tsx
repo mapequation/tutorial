@@ -40,7 +40,7 @@ function Network({
           key={i}
           link={link}
           stroke="#000"
-          strokeWidth={2}
+          strokeWidth={1.5 + 20 * link.flow}
           sourceRadius={nodeRadius(link.source.flow)}
           targetRadius={nodeRadius(link.target.flow)}
           markerEnd={markerEnd}
@@ -55,7 +55,7 @@ function Network({
           cy={node.y}
           fill="#fafafa"
           stroke="#888"
-          strokeWidth={2}
+          strokeWidth={2 + 10 * node.flow}
         />
       ))}
     </svg>
