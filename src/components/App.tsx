@@ -1,11 +1,9 @@
 import React from 'react';
 import './App.css';
 import { modular_wd, modular_wd_json } from '../networks';
-import { Network } from './network';
 import { Network as NetworkModel, pageRank, undirectedFlow } from '../model';
 import { forceDirected } from '../layout';
-import { Button } from 'semantic-ui-react';
-import ToggleWalkButton from './ToggleWalkButton';
+import { Layout } from './Layout';
 
 interface AppProps {}
 
@@ -49,13 +47,7 @@ class App extends React.Component<AppProps> {
     return (
       <div className="App">
         {loading && <p>Loading...</p>}
-        {!loading && network != null && (
-          <>
-            <Network network={network} />
-            <Button onClick={() => network.walker.step()}>Step</Button>
-            <ToggleWalkButton onClick={() => network.walker.step()} />
-          </>
-        )}
+        {!loading && network != null && <Layout network={network} />}
       </div>
     );
   }

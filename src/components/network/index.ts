@@ -1,3 +1,3 @@
 export { default as Node } from './Node';
 export { default as Link } from './Link';
-export { default as Network } from './Network';
+export { default } from './Network';
