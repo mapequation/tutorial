@@ -5,6 +5,7 @@ import { Network } from './network';
 import { Network as NetworkModel, pageRank, undirectedFlow } from '../model';
 import { forceDirected } from '../layout';
 import { Button } from 'semantic-ui-react';
+import ToggleWalkButton from './ToggleWalkButton';
 
 interface AppProps {}
 
@@ -52,6 +53,7 @@ class App extends React.Component<AppProps> {
           <>
             <Network network={network} />
             <Button onClick={() => network.walker.step()}>Step</Button>
+            <ToggleWalkButton onClick={() => network.walker.step()} />
           </>
         )}
       </div>
