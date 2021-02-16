@@ -5,21 +5,15 @@ import type { SimulationLinkDatum } from 'd3';
 class Link implements SimulationLinkDatum<Node> {
   source: Node;
   target: Node;
-  private _flow: number;
   weight: number;
+  flow: number = 0.0;
 
   // d3
   index: number = 0;
 
-  constructor(
-    source: Node,
-    target: Node,
-    weight: number = 0.0,
-    flow: number = 0.0,
-  ) {
+  constructor(source: Node, target: Node, weight: number = 1.0) {
     this.source = source;
     this.target = target;
-    this._flow = flow;
     this.weight = weight;
   }
 
@@ -32,18 +26,6 @@ class Link implements SimulationLinkDatum<Node> {
     }
 
     return new Link(source, target, link.weight);
-  }
-
-  set flow(flow: number) {
-    if (flow < 0.0 || flow > 1.0) {
-      throw new RangeError('flow must be within [0.0, 1.0]');
-    }
-
-    this._flow = flow;
-  }
-
-  get flow(): number {
-    return this._flow;
   }
 }
 
