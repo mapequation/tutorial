@@ -5,6 +5,7 @@ import type {
   SerializedLink,
   SerializedNetwork,
 } from '../io/interfaces';
+import RandomWalk from './RandomWalk';
 
 export type Id = number;
 
@@ -13,17 +14,11 @@ class Network {
   links: Link[] = [];
   flowModel: FlowModel;
 
-  constructor(
-    nodes: Node[],
-    links: Link[],
-    flowModel: FlowModel = FlowModel.Directed,
-  ) {
-    nodes.forEach((node) => this._nodes.set(node.id, node));
+  walker: RandomWalk;
 
-    this.links = links;
+  constructor(flowModel: FlowModel = FlowModel.Directed) {
     this.flowModel = flowModel;
-
-    links.forEach((link) => link.source.addLink(link));
+    this.walker = new RandomWalk(this);
   }
 
   get nodes(): Node[] {
@@ -40,6 +35,11 @@ class Network {
     return node;
   }
 
+  randomNode(): Node {
+    const { nodes } = this;
+    return nodes[Math.floor(Math.random() * nodes.length)];
+  }
+
   get directed(): boolean {
     return this.flowModel === FlowModel.Directed;
   }
@@ -54,7 +54,15 @@ class Network {
       links: serializedLinks,
     } = network;
 
-    let nodes = serializedNodes.map(Node.deserialize);
+    const flowModel =
+      flowModelStr === 'directed' ? FlowModel.Directed : FlowModel.Undirected;
+
+    let net = new Network(flowModel);
+
+    let nodes = serializedNodes.map((node) => Node.deserialize(node, net));
+
+    const nodeMap = new Map(nodes.map((node) => [node.id, node]));
+    net._nodes = nodeMap;
 
     if (scalePositions) {
       nodes.forEach((node) => {
@@ -63,19 +71,17 @@ class Network {
       });
     }
 
-    const nodeMap = new Map(nodes.map((node) => [node.id, node]));
+    const toParse = net.directed
+      ? serializedLinks
+      : aggregateLinks(serializedLinks);
 
-    const flowModel =
-      flowModelStr === 'directed' ? FlowModel.Directed : FlowModel.Undirected;
+    net.links = toParse.map((link) => Link.deserialize(link, nodeMap));
 
-    const toParse =
-      flowModel === FlowModel.Undirected
-        ? aggregateLinks(serializedLinks)
-        : serializedLinks;
+    for (let link of net.links) {
+      link.source.addLink(link);
+    }
 
-    const links = toParse.map((link) => Link.deserialize(link, nodeMap));
-
-    return new Network(nodes, links, flowModel);
+    return net;
   }
 
   static parseString(

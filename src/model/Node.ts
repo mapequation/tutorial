@@ -1,15 +1,32 @@
 import type { SimulationNodeDatum } from 'd3';
 import type { Id, Link } from './index';
+import { Network, weightedRandom } from './index';
 import type { SerializedNode } from '../io/interfaces';
+import { computed, observable } from 'mobx';
+
+type NodeParams = {
+  x?: number;
+  y?: number;
+  label?: string;
+  flow?: number;
+  code?: string;
+  color?: string;
+};
 
 class Node implements SimulationNodeDatum {
   id: Id;
   label: string;
-  private _flow: number = 0.0;
-  color: string;
-  code: string;
+  code: string = '';
   module: number = 0;
   outLinks: Link[] = [];
+
+  network: Network;
+
+  @observable flow: number = 0.0;
+
+  @observable visits: number = 0;
+
+  @observable votes: number = 0;
 
   // d3
   index: number = 0;
@@ -19,40 +36,27 @@ class Node implements SimulationNodeDatum {
   vy: number = 0;
 
   constructor(
-    id: Id,
-    x: number = 0,
-    y: number = 0,
-    label: string = '',
-    flow: number = 0.0,
-    code: string = '',
-    color: string = '',
+    network: Network,
+    id: number,
+    { x = 0, y = 0, label = '' }: NodeParams = {},
   ) {
+    this.network = network;
     this.id = id;
     this.x = x;
     this.y = y;
     this.label = label;
-    this.flow = flow;
-    this.code = code;
-    this.color = color;
   }
 
-  static deserialize(node: SerializedNode): Node {
+  static deserialize(node: SerializedNode, network: Network): Node {
     const label = node.name || '';
     const x = node.x || 0;
     const y = node.y || 0;
-    return new Node(node.id, x, y, label);
+    return new Node(network, node.id, { x, y, label });
   }
 
-  set flow(flow: number) {
-    if (flow < 0.0 || flow > 1.0) {
-      throw new RangeError('flow must be within [0.0, 1.0]');
-    }
-
-    this._flow = flow;
-  }
-
-  get flow(): number {
-    return this._flow;
+  @computed
+  get visitRate(): number {
+    return this.visits / this.network.walker.totalVisits;
   }
 
   get degree(): number {
@@ -64,7 +68,9 @@ class Node implements SimulationNodeDatum {
   }
 
   randomLink(): Link | undefined {
-    return this.outLinks[Math.floor(Math.random() * this.degree)];
+    const weights = this.outLinks.map((link) => link.weight);
+    const i = weightedRandom(weights);
+    return this.outLinks[i];
   }
 }
 
