@@ -1,6 +1,6 @@
 import type { Network, Node } from './index';
 import { Teleportation, weightedRandom } from './index';
-import { observable, action } from 'mobx';
+import { action, observable } from 'mobx';
 
 interface VisitRates {
   [nodeId: number]: number;
@@ -21,27 +21,21 @@ export default class RandomWalk {
   constructor(network: Network) {
     this.network = network;
 
-    for (let node of network.nodes) {
+    for (let node of this.network.nodes) {
       node.visits = 0;
     }
 
-    this.prev = this.current = network.randomNode();
+    this.prev = this.current = this.network.randomNode();
   }
 
   @action
   step() {
-    const r = Math.random();
+    if (!this.current) {
+      this.prev = this.current = this.network.randomNode();
+    }
 
-    // teleport?
-    if (r < this.teleportRate || this.current.degree == 0) {
-      let degrees = this.network.nodes.map((node) => node.degree);
-      let i = weightedRandom(degrees);
-
-      this.prev = this.current;
-      this.current = this.network.nodes[i];
-
-      // no record?
-      return;
+    if (Math.random() < this.teleportRate || this.current.degree == 0) {
+      return this.teleport();
     }
 
     // degree should always be > 0 here
@@ -56,5 +50,15 @@ export default class RandomWalk {
 
     this.current.visits++;
     this.totalVisits++;
+  }
+
+  private teleport() {
+    let degrees = this.network.nodes.map((node) => node.degree);
+    let index = weightedRandom(degrees);
+
+    this.prev = this.current;
+    this.current = this.network.nodes[index];
+
+    // record teleportation?
   }
 }
