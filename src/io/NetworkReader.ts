@@ -1,7 +1,7 @@
 import type { Id } from '../model';
 import type {
-  SerializedNetwork,
   SerializedLink,
+  SerializedNetwork,
   SerializedNode,
 } from './interfaces';
 

@@ -2,7 +2,7 @@ import type { SimulationNodeDatum } from 'd3';
 import type { Id, Link } from './index';
 import { Network, weightedRandom } from './index';
 import type { SerializedNode } from '../io/interfaces';
-import { computed, observable } from 'mobx';
+import { computed, makeObservable, observable } from 'mobx';
 
 type NodeParams = {
   x?: number;
@@ -22,11 +22,11 @@ class Node implements SimulationNodeDatum {
 
   network: Network;
 
-  @observable flow: number = 0.0;
+  flow: number = 0.0;
 
-  @observable visits: number = 0;
+  visits: number = 0;
 
-  @observable votes: number = 0;
+  votes: number = 0;
 
   // d3
   index: number = 0;
@@ -40,6 +40,13 @@ class Node implements SimulationNodeDatum {
     id: number,
     { x = 0, y = 0, label = '' }: NodeParams = {},
   ) {
+    makeObservable(this, {
+      flow: observable,
+      visits: observable,
+      votes: observable,
+      visitRate: computed,
+    });
+
     this.network = network;
     this.id = id;
     this.x = x;
@@ -54,9 +61,10 @@ class Node implements SimulationNodeDatum {
     return new Node(network, node.id, { x, y, label });
   }
 
-  @computed
   get visitRate(): number {
-    return this.visits / this.network.walker.totalVisits;
+    const { totalVisits } = this.network.walker;
+
+    return totalVisits === 0 ? 0 : this.visits / totalVisits;
   }
 
   get degree(): number {

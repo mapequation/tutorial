@@ -1,10 +1,6 @@
 import type { Network, Node } from './index';
 import { Teleportation, weightedRandom } from './index';
-import { action, observable } from 'mobx';
-
-interface VisitRates {
-  [nodeId: number]: number;
-}
+import { action, computed, makeObservable, observable } from 'mobx';
 
 export default class RandomWalk {
   network: Network;
@@ -12,13 +8,17 @@ export default class RandomWalk {
   current: Node;
   prev: Node;
 
-  @observable
   totalVisits = 0;
 
   teleportRate = 0.15;
   teleportModel = Teleportation.Unrecorded;
 
   constructor(network: Network) {
+    makeObservable(this, {
+      totalVisits: observable,
+      step: action,
+    });
+
     this.network = network;
 
     for (let node of this.network.nodes) {
@@ -28,11 +28,13 @@ export default class RandomWalk {
     this.prev = this.current = this.network.randomNode();
   }
 
-  @action
   step() {
     if (!this.current) {
+      // FIXME should run in constructor only
       this.prev = this.current = this.network.randomNode();
     }
+
+    this.network.showVisitRate = true;
 
     if (Math.random() < this.teleportRate || this.current.degree == 0) {
       return this.teleport();

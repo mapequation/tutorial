@@ -6,6 +6,7 @@ import type {
   SerializedNetwork,
 } from '../io/interfaces';
 import RandomWalk from './RandomWalk';
+import { makeObservable, observable } from 'mobx';
 
 export type Id = number;
 
@@ -16,9 +17,16 @@ class Network {
 
   walker: RandomWalk;
 
+  showVisitRate = false;
+
   constructor(flowModel: FlowModel = FlowModel.Directed) {
-    this.flowModel = flowModel;
     this.walker = new RandomWalk(this);
+    this.flowModel = flowModel;
+
+    makeObservable(this, {
+      showVisitRate: observable,
+      walker: observable,
+    });
   }
 
   get nodes(): Node[] {

@@ -6,6 +6,7 @@ import type {
   Network as NetworkModel,
   Node as NodeModel,
 } from '../../model';
+import { observer } from 'mobx-react';
 
 interface NetworkParams {
   network: NetworkModel;
@@ -18,7 +19,20 @@ function Network({
   const arrowId = 'arrow';
   const markerEnd = network.directed ? `url(#${arrowId})` : undefined;
 
-  const nodeRadius = (flow: number): number => 10 + 200 * flow;
+  const nodeRadius = (node: NodeModel): number => {
+    if (network.showVisitRate) {
+      return 10 + 50 * node.visitRate;
+    }
+    return 10 + 200 * node.flow;
+  };
+
+  const nodeFill = (node: NodeModel) => {
+    if (network.showVisitRate && network.walker.current.id == node.id) {
+      return '#00ACDA';
+    }
+
+    return '#fafafa';
+  };
 
   return (
     <svg
@@ -41,8 +55,8 @@ function Network({
           link={link}
           stroke="#000"
           strokeWidth={1.5 + 20 * link.flow}
-          sourceRadius={nodeRadius(link.source.flow)}
-          targetRadius={nodeRadius(link.target.flow)}
+          sourceRadius={nodeRadius(link.source)}
+          targetRadius={nodeRadius(link.target)}
           markerEnd={markerEnd}
         />
       ))}
@@ -50,16 +64,16 @@ function Network({
       {network.nodes.map((node: NodeModel, i) => (
         <Node
           key={i}
-          r={nodeRadius(node.flow)}
+          r={nodeRadius(node)}
           cx={node.x}
           cy={node.y}
-          fill="#fafafa"
+          fill={nodeFill(node)}
           stroke="#888"
-          strokeWidth={2 + 10 * node.flow}
+          strokeWidth={2}
         />
       ))}
     </svg>
   );
 }
 
-export default Network;
+export default observer(Network);
