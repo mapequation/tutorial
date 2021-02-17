@@ -1,6 +1,7 @@
 import React, { SVGProps } from 'react';
 import { schemePastel2, schemeSet2 } from 'd3';
-import { Link, Node } from './index';
+import Link from './Link';
+import Node from './Node';
 import ArrowMarker from './ArrowMarker';
 import type {
   Link as LinkModel,

@@ -1,9 +1,9 @@
 import React from 'react';
 import { Button } from 'semantic-ui-react';
 import type { Network as NetworkModel } from '../model';
-import Network from './network';
+import Network from './Network';
 import ToggleWalkButton from './ToggleWalkButton';
-import Histogram from './histogram';
+import RateView from './RateView';
 
 export default function Layout(props: { network: NetworkModel }) {
   const { network } = props;
@@ -15,7 +15,7 @@ export default function Layout(props: { network: NetworkModel }) {
       <Network network={network} />
       <Button onClick={step}>Step</Button>
       <ToggleWalkButton onClick={step} />
-      <Histogram network={network} />
+      <RateView network={network} />
       <br />
       {'One-level codelength'}{' '}
       {network.mapequation.oneLevelCodelength.toFixed(3)} {'bits'}
