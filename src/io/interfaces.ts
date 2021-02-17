@@ -5,6 +5,7 @@ export interface SerializedNode {
   name?: string;
   x?: number;
   y?: number;
+  bestmodule?: number;
 }
 
 export interface SerializedLink {

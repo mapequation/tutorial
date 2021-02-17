@@ -1,4 +1,5 @@
 import React, { SVGProps } from 'react';
+import { schemePastel2, schemeSet2 } from 'd3';
 import { Link, Node } from './index';
 import ArrowMarker from './ArrowMarker';
 import type {
@@ -27,12 +28,22 @@ function Network({
     return 10 + 200 * node.flow;
   };
 
-  const nodeFill = (node: NodeModel) => {
+  const haveModules = network.nodes.some((node) => node.module !== 0);
+
+  const nodeFill = (node: NodeModel): string => {
     if (network.showVisitRate && network.walker.current.id == node.id) {
       return network.walker.teleported ? '#FE3265' : '#00ACDA';
     }
 
-    return '#fafafa';
+    if (!haveModules) return '#fafafa';
+
+    return schemePastel2[node.module];
+  };
+
+  const nodeStroke = (node: NodeModel): string => {
+    if (!haveModules) return '#888888';
+
+    return schemeSet2[node.module];
   };
 
   return (
@@ -44,14 +55,14 @@ function Network({
       {...props}
     >
       <defs>
-        <ArrowMarker id={arrowId} fill="#000" />
+        <ArrowMarker id={arrowId} fill="#888" />
       </defs>
 
       {network.links.map((link: LinkModel, i) => (
         <Link
           key={i}
           link={link}
-          stroke="#000"
+          stroke="#888"
           strokeWidth={1.5 + 20 * link.flow}
           sourceRadius={nodeRadius(link.source)}
           targetRadius={nodeRadius(link.target)}
@@ -66,7 +77,7 @@ function Network({
           cx={node.x}
           cy={node.y}
           fill={nodeFill(node)}
-          stroke="#888"
+          stroke={nodeStroke(node)}
           strokeWidth={2}
         />
       ))}

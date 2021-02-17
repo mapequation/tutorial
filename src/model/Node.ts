@@ -8,9 +8,7 @@ type NodeParams = {
   x?: number;
   y?: number;
   label?: string;
-  flow?: number;
-  code?: string;
-  color?: string;
+  module?: number;
 };
 
 class Node implements SimulationNodeDatum {
@@ -38,7 +36,7 @@ class Node implements SimulationNodeDatum {
   constructor(
     network: Network,
     id: number,
-    { x = 0, y = 0, label = '' }: NodeParams = {},
+    { x = 0, y = 0, label = '', module = 0 }: NodeParams = {},
   ) {
     makeObservable(this, {
       flow: observable,
@@ -52,13 +50,21 @@ class Node implements SimulationNodeDatum {
     this.x = x;
     this.y = y;
     this.label = label;
+    this.module = module;
   }
 
   static deserialize(node: SerializedNode, network: Network): Node {
     const label = node.name || '';
     const x = node.x || 0;
     const y = node.y || 0;
-    return new Node(network, node.id, { x, y, label });
+    const module = node.bestmodule || 0;
+
+    return new Node(network, node.id, {
+      x,
+      y,
+      label,
+      module,
+    });
   }
 
   get visitRate(): number {
