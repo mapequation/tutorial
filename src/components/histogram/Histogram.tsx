@@ -4,35 +4,44 @@ import type { Network as NetworkModel } from '../../model';
 import Svg from '../Svg';
 import Bar from './Bar';
 
-function Histogram(props: { network: NetworkModel }) {
-  const { network } = props;
+interface HistogramProps {
+  network: NetworkModel;
+  width?: number;
+  height?: number;
+}
+
+function Histogram({ network, width = 800, height = 800 }: HistogramProps) {
+  const { nodes } = network;
+
+  const [viewBoxWidth, viewBoxHeight] = [1000, 1000];
+  const viewBox = `0 0 ${viewBoxWidth} ${viewBoxHeight}`;
+
+  const barWidth = viewBoxWidth / nodes.length;
+  const minHeight = 1;
+  const maxHeight = viewBoxHeight;
+
+  const x = (i: number): number => barWidth * i;
+
+  const barHeight = (scale: number): number => minHeight + maxHeight * scale;
+  const y = (scale: number): number => maxHeight - barHeight(scale);
+
+  const barProps = (i: number, scale: number) => ({
+    key: i,
+    x: x(i),
+    y: y(scale),
+    width: barWidth,
+    height: barHeight(scale),
+    stroke: '#888',
+    strokeWidth: 1,
+  });
 
   return (
-    <Svg className="histogram" width={800} height={800} viewBox="0 0 800 800">
-      {network.nodes.map((node, i) => (
-        <Bar
-          key={i}
-          x={20 * i}
-          y={550 - 1000 * node.flow}
-          width={20}
-          height={1000 * node.flow}
-          stroke="#888"
-          strokeWidth={1}
-          fill="#fafafa"
-        />
+    <Svg className="histogram" width={width} height={height} viewBox={viewBox}>
+      {nodes.map((node, i) => (
+        <Bar fill="#fafafa" {...barProps(i, node.flow)} />
       ))}
-      {network.nodes.map((node, i) => (
-        <Bar
-          key={i}
-          x={20 * i}
-          y={550 - 1000 * node.visitRate}
-          width={20}
-          height={1000 * node.visitRate}
-          stroke="#888"
-          strokeWidth={1}
-          fill="#00ACDA"
-          opacity={0.2}
-        />
+      {nodes.map((node, i) => (
+        <Bar fill="#00ACDA" opacity={0.2} {...barProps(i, node.visitRate)} />
       ))}
     </Svg>
   );
