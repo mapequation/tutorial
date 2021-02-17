@@ -14,17 +14,20 @@ interface HistogramProps {
 function Histogram({ network, width = 800, height = 800 }: HistogramProps) {
   const { nodes } = network;
 
-  const [viewBoxWidth, viewBoxHeight] = [1000, 400];
+  const [viewBoxWidth, viewBoxHeight] = [1000, 800];
   const viewBox = `0 0 ${viewBoxWidth} ${viewBoxHeight}`;
 
   const barWidth = viewBoxWidth / nodes.length;
-  const minHeight = 1;
-  const maxHeight = viewBoxHeight;
 
   const x = (i: number): number => barWidth * i;
 
-  const barHeight = (scale: number): number => minHeight + maxHeight * scale;
-  const y = (scale: number): number => maxHeight - barHeight(scale);
+  const minHeight = 1;
+  const maxFlow = Math.max(...nodes.map((node) => node.flow));
+  const maxHeight = viewBoxHeight / 2;
+
+  const barHeight = (scale: number): number =>
+    minHeight + (maxHeight * scale) / maxFlow;
+  const y = (scale: number): number => viewBoxHeight - barHeight(scale);
 
   const barProps = (i: number, scale: number) => ({
     key: i,
@@ -46,7 +49,7 @@ function Histogram({ network, width = 800, height = 800 }: HistogramProps) {
           id="bar-overflow"
           numPoints={3 * nodes.length}
           width={viewBoxWidth}
-          height={200}
+          height={200} // NOTE this is the height from the top of the viewBox
         />
       </defs>
       {nodes.sort(byFlow).map((node, i) => (
