@@ -9,8 +9,21 @@ export default function OverflowMask(
 ) {
   const { id, numPoints, width, height } = props;
 
-  const dx = width / numPoints / 2;
+  /*
+    Drawn clock-wise with one "point" having the width 2 * dx
 
+    (0, 0)
+    |                    |
+    |                    |
+    |                    |  height
+    |                    |
+    |                    |
+    |/\/\/\/\/\/\/\/\/\/\|
+    dx
+           width
+   */
+
+  const dx = width / numPoints / 2;
   const points = `l ${dx} ${-dx} l ${dx} ${dx} `.repeat(numPoints);
   const maskPath = `M 0 0 v ${height} ${points} v -${height} z`;
 
