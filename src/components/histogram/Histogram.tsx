@@ -4,6 +4,7 @@ import type { Network as NetworkModel, Node as NodeModel } from '../../model';
 import Svg from '../Svg';
 import Bar from './Bar';
 import OverflowMask from './OverflowMask';
+import { schemePastel2, schemeSet2 } from 'd3';
 
 interface HistogramProps {
   network: NetworkModel;
@@ -35,12 +36,31 @@ function Histogram({ network, width = 800, height = 800 }: HistogramProps) {
     y: y(scale),
     width: barWidth,
     height: barHeight(scale),
-    stroke: '#888',
     strokeWidth: 1,
     mask: 'url(#bar-overflow)',
   });
 
-  const byFlow = (a: NodeModel, b: NodeModel): number => b.flow - a.flow;
+  const barFillStroke = (node: NodeModel) => ({
+    fill: network.haveModules ? schemePastel2[node.module] : '#fafafa',
+    stroke: network.haveModules ? schemeSet2[node.module] : '#888',
+  });
+
+  const moduleFlow = (node: NodeModel) => {
+    let totFlow = 0.0;
+
+    for (let { module, flow } of nodes) {
+      if (module === node.module) {
+        totFlow += flow;
+      }
+    }
+
+    return totFlow;
+  };
+
+  const byFlow = (a: NodeModel, b: NodeModel): number => {
+    if (a.module !== b.module) return moduleFlow(b) - moduleFlow(a);
+    return b.flow - a.flow;
+  };
 
   return (
     <Svg className="histogram" width={width} height={height} viewBox={viewBox}>
@@ -53,13 +73,18 @@ function Histogram({ network, width = 800, height = 800 }: HistogramProps) {
         />
       </defs>
       {nodes.sort(byFlow).map((node, i) => (
-        <Bar fill="#fafafa" {...barProps(i, node.flow)} />
+        <Bar {...barFillStroke(node)} {...barProps(i, node.flow)} />
       ))}
       {nodes
         .sort(byFlow)
         .filter((node) => node.visitRate > 0)
         .map((node, i) => (
-          <Bar fill="#00ACDA" opacity={0.25} {...barProps(i, node.visitRate)} />
+          <Bar
+            fill="#00ACDA"
+            stroke="#888"
+            opacity={0.25}
+            {...barProps(i, node.visitRate)}
+          />
         ))}
     </Svg>
   );

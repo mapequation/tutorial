@@ -21,27 +21,21 @@ function Network({
   const arrowId = 'arrow';
   const markerEnd = network.directed ? `url(#${arrowId})` : undefined;
 
-  const nodeRadius = (node: NodeModel): number => {
-    if (network.showVisitRate) {
-      return 10 + 200 * node.visitRate;
-    }
-    return 10 + 200 * node.flow;
-  };
-
-  const haveModules = network.nodes.some((node) => node.module !== 0);
+  const nodeRadius = (node: NodeModel): number =>
+    10 + 200 * (network.showVisitRate ? node.visitRate : node.flow);
 
   const nodeFill = (node: NodeModel): string => {
     if (network.showVisitRate && network.walker.current.id == node.id) {
       return network.walker.teleported ? '#FE3265' : '#00ACDA';
     }
 
-    if (!haveModules) return '#fafafa';
+    if (!network.haveModules) return '#fafafa';
 
     return schemePastel2[node.module];
   };
 
   const nodeStroke = (node: NodeModel): string => {
-    if (!haveModules) return '#888888';
+    if (!network.haveModules) return '#888888';
 
     return schemeSet2[node.module];
   };

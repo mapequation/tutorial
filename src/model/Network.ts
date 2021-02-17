@@ -6,7 +6,7 @@ import type {
   SerializedNetwork,
 } from '../io/interfaces';
 import RandomWalk from './RandomWalk';
-import { makeObservable, observable } from 'mobx';
+import { computed, makeObservable, observable } from 'mobx';
 import MapEquation from './MapEquation';
 
 export type Id = number;
@@ -28,6 +28,7 @@ class Network {
 
     makeObservable(this, {
       showVisitRate: observable,
+      haveModules: computed,
     });
   }
 
@@ -52,6 +53,10 @@ class Network {
 
   get directed(): boolean {
     return this.flowModel === FlowModel.Directed;
+  }
+
+  get haveModules(): boolean {
+    return this.nodes.some((node) => node.module !== 0);
   }
 
   static parse(
