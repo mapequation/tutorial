@@ -61,11 +61,11 @@ export default class RandomWalk {
     this.teleported = true;
 
     // set teleport-weight of current to 0 to avoid self-teleportation
-    let degrees = this.network.nodes.map((node) =>
+    const degrees = this.network.nodes.map((node) =>
       node.id === this.current.id ? 0 : node.degree,
     );
 
-    let index = weightedRandom(degrees);
+    const index = weightedRandom(degrees);
 
     this.prev = this.current;
     this.current = this.network.nodes[index];

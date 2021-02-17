@@ -1,8 +1,7 @@
 import React from 'react';
 import './App.css';
-import { modular_wd, modular_wd_json } from '../networks';
+import { modular_wd_json } from '../networks';
 import { Network as NetworkModel, pageRank, undirectedFlow } from '../model';
-import { forceDirected } from '../layout';
 import Layout from './Layout';
 
 interface AppProps {}
@@ -19,7 +18,6 @@ class App extends React.Component<AppProps> {
   };
 
   componentDidMount() {
-    //const network = NetworkModel.deserialize(modular_wd);
     const network = NetworkModel.parse(modular_wd_json);
 
     console.log(network);

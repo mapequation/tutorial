@@ -7,6 +7,7 @@ import type {
 } from '../io/interfaces';
 import RandomWalk from './RandomWalk';
 import { makeObservable, observable } from 'mobx';
+import MapEquation from './MapEquation';
 
 export type Id = number;
 
@@ -16,16 +17,17 @@ class Network {
   flowModel: FlowModel;
 
   walker: RandomWalk;
+  mapequation: MapEquation;
 
   showVisitRate = false;
 
   constructor(flowModel: FlowModel = FlowModel.Directed) {
-    this.walker = new RandomWalk(this);
     this.flowModel = flowModel;
+    this.walker = new RandomWalk(this);
+    this.mapequation = new MapEquation(this);
 
     makeObservable(this, {
       showVisitRate: observable,
-      walker: observable,
     });
   }
 
