@@ -38,24 +38,24 @@ export default class MapEquation {
 
     for (let module of tree.depthFirstModules()) {
       if (module.isLeaf) {
-        this.calculateModuleCodelength(module);
+        MapEquation.calculateModuleCodelength(module);
       } else {
-        this.calculateIndexCodelength(module);
+        MapEquation.calculateIndexCodelength(module);
       }
     }
   }
 
-  calculateModuleCodelength(module: Module): number {
-    const p = module.map((node) => node.flow);
-    p.push(module.exitFlow);
+  static calculateModuleCodelength(module: Module): number {
+    const p = [module.exitFlow, ...module.map((node) => node.flow)];
+
     module.codelength = sum(p) * entropy(p);
 
     return module.codelength;
   }
 
-  calculateIndexCodelength(module: Module): number {
-    const p = module.map((module) => module.enterFlow);
-    p.push(module.exitFlow);
+  static calculateIndexCodelength(module: Module): number {
+    const p = [module.exitFlow, ...module.map((module) => module.enterFlow)];
+
     module.codelength = sum(p) * entropy(p);
 
     return module.codelength;
