@@ -4,7 +4,6 @@ import { FlowModel } from './enums';
 import { NetworkReader } from '../io';
 import type {
   ParserInterface,
-  SerializedLink,
   SerializedNetwork,
   SerializedNode,
 } from '../io/interfaces';
@@ -12,6 +11,7 @@ import RandomWalk from './RandomWalk';
 import { computed, makeObservable } from 'mobx';
 import MapEquation from './MapEquation';
 import PageRank from './PageRank';
+import Tree from './Tree';
 
 type Id = number;
 
@@ -20,6 +20,7 @@ export default class Network {
   links: Link[] = [];
   flowModel: FlowModel;
 
+  tree: Tree;
   walker: RandomWalk;
   mapequation: MapEquation;
   flowCalculator: PageRank;
@@ -27,6 +28,7 @@ export default class Network {
   constructor(flowModel: FlowModel = FlowModel.Directed) {
     this.flowModel = flowModel;
 
+    this.tree = new Tree(this);
     this.walker = new RandomWalk(this);
     this.mapequation = new MapEquation(this);
     this.flowCalculator = new PageRank(this);

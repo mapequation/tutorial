@@ -3,7 +3,7 @@ export interface SerializedNode {
   name?: string;
   x?: number;
   y?: number;
-  module?: number;
+  path?: string;
 }
 
 export interface SerializedLink {

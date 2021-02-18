@@ -20,6 +20,8 @@ class App extends React.Component<AppProps> {
   componentDidMount() {
     const network = NetworkModel.parse(modular_wd_json);
     network.flowCalculator.calculateFlow();
+    network.tree.update();
+    network.mapequation.calculateCodelength();
 
     // TODO generalize and remove
     network.nodes.forEach((node) => {

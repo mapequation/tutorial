@@ -29,7 +29,7 @@ function Network({
 
   const nodeFill = (node: NodeModel): string => {
     if (showVisitRate && network.walker.current?.id === node.id) {
-      return network.walker.teleported ? '#FE3265' : '#00ACDA';
+      return network.walker.teleported ? '#FE3265' : schemeSet2[node.module];
     }
 
     if (!network.haveModules) return '#fafafa';

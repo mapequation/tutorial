@@ -1,5 +1,6 @@
 import { computed, makeObservable } from 'mobx';
 import type Network from './Network';
+import type { Module } from './Tree';
 
 const divide = (xs: number[], numerator: number): number[] => {
   for (let i = 0; i < xs.length; ++i) {
@@ -32,6 +33,34 @@ export default class MapEquation {
     });
   }
 
+  calculateCodelength() {
+    const { tree } = this.network;
+
+    for (let module of tree.depthFirstModules()) {
+      if (module.isLeaf) {
+        this.calculateModuleCodelength(module);
+      } else {
+        this.calculateIndexCodelength(module);
+      }
+    }
+  }
+
+  calculateModuleCodelength(module: Module): number {
+    const p = module.map((node) => node.flow);
+    p.push(module.exitFlow);
+    module.codelength = sum(p) * entropy(p);
+
+    return module.codelength;
+  }
+
+  calculateIndexCodelength(module: Module): number {
+    const p = module.map((module) => module.enterFlow);
+    p.push(module.exitFlow);
+    module.codelength = sum(p) * entropy(p);
+
+    return module.codelength;
+  }
+
   get oneLevelCodelength(): number {
     const visitRates = this.network.nodes.map((node) => node.flow);
 
@@ -39,52 +68,38 @@ export default class MapEquation {
   }
 
   get indexCodelength(): number {
-    const { nodes, links } = this.network;
+    const { tree } = this.network;
 
-    const enterFlow: { [module: string]: number } = {};
+    let codelength = 0;
 
-    nodes.forEach(({ module }) => (enterFlow[module] = 0));
+    for (let module of tree.depthFirstModules()) {
+      if (!module.isLeaf) {
+        codelength += module.codelength;
+      }
+    }
 
-    links
-      .filter(({ source, target }) => source.module !== target.module)
-      .forEach(({ target, flow }) => (enterFlow[target.module] += flow));
+    return codelength;
+  }
 
-    const enterFlows = Array.from(Object.values(enterFlow));
-
-    return sum(enterFlows) * entropy(enterFlows);
+  get moduleCodelength(): number {
+    return sum(this.moduleCodelengths);
   }
 
   get moduleCodelengths(): number[] {
-    const { nodes, links } = this.network;
+    const { tree } = this.network;
 
-    const exitFlow: { [module: string]: number } = {};
-    const visitRates: { [module: string]: number[] } = {};
+    const codelengths = [];
 
-    nodes.forEach(({ module, flow }) => {
-      exitFlow[module] = 0;
-
-      if (!(module in visitRates)) {
-        visitRates[module] = [];
+    for (let module of tree.depthFirstModules()) {
+      if (module.isLeaf) {
+        codelengths.push(module.codelength);
       }
-
-      visitRates[module].push(flow);
-    });
-
-    links
-      .filter(({ source, target }) => source.module !== target.module)
-      .forEach(({ source, flow }) => (exitFlow[source.module] += flow));
-
-    const codelengths: { [module: string]: number } = {};
-
-    for (let module of Object.keys(exitFlow)) {
-      const p = [exitFlow[module], ...visitRates[module]];
-      codelengths[module] = sum(p) * entropy(p);
     }
 
-    return Array.from(Object.values(codelengths));
+    return codelengths;
   }
 
   get codelength(): number {
-    return this.indexCodelength + sum(this.moduleCodelengths);
+    return this.indexCodelength + this.moduleCodelength;
   }
 }

@@ -3,24 +3,28 @@ import type Link from './Link';
 import type Network from './Network';
 import { weightedRandom } from './random';
 import { computed, makeObservable, observable } from 'mobx';
+import type { Module } from './Tree';
 
 type NodeParams = {
   x?: number;
   y?: number;
   name?: string;
-  module?: number;
+  path?: string;
 };
 
 export default class Node implements SimulationNodeDatum {
   id: number;
   name: string;
   code: string = '';
-  module: number = 0;
+  path: string;
   outLinks: Link[] = [];
 
+  parent: Module | null = null;
   network: Network;
 
   flow: number = 0.0;
+  enterFlow: number = 0.0;
+  exitFlow: number = 0.0;
   visits: number = 0;
   votes: number = 0;
 
@@ -34,7 +38,7 @@ export default class Node implements SimulationNodeDatum {
   constructor(
     network: Network,
     id: number,
-    { x = 0, y = 0, name = '', module = 0 }: NodeParams = {},
+    { x = 0, y = 0, name = '', path = '0' }: NodeParams = {},
   ) {
     makeObservable(this, {
       flow: observable,
@@ -48,13 +52,17 @@ export default class Node implements SimulationNodeDatum {
     this.x = x;
     this.y = y;
     this.name = name || id.toString();
-    this.module = module;
+    this.path = path;
   }
 
   get visitRate(): number {
     const { totalVisits } = this.network.walker;
 
     return totalVisits === 0 ? 0 : this.visits / totalVisits;
+  }
+
+  get module(): number {
+    return +this.path;
   }
 
   get degree(): number {
