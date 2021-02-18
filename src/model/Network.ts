@@ -77,6 +77,19 @@ export default class Network {
     target: number;
     weight: number;
   }) {
+    const duplicate = this.directed
+      ? (link: Link) => link.source.id === source && link.target.id === target
+      : (link: Link) =>
+          (link.source.id === source && link.target.id === target) ||
+          (link.source.id === target && link.target.id === source);
+
+    const existing = this.links.find(duplicate);
+
+    if (existing) {
+      existing.weight += weight;
+      return;
+    }
+
     const sourceNode = this.getNode(source) || this.addNode(source);
     const targetNode = this.getNode(target) || this.addNode(target);
 
@@ -104,39 +117,4 @@ export default class Network {
   ): Network {
     return Network.parse(parser(lines));
   }
-}
-
-function aggregateLinks(links: SerializedLink[]): SerializedLink[] {
-  type SourceTargetWeight = {
-    [source: number]: { [target: number]: number };
-  };
-
-  let sourceTargetMap: SourceTargetWeight = {};
-
-  for (let link of links) {
-    let [source, target] = [
-      Math.min(link.source, link.target),
-      Math.max(link.source, link.target),
-    ];
-
-    if (!(source in sourceTargetMap)) {
-      sourceTargetMap[source] = {};
-    }
-
-    if (!(target in sourceTargetMap[source])) {
-      sourceTargetMap[source][target] = 0;
-    }
-
-    sourceTargetMap[source][target] += link.weight;
-  }
-
-  let aggregated: SerializedLink[] = [];
-
-  for (let [source, targets] of Object.entries(sourceTargetMap)) {
-    for (let [target, weight] of Object.entries(targets)) {
-      aggregated.push({ source: +source, target: +target, weight });
-    }
-  }
-
-  return aggregated;
 }
