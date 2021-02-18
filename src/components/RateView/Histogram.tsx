@@ -36,13 +36,13 @@ function Histogram({ network, width = 800, height = 800 }: HistogramProps) {
     y: y(scale),
     width: barWidth,
     height: barHeight(scale),
-    strokeWidth: 1,
+    strokeWidth: 2,
     mask: 'url(#bar-overflow)',
   });
 
   const barFillStroke = (node: Node) => ({
-    fill: network.haveModules ? schemePastel2[node.module] : '#fafafa',
-    stroke: network.haveModules ? schemeSet2[node.module] : '#888',
+    fill: schemePastel2[node.module],
+    stroke: schemeSet2[node.module],
   });
 
   const moduleFlow = (node: Node) => {
@@ -73,13 +73,12 @@ function Histogram({ network, width = 800, height = 800 }: HistogramProps) {
         />
       </defs>
       {nodes.sort(byFlow).map((node, i) => (
-        <Bar {...barFillStroke(node)} {...barProps(i, node.flow)} />
+        <Bar fill="#fafafa" stroke="#888" {...barProps(i, node.flow)} />
       ))}
       {nodes.sort(byFlow).map((node, i) => (
         <Bar
-          fill="#00ACDA"
-          stroke="#888"
-          opacity={0.25}
+          {...barFillStroke(node)}
+          opacity={0.6}
           {...barProps(i, node.visitRate)}
         />
       ))}
