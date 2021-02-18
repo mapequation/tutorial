@@ -61,10 +61,7 @@ export default class Network {
     const n =
       typeof node == 'number'
         ? new Node(this, node)
-        : new Node(this, node.id, {
-            module: node.bestmodule || 0,
-            ...node,
-          });
+        : new Node(this, node.id, node);
 
     this._nodes.set(n.id, n);
 
