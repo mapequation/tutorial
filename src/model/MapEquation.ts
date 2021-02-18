@@ -1,5 +1,5 @@
 import { computed, makeObservable } from 'mobx';
-import type { Network } from './index';
+import type Network from './Network';
 
 const divide = (xs: number[], numerator: number): number[] => {
   for (let i = 0; i < xs.length; ++i) {
@@ -34,8 +34,6 @@ export default class MapEquation {
 
   get oneLevelCodelength(): number {
     const visitRates = this.network.nodes.map((node) => node.flow);
-
-    normalize(visitRates);
 
     return entropy(visitRates);
   }
@@ -79,8 +77,8 @@ export default class MapEquation {
     const codelengths: { [module: string]: number } = {};
 
     for (let module of Object.keys(exitFlow)) {
-      const xs = [exitFlow[module], ...visitRates[module]];
-      codelengths[module] = sum(xs) * entropy(xs);
+      const p = [exitFlow[module], ...visitRates[module]];
+      codelengths[module] = sum(p) * entropy(p);
     }
 
     return Array.from(Object.values(codelengths));

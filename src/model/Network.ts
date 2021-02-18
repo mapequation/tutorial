@@ -1,4 +1,6 @@
-import { FlowModel, Link, Node } from './index';
+import Link from './Link';
+import Node from './Node';
+import { FlowModel } from './enums';
 import { NetworkReader } from '../io';
 import type {
   ParserInterface,
@@ -8,8 +10,9 @@ import type {
 import RandomWalk from './RandomWalk';
 import { computed, makeObservable, observable } from 'mobx';
 import MapEquation from './MapEquation';
+import PageRank from './PageRank';
 
-export type Id = number;
+type Id = number;
 
 class Network {
   private _nodes: Map<Id, Node> = new Map();
@@ -18,16 +21,15 @@ class Network {
 
   walker: RandomWalk;
   mapequation: MapEquation;
-
-  showVisitRate = false;
+  flowCalculator: PageRank;
 
   constructor(flowModel: FlowModel = FlowModel.Directed) {
     this.flowModel = flowModel;
     this.walker = new RandomWalk(this);
     this.mapequation = new MapEquation(this);
+    this.flowCalculator = new PageRank(this);
 
     makeObservable(this, {
-      showVisitRate: observable,
       haveModules: computed,
     });
   }

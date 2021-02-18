@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Button } from 'semantic-ui-react';
 import type { Network as NetworkModel } from '../model';
 import Network from './Network';
@@ -8,11 +8,16 @@ import RateView from './RateView';
 export default function Layout(props: { network: NetworkModel }) {
   const { network } = props;
 
-  const step = () => props.network.walker.step();
+  const [showVisitRate, setShowVisitRate] = useState(false);
+
+  const step = () => {
+    if (!showVisitRate) setShowVisitRate(true);
+    props.network.walker.step();
+  };
 
   return (
     <>
-      <Network network={network} />
+      <Network network={network} showVisitRate={showVisitRate} />
       <Button onClick={step}>Step</Button>
       <ToggleWalkButton onClick={step} />
       <RateView network={network} />

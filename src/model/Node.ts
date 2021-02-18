@@ -1,7 +1,8 @@
 import type { SimulationNodeDatum } from 'd3';
-import type { Id, Link } from './index';
-import { Network, weightedRandom } from './index';
+import type Link from './Link';
+import type Network from './Network';
 import type { SerializedNode } from '../io/interfaces';
+import { weightedRandom } from './random';
 import { computed, makeObservable, observable } from 'mobx';
 
 type NodeParams = {
@@ -12,7 +13,7 @@ type NodeParams = {
 };
 
 class Node implements SimulationNodeDatum {
-  id: Id;
+  id: number;
   label: string;
   code: string = '';
   module: number = 0;

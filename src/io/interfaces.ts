@@ -1,7 +1,5 @@
-import type { Id } from '../model';
-
 export interface SerializedNode {
-  id: Id;
+  id: number;
   name?: string;
   x?: number;
   y?: number;
@@ -9,8 +7,8 @@ export interface SerializedNode {
 }
 
 export interface SerializedLink {
-  source: Id;
-  target: Id;
+  source: number;
+  target: number;
   weight: number;
 }
 

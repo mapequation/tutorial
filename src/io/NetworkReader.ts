@@ -1,4 +1,3 @@
-import type { Id } from '../model';
 import type {
   SerializedLink,
   SerializedNetwork,
@@ -56,7 +55,7 @@ class NetworkReader {
       }
     }
 
-    const nodeIds: Set<Id> = new Set();
+    const nodeIds: Set<number> = new Set();
 
     links.forEach((link) => {
       nodeIds.add(link.source);

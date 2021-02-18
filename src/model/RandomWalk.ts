@@ -1,5 +1,7 @@
-import type { Network, Node } from './index';
-import { Teleportation, weightedRandom } from './index';
+import type Network from './Network';
+import type Node from './Node';
+import { Teleportation } from './enums';
+import { weightedRandom } from './random';
 import { action, makeObservable, observable } from 'mobx';
 
 export default class RandomWalk {
@@ -36,8 +38,6 @@ export default class RandomWalk {
       // FIXME should run in constructor only
       this.prev = this.current = this.network.randomNode();
     }
-
-    this.network.showVisitRate = true; // FIXME move this?
 
     if (Math.random() < this.teleportRate || this.current.degree == 0) {
       return this.teleport();

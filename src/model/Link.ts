@@ -1,4 +1,4 @@
-import type { Id, Node } from './index';
+import type Node from './Node';
 import type { SerializedLink } from '../io/interfaces';
 import type { SimulationLinkDatum } from 'd3';
 
@@ -17,7 +17,7 @@ class Link implements SimulationLinkDatum<Node> {
     this.weight = weight;
   }
 
-  static deserialize(link: SerializedLink, nodeMap: Map<Id, Node>): Link {
+  static deserialize(link: SerializedLink, nodeMap: Map<number, Node>): Link {
     let source = nodeMap.get(link.source);
     let target = nodeMap.get(link.target);
 
