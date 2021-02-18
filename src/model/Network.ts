@@ -6,15 +6,16 @@ import type {
   ParserInterface,
   SerializedLink,
   SerializedNetwork,
+  SerializedNode,
 } from '../io/interfaces';
 import RandomWalk from './RandomWalk';
-import { computed, makeObservable, observable } from 'mobx';
+import { computed, makeObservable } from 'mobx';
 import MapEquation from './MapEquation';
 import PageRank from './PageRank';
 
 type Id = number;
 
-class Network {
+export default class Network {
   private _nodes: Map<Id, Node> = new Map();
   links: Link[] = [];
   flowModel: FlowModel;
@@ -25,6 +26,7 @@ class Network {
 
   constructor(flowModel: FlowModel = FlowModel.Directed) {
     this.flowModel = flowModel;
+
     this.walker = new RandomWalk(this);
     this.mapequation = new MapEquation(this);
     this.flowCalculator = new PageRank(this);
@@ -38,14 +40,8 @@ class Network {
     return Array.from(this._nodes.values());
   }
 
-  getNode(id: Id): Node {
-    let node = this._nodes.get(id);
-
-    if (!node) {
-      throw new Error('Node not found');
-    }
-
-    return node;
+  getNode(id: Id): Node | null {
+    return this._nodes.get(id) ?? null;
   }
 
   randomNode(): Node {
@@ -61,51 +57,55 @@ class Network {
     return this.nodes.some((node) => node.module !== 0);
   }
 
-  static parse(
-    network: SerializedNetwork,
-    scalePositions: boolean = true,
-  ): Network {
-    const {
-      flowModel: flowModelStr,
-      nodes: serializedNodes,
-      links: serializedLinks,
-    } = network;
+  addNode(node: number | SerializedNode): Node {
+    const n =
+      typeof node == 'number'
+        ? new Node(this, node)
+        : new Node(this, node.id, {
+            module: node.bestmodule || 0,
+            ...node,
+          });
 
-    const flowModel =
-      flowModelStr === 'directed' ? FlowModel.Directed : FlowModel.Undirected;
+    this._nodes.set(n.id, n);
 
-    let net = new Network(flowModel);
+    return n;
+  }
 
-    let nodes = serializedNodes.map((node) => Node.deserialize(node, net));
+  addLink({
+    source,
+    target,
+    weight = 1.0,
+  }: {
+    source: number;
+    target: number;
+    weight: number;
+  }) {
+    const sourceNode = this.getNode(source) || this.addNode(source);
+    const targetNode = this.getNode(target) || this.addNode(target);
 
-    const nodeMap = new Map(nodes.map((node) => [node.id, node]));
-    net._nodes = nodeMap;
+    const link = new Link(sourceNode, targetNode, weight);
 
-    if (scalePositions) {
-      nodes.forEach((node) => {
-        node.x *= 800;
-        node.y *= 800;
-      });
-    }
+    sourceNode.addLink(link);
 
-    const toParse = net.directed
-      ? serializedLinks
-      : aggregateLinks(serializedLinks);
+    this.links.push(link);
+  }
 
-    net.links = toParse.map((link) => Link.deserialize(link, nodeMap));
+  static parse(network: SerializedNetwork): Network {
+    const { flowModel, nodes, links } = network;
 
-    for (let link of net.links) {
-      link.source.addLink(link);
-    }
+    const self = new Network(flowModel as FlowModel);
 
-    return net;
+    nodes.forEach((node) => self.addNode(node));
+    links.forEach((link) => self.addLink(link));
+
+    return self;
   }
 
   static parseString(
     lines: string,
     parser: ParserInterface = NetworkReader.parse,
   ): Network {
-    return Network.parse(parser(lines), false);
+    return Network.parse(parser(lines));
   }
 }
 
@@ -143,5 +143,3 @@ function aggregateLinks(links: SerializedLink[]): SerializedLink[] {
 
   return aggregated;
 }
-
-export default Network;

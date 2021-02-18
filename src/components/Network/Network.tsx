@@ -28,7 +28,7 @@ function Network({
     10 + 200 * (showVisitRate ? node.visitRate : node.flow);
 
   const nodeFill = (node: NodeModel): string => {
-    if (showVisitRate && network.walker.current.id == node.id) {
+    if (showVisitRate && network.walker.current?.id === node.id) {
       return network.walker.teleported ? '#FE3265' : '#00ACDA';
     }
 

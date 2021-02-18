@@ -188,7 +188,7 @@ export default class PageRank {
 
     let sumNodeRank = 1.0;
 
-    if (teleportModel == Teleportation.Unrecorded) {
+    if (teleportModel === Teleportation.Unrecorded) {
       sumNodeRank -= danglingRank;
 
       nodeFlow = new Array(numNodes).fill(0.0);
@@ -210,7 +210,9 @@ export default class PageRank {
     for (let source of nodes) {
       const sourceIndex = nodeIndexMap[source];
       const node = network.getNode(source);
-      node.flow = nodeFlow[sourceIndex];
+      if (node) {
+        node.flow = nodeFlow[sourceIndex];
+      }
 
       for (let link of links) {
         if (link.source.id === source) {
@@ -241,8 +243,11 @@ export default class PageRank {
 
     for (let link of links) {
       link.flow = link.weight / (0.5 * sumUndirLinkWeight);
+      // sum to 1?
 
       const linkFlow = link.weight / sumUndirLinkWeight;
+
+      // TODO source and target?
       if (link.source.id in nodeFlowMap) {
         nodeFlowMap[link.source.id] += linkFlow;
       } else {

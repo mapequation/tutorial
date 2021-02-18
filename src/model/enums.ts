@@ -1,6 +1,6 @@
 export enum FlowModel {
-  Directed,
-  Undirected,
+  Directed = 'directed',
+  Undirected = 'undirected',
 }
 
 export enum Teleportation {

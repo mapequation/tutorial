@@ -21,6 +21,12 @@ class App extends React.Component<AppProps> {
     const network = NetworkModel.parse(modular_wd_json);
     network.flowCalculator.calculateFlow();
 
+    // TODO generalize and remove
+    network.nodes.forEach((node) => {
+      node.x *= 800;
+      node.y *= 800;
+    });
+
     this.setState({ loading: false, network });
 
     /*forceDirected(network, 600, 600).then(() =>
