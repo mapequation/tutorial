@@ -6,13 +6,13 @@ import Bar from './Bar';
 import OverflowMask from './OverflowMask';
 import { schemePastel2, schemeSet2 } from 'd3';
 
-interface HistogramProps {
+interface Props {
   network: Network;
   width?: number;
   height?: number;
 }
 
-function Histogram({ network, width = 800, height = 800 }: HistogramProps) {
+function Histogram({ network, width = 800, height = 800 }: Props) {
   const { nodes } = network;
 
   const [viewBoxWidth, viewBoxHeight] = [1000, 800];

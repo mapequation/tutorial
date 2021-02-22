@@ -13,5 +13,6 @@ export default function Bar({
 }: Props & SVGProps<SVGRectElement>) {
   const animatedProps = useSpring({ y, height });
 
+  // @ts-ignore
   return <animated.rect {...animatedProps} width={10} rx={2} {...props} />;
 }

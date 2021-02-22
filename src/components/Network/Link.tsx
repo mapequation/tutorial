@@ -19,7 +19,7 @@ const linkPosition = (link: Link, r1: number, r2: number) => {
   };
 };
 
-interface LinkProps {
+interface Props {
   link: Link;
   sourceRadius: number;
   targetRadius: number;
@@ -30,7 +30,7 @@ export default ({
   sourceRadius,
   targetRadius,
   ...props
-}: LinkProps & SVGProps<SVGLineElement>) => {
+}: Props & SVGProps<SVGLineElement>) => {
   return (
     <line
       className="link"

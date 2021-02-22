@@ -1,12 +1,12 @@
 import React, { SVGProps } from 'react';
 
-export default function OverflowMask(
-  props: {
-    numPoints: number;
-    width: number;
-    height: number;
-  } & SVGProps<SVGMaskElement>,
-) {
+interface Props {
+  numPoints: number;
+  width: number;
+  height: number;
+}
+
+export default function OverflowMask(props: Props & SVGProps<SVGMaskElement>) {
   const { id, numPoints, width, height } = props;
 
   /*

@@ -18,6 +18,6 @@ export interface SerializedNetwork {
   links: SerializedLink[];
 }
 
-export interface ParserInterface {
+export interface Parser {
   (lines: string): SerializedNetwork;
 }

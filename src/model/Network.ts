@@ -3,7 +3,7 @@ import Node from './Node';
 import { FlowModel } from './enums';
 import { NetworkReader } from '../io';
 import type {
-  ParserInterface,
+  Parser,
   SerializedNetwork,
   SerializedNode,
 } from '../io/interfaces';
@@ -115,7 +115,7 @@ export default class Network {
 
   static parseString(
     lines: string,
-    parser: ParserInterface = NetworkReader.parse,
+    parser: Parser = NetworkReader.parse,
   ): Network {
     return Network.parse(parser(lines));
   }

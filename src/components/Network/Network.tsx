@@ -11,7 +11,7 @@ import type {
 import { observer } from 'mobx-react';
 import Svg from '../Svg';
 
-interface NetworkParams {
+interface Props {
   network: NetworkModel;
   showVisitRate: boolean;
 }
@@ -20,7 +20,7 @@ function Network({
   network,
   showVisitRate,
   ...props
-}: NetworkParams & SVGProps<SVGSVGElement>) {
+}: Props & SVGProps<SVGSVGElement>) {
   const arrowId = 'arrow';
   const markerEnd = network.directed ? `url(#${arrowId})` : undefined;
 

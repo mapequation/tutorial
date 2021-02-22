@@ -4,12 +4,12 @@ import type Network from './Network';
 import { weightedRandom } from './random';
 import { computed, makeObservable, observable } from 'mobx';
 
-type NodeParams = {
+interface Params {
   x?: number;
   y?: number;
   name?: string;
   path?: string;
-};
+}
 
 export default class Node implements SimulationNodeDatum {
   id: number;
@@ -34,7 +34,7 @@ export default class Node implements SimulationNodeDatum {
   constructor(
     network: Network,
     id: number,
-    { x = 0, y = 0, name = '', path = '0' }: NodeParams = {},
+    { x = 0, y = 0, name = '', path = '0' }: Params = {},
   ) {
     makeObservable(this, {
       flow: observable,

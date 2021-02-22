@@ -9,5 +9,6 @@ interface Props {
 export default ({ r, fill, ...props }: Props & SVGProps<SVGCircleElement>) => {
   const animatedProps = useSpring({ r, fill });
 
+  // @ts-ignore
   return <animated.circle {...animatedProps} className="node" {...props} />;
 };
