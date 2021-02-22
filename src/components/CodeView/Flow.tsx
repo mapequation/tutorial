@@ -14,5 +14,5 @@ export default function ({ y, ...props }: Props & SVGProps<SVGRectElement>) {
     (x, y)
 
    */
-  return <rect y={y + props.height} {...props} />;
+  return <rect y={y - props.height} {...props} />;
 }

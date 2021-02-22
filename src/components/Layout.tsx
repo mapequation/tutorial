@@ -23,17 +23,6 @@ export default function Layout(props: { network: NetworkModel }) {
       <ToggleWalkButton onClick={step} />
       <RateView network={network} />
       <CodeView network={network} />
-      <br />
-      {'One-level codelength'}{' '}
-      {network.mapequation.oneLevelCodelength.toFixed(3)} {'bits'}
-      <br />
-      {'Index codelength'} {network.mapequation.indexCodelength.toFixed(3)}{' '}
-      {'bits'}
-      <br />
-      {'Module codelength'} {network.mapequation.moduleCodelength.toFixed(3)}{' '}
-      {'bits'}
-      <br />
-      {'Codelength'} {network.mapequation.codelength.toFixed(3)} {'bits'}
     </>
   );
 }

@@ -1,7 +1,7 @@
 import React from 'react';
 import Svg from '../Svg';
 import type { Network } from '../../model';
-import Module from './Module';
+import Diagram from './Diagram';
 
 interface Props {
   network: Network;
@@ -9,19 +9,30 @@ interface Props {
   height?: number;
 }
 
-export default function ({ network, height = 800, width = 800 }: Props) {
-  const [viewBoxWidth, viewBoxHeight] = [1000, 800];
+export default function ({ network, width = 700, height = 700 }: Props) {
+  const [viewBoxWidth, viewBoxHeight] = [1000, 1000];
   const viewBox = `0 0 ${viewBoxWidth} ${viewBoxHeight}`;
 
   return (
-    <Svg className="codeView" height={height} width={width} viewBox={viewBox}>
-      <Module
-        module={network.tree.root}
-        x={0}
-        y={viewBoxHeight}
-        width={200}
-        exitFlow={0}
-      />
-    </Svg>
+    <>
+      <Svg className="codeView" width={width} height={height} viewBox={viewBox}>
+        <Diagram
+          root={network.tree.root}
+          width={viewBoxWidth}
+          height={viewBoxHeight}
+        />
+      </Svg>
+      <br />
+      {'One-level codelength'}{' '}
+      {network.mapequation.oneLevelCodelength.toFixed(3)} {'bits'}
+      <br />
+      {'Index codelength'} {network.mapequation.indexCodelength.toFixed(3)}{' '}
+      {'bits'}
+      <br />
+      {'Module codelength'} {network.mapequation.moduleCodelength.toFixed(3)}{' '}
+      {'bits'}
+      <br />
+      {'Codelength'} {network.mapequation.codelength.toFixed(3)} {'bits'}
+    </>
   );
 }

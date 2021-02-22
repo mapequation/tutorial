@@ -11,6 +11,8 @@ export class TreeNode {
 
   x = 0;
   y = 0;
+  height = 0;
+  index = 0;
 
   parent: TreeNode | null;
   children: Map<number, TreeNode> = new Map();
@@ -59,7 +61,7 @@ export class TreeNode {
   }
 
   get isLeafNode(): boolean {
-    return this.children.size === 0;
+    return this.parent !== null && this.children.size === 0;
   }
 
   private get arrayChildren(): TreeNode[] {
@@ -72,6 +74,16 @@ export class TreeNode {
 
   map<T>(callback: (item: TreeNode, i?: number) => T): T[] {
     return this.arrayChildren.map(callback);
+  }
+
+  *leafNodes(): Generator<TreeNode> {
+    for (let child of this.children.values()) {
+      if (child.isLeafNode) {
+        yield child;
+      } else {
+        yield* child.leafNodes();
+      }
+    }
   }
 
   *depthFirst(): Generator<TreeNode> {
