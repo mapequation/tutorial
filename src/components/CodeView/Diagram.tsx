@@ -4,6 +4,7 @@ import { TreeNode } from '../../model/Tree';
 import EnterFlow from './EnterFlow';
 import ExitFlow from './ExitFlow';
 import Flow from './Flow';
+import Curve from './Curve';
 
 interface Props {
   root: TreeNode;
@@ -18,8 +19,9 @@ export default function Diagram(props: Props) {
   const modules = root.sort((a, b) => b.enterFlow - a.enterFlow);
 
   const verticalSpace = 5;
-  const horizontalSpace = width - 2 * barWidth;
-  const flowScale = 0.8 * height;
+  const horizontalSpace = width - barWidth - 20;
+  const flowScale = 0.7 * height;
+  const minFlow = 0.001;
 
   const x = 0;
   const y = height;
@@ -43,7 +45,6 @@ export default function Diagram(props: Props) {
     strokeWidth: 2,
   });
 
-  const minFlow = 0.001;
   const exitFlowNodes = modules.map((module) => {
     const exitFlowNode = new TreeNode(module, module.id);
     exitFlowNode.exitFlow = module.exitFlow > 0 ? module.exitFlow : minFlow;
@@ -70,9 +71,11 @@ export default function Diagram(props: Props) {
 
   return (
     <g>
-      {modules.map((module) => (
-        <EnterFlow {...getProps(module)} />
-      ))}
+      <g id="modules">
+        {modules.map((module) => (
+          <EnterFlow {...getProps(module)} />
+        ))}
+      </g>
       <g id="nodes">
         {nodes.map((node) =>
           node.exitFlow > 0 ? (
@@ -81,6 +84,20 @@ export default function Diagram(props: Props) {
             <Flow {...getProps(node)} />
           ),
         )}
+      </g>
+      <g id="curves">
+        {nodes.map(({ parent, x, y, height }) => (
+          <Curve
+            x1={parent!.x}
+            y1={parent!.y}
+            h1={parent!.height}
+            x2={x}
+            y2={y}
+            h2={height}
+            stroke={schemePastel2[parent!.id]}
+            width={barWidth}
+          />
+        ))}
       </g>
     </g>
   );
