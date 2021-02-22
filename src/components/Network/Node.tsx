@@ -1,5 +1,13 @@
 import React, { SVGProps } from 'react';
+import { useSpring, animated } from 'react-spring';
 
-export default ({ ...props }: SVGProps<SVGCircleElement>) => {
-  return <circle className="node" {...props} />;
+interface Props {
+  r: number;
+  fill: string;
+}
+
+export default ({ r, fill, ...props }: Props & SVGProps<SVGCircleElement>) => {
+  const animatedProps = useSpring({ r, fill });
+
+  return <animated.circle {...animatedProps} className="node" {...props} />;
 };
