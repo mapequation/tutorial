@@ -1,16 +1,19 @@
 import React, { useState } from 'react';
 import { Button } from 'semantic-ui-react';
 
-export default function ToggleWalkButton(props: { onClick: () => void }) {
-  const { onClick } = props;
+interface Props {
+  onClick: () => void;
+  interval?: 200;
+}
 
-  let [id, setId] = useState(0);
+export default function ToggleWalkButton({ onClick, interval = 200 }: Props) {
+  const [id, setId] = useState(0);
 
   const positive = id === 0;
 
   const toggle = () => {
     if (positive) {
-      let intervalId = window.setInterval(onClick, 200);
+      let intervalId = window.setInterval(onClick, interval);
       setId(intervalId);
     } else {
       clearInterval(id);
