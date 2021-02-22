@@ -3,7 +3,6 @@ import type Link from './Link';
 import type Network from './Network';
 import { weightedRandom } from './random';
 import { computed, makeObservable, observable } from 'mobx';
-import type { Module } from './Tree';
 
 type NodeParams = {
   x?: number;
@@ -19,12 +18,9 @@ export default class Node implements SimulationNodeDatum {
   path: string;
   outLinks: Link[] = [];
 
-  parent: Module | null = null;
   network: Network;
 
   flow: number = 0.0;
-  enterFlow: number = 0.0;
-  exitFlow: number = 0.0;
   visits: number = 0;
   votes: number = 0;
 

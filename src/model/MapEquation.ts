@@ -1,6 +1,6 @@
 import { computed, makeObservable } from 'mobx';
 import type Network from './Network';
-import type { Module } from './Tree';
+import type { TreeNode } from './Tree';
 
 const divide = (xs: number[], numerator: number): number[] => {
   for (let i = 0; i < xs.length; ++i) {
@@ -29,6 +29,8 @@ export default class MapEquation {
       oneLevelCodelength: computed,
       codelength: computed,
       indexCodelength: computed,
+      indexCodelengths: computed,
+      moduleCodelength: computed,
       moduleCodelengths: computed,
     });
   }
@@ -36,16 +38,16 @@ export default class MapEquation {
   calculateCodelength() {
     const { tree } = this.network;
 
-    for (let module of tree.depthFirstModules()) {
-      if (module.isLeaf) {
-        MapEquation.calculateModuleCodelength(module);
+    for (let treeNode of tree.depthFirstModules()) {
+      if (treeNode.isLeafModule) {
+        MapEquation.calculateModuleCodelength(treeNode);
       } else {
-        MapEquation.calculateIndexCodelength(module);
+        MapEquation.calculateIndexCodelength(treeNode);
       }
     }
   }
 
-  static calculateModuleCodelength(module: Module): number {
+  static calculateModuleCodelength(module: TreeNode): number {
     const p = [module.exitFlow, ...module.map((node) => node.flow)];
 
     module.codelength = sum(p) * entropy(p);
@@ -53,7 +55,7 @@ export default class MapEquation {
     return module.codelength;
   }
 
-  static calculateIndexCodelength(module: Module): number {
+  static calculateIndexCodelength(module: TreeNode): number {
     const p = [module.exitFlow, ...module.map((module) => module.enterFlow)];
 
     module.codelength = sum(p) * entropy(p);
@@ -68,17 +70,21 @@ export default class MapEquation {
   }
 
   get indexCodelength(): number {
+    return sum(this.indexCodelengths);
+  }
+
+  get indexCodelengths(): number[] {
     const { tree } = this.network;
 
-    let codelength = 0;
+    const codelengths = [];
 
     for (let module of tree.depthFirstModules()) {
-      if (!module.isLeaf) {
-        codelength += module.codelength;
+      if (!module.isLeafModule) {
+        codelengths.push(module.codelength);
       }
     }
 
-    return codelength;
+    return codelengths;
   }
 
   get moduleCodelength(): number {
@@ -91,7 +97,7 @@ export default class MapEquation {
     const codelengths = [];
 
     for (let module of tree.depthFirstModules()) {
-      if (module.isLeaf) {
+      if (module.isLeafModule) {
         codelengths.push(module.codelength);
       }
     }

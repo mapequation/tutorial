@@ -1,35 +1,84 @@
-import Node from './Node';
 import type Network from './Network';
 
-export class Module {
+export class TreeNode {
+  id: number;
+
   flow = 0;
   enterFlow = 0;
   exitFlow = 0;
+
   codelength = 0;
 
-  parent: Module | null;
-  children: Map<number, Module | Node> = new Map();
+  x = 0;
+  y = 0;
 
-  constructor(parent: Module | null) {
+  parent: TreeNode | null;
+  children: Map<number, TreeNode> = new Map();
+
+  constructor(parent: TreeNode | null, id: number = -1) {
     this.parent = parent;
+    this.id = id;
   }
 
-  get isLeaf(): boolean {
-    if (this.children.size === 0) return true;
+  add(id: number): TreeNode {
+    const child = new TreeNode(this, id);
+    this.children.set(id, child);
+    return child;
+  }
+
+  has(id: number): boolean {
+    return this.children.has(id);
+  }
+
+  get(id: number): TreeNode | null {
+    return this.children.get(id) || null;
+  }
+
+  getLeaf(id: number): TreeNode | null {
+    if (this.isLeafModule) {
+      return this.has(id) ? this.get(id) : null;
+    }
+
+    for (let child of this.children.values()) {
+      const found = child.getLeaf(id);
+      if (found) return found;
+    }
+
+    return null;
+  }
+
+  get isRoot(): boolean {
+    return this.parent === null;
+  }
+
+  get isLeafModule(): boolean {
+    if (this.children.size === 0) return false;
 
     const first = this.children.values().next().value;
-    return first instanceof Node;
+    return first.isLeafNode;
   }
 
-  map<T>(callback: (item: Module | Node, i?: number) => T): T[] {
-    return Array.from(this.children.values()).map(callback);
+  get isLeafNode(): boolean {
+    return this.children.size === 0;
   }
 
-  *depthFirst(): Generator<Module> {
+  private get arrayChildren(): TreeNode[] {
+    return Array.from(this.children.values());
+  }
+
+  sort(compareFn: (a: TreeNode, b: TreeNode) => number): TreeNode[] {
+    return this.arrayChildren.sort(compareFn);
+  }
+
+  map<T>(callback: (item: TreeNode, i?: number) => T): T[] {
+    return this.arrayChildren.map(callback);
+  }
+
+  *depthFirst(): Generator<TreeNode> {
     yield this;
 
     for (let child of this.children.values()) {
-      if (child instanceof Module) {
+      if (!child.isLeafNode) {
         yield* child.depthFirst();
       }
     }
@@ -37,7 +86,7 @@ export class Module {
 }
 
 export default class Tree {
-  root = new Module(null);
+  root = new TreeNode(null);
   network: Network;
 
   constructor(network: Network) {
@@ -45,27 +94,29 @@ export default class Tree {
   }
 
   update() {
-    this.root = new Module(null);
+    this.root = new TreeNode(null);
 
     const { root, network } = this;
 
     // 1. Assign nodes to modules
     network.nodes.forEach((node) => {
-      if (!root.children.has(node.module)) {
-        const module = new Module(root);
-        root.children.set(node.module, module);
+      if (!root.has(node.module)) {
+        root.add(node.module);
       }
 
-      const module = root.children.get(node.module)! as Module;
+      const parent = root.get(node.module)!;
 
-      module.children.set(node.id, node);
-      node.parent = module;
+      const child = parent.add(node.id);
+      child.flow = node.flow;
     });
 
     // 2. Add enter/exit-flow to modules
     network.links.forEach(({ source, target, flow }) => {
-      let sourceParent = source.parent;
-      let targetParent = target.parent;
+      const sourceNode = root.getLeaf(source.id)!;
+      const targetNode = root.getLeaf(target.id)!;
+
+      let sourceParent = sourceNode.parent;
+      let targetParent = targetNode.parent;
 
       // Note: assumes at same level
       // TODO in general, need to equalize levels
@@ -79,7 +130,7 @@ export default class Tree {
     });
   }
 
-  *depthFirstModules(): Generator<Module> {
+  *depthFirstModules(): Generator<TreeNode> {
     yield* this.root.depthFirst();
   }
 }

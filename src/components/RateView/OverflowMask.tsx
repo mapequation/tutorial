@@ -10,7 +10,7 @@ export default function OverflowMask(
   const { id, numPoints, width, height } = props;
 
   /*
-    Drawn clock-wise with one "point" having the width 2 * dx
+    Drawn counter clock-wise with one "point" having the width 2 * dx
 
     (0, 0)
     |                    |

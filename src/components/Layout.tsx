@@ -4,6 +4,7 @@ import type { Network as NetworkModel } from '../model';
 import Network from './Network';
 import ToggleWalkButton from './ToggleWalkButton';
 import RateView from './RateView';
+import CodeView from './CodeView';
 
 export default function Layout(props: { network: NetworkModel }) {
   const { network } = props;
@@ -21,6 +22,7 @@ export default function Layout(props: { network: NetworkModel }) {
       <Button onClick={step}>Step</Button>
       <ToggleWalkButton onClick={step} />
       <RateView network={network} />
+      <CodeView network={network} />
       <br />
       {'One-level codelength'}{' '}
       {network.mapequation.oneLevelCodelength.toFixed(3)} {'bits'}

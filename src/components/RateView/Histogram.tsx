@@ -46,6 +46,7 @@ function Histogram({ network, width = 800, height = 800 }: HistogramProps) {
   });
 
   const moduleFlow = (node: Node) => {
+    // TODO remove
     let totFlow = 0.0;
 
     for (let { module, flow } of nodes) {
@@ -63,7 +64,7 @@ function Histogram({ network, width = 800, height = 800 }: HistogramProps) {
   };
 
   return (
-    <Svg className="histogram" width={width} height={height} viewBox={viewBox}>
+    <Svg className="rateView" width={width} height={height} viewBox={viewBox}>
       <defs>
         <OverflowMask
           id="bar-overflow"
@@ -73,7 +74,7 @@ function Histogram({ network, width = 800, height = 800 }: HistogramProps) {
         />
       </defs>
       {nodes.sort(byFlow).map((node, i) => (
-        <Bar fill="#fafafa" stroke="#888" {...barProps(i, node.flow)} />
+        <Bar fill="#fafafa" stroke="#aaa" {...barProps(i, node.flow)} />
       ))}
       {nodes.sort(byFlow).map((node, i) => (
         <Bar
