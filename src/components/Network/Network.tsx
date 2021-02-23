@@ -1,5 +1,5 @@
 import React, { SVGProps } from 'react';
-import { schemePastel2, schemeSet2 } from 'd3';
+import { scaleSqrt, schemePastel2, schemeSet2 } from 'd3';
 import Link from './Link';
 import Node from './Node';
 import ArrowMarker from './ArrowMarker';
@@ -24,8 +24,10 @@ function Network({
   const arrowId = 'arrow';
   const markerEnd = network.directed ? `url(#${arrowId})` : undefined;
 
+  const nodeScale = scaleSqrt().domain([0, 1]).range([10, 100]);
+
   const nodeRadius = (node: NodeModel): number =>
-    10 + 200 * (showVisitRate ? node.visitRate : node.flow);
+    nodeScale(showVisitRate ? node.visitRate : node.flow);
 
   const nodeFill = (node: NodeModel): string => {
     if (showVisitRate && network.walker.current?.id === node.id) {
@@ -45,9 +47,13 @@ function Network({
 
   return (
     <Svg
+      style={{
+        borderRadius: '10px',
+        border: 'solid 2px #eee',
+      }}
       className="network"
-      width={800}
-      height={800}
+      width="40vw"
+      height="40vw"
       viewBox="0 0 800 800"
       {...props}
     >

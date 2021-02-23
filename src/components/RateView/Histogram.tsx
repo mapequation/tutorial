@@ -5,14 +5,15 @@ import Svg from '../Svg';
 import Bar from './Bar';
 import OverflowMask from './OverflowMask';
 import { schemePastel2, schemeSet2 } from 'd3';
+import Convergence from './Convergence';
 
 interface Props {
   network: Network;
-  width?: number;
-  height?: number;
+  width?: number | string;
+  height?: number | string;
 }
 
-function Histogram({ network, width = 800, height = 800 }: Props) {
+function Histogram({ network, width = '40vw', height = '30vw' }: Props) {
   const { nodes } = network;
 
   const [viewBoxWidth, viewBoxHeight] = [1000, 800];
@@ -64,26 +65,29 @@ function Histogram({ network, width = 800, height = 800 }: Props) {
   };
 
   return (
-    <Svg className="rateView" width={width} height={height} viewBox={viewBox}>
-      <defs>
-        <OverflowMask
-          id="bar-overflow"
-          numPoints={3 * nodes.length}
-          width={viewBoxWidth}
-          height={200} // NOTE this is the height from the top of the viewBox
-        />
-      </defs>
-      {nodes.sort(byFlow).map((node, i) => (
-        <Bar fill="#fafafa" stroke="#aaa" {...barProps(i, node.flow)} />
-      ))}
-      {nodes.sort(byFlow).map((node, i) => (
-        <Bar
-          {...barFillStroke(node)}
-          opacity={0.6}
-          {...barProps(i, node.visitRate)}
-        />
-      ))}
-    </Svg>
+    <>
+      <Svg className="rateView" width={width} height={height} viewBox={viewBox}>
+        <defs>
+          <OverflowMask
+            id="bar-overflow"
+            numPoints={3 * nodes.length}
+            width={viewBoxWidth}
+            height={200} // NOTE this is the height from the top of the viewBox
+          />
+        </defs>
+        {nodes.sort(byFlow).map((node, i) => (
+          <Bar fill="#fafafa" stroke="#aaa" {...barProps(i, node.flow)} />
+        ))}
+        {nodes.sort(byFlow).map((node, i) => (
+          <Bar
+            {...barFillStroke(node)}
+            opacity={0.6}
+            {...barProps(i, node.visitRate)}
+          />
+        ))}
+      </Svg>
+      <Convergence network={network} />
+    </>
   );
 }
 

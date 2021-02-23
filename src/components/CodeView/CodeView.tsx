@@ -5,11 +5,11 @@ import Diagram from './Diagram';
 
 interface Props {
   network: Network;
-  width?: number;
-  height?: number;
+  width?: number | string;
+  height?: number | string;
 }
 
-export default function ({ network, width = 700, height = 700 }: Props) {
+export default function ({ network, width = '40vw', height = '40vw' }: Props) {
   const [viewBoxWidth, viewBoxHeight] = [1000, 1000];
   const viewBox = `0 0 ${viewBoxWidth} ${viewBoxHeight}`;
 
