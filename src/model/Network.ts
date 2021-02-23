@@ -8,11 +8,11 @@ import type {
   SerializedNode,
 } from '../io/interfaces';
 import {
-  RandomWalker,
+  IterativeVoter,
   MapEquation,
   PageRank,
+  RandomWalker,
   Tree,
-  IterativeVoter,
 } from './algorithms';
 import { computed, makeObservable } from 'mobx';
 
