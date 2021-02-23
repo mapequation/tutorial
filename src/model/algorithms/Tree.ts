@@ -33,7 +33,7 @@ export class TreeNode {
   }
 
   get(id: number): TreeNode | null {
-    return this.children.get(id) || null;
+    return this.children.get(id) ?? null;
   }
 
   getLeaf(id: number): TreeNode | null {

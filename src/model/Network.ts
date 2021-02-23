@@ -7,7 +7,13 @@ import type {
   SerializedNetwork,
   SerializedNode,
 } from '../io/interfaces';
-import { RandomWalker, MapEquation, PageRank, Tree } from './algorithms';
+import {
+  RandomWalker,
+  MapEquation,
+  PageRank,
+  Tree,
+  IterativeVoter,
+} from './algorithms';
 import { computed, makeObservable } from 'mobx';
 
 type Id = number;
@@ -15,12 +21,14 @@ type Id = number;
 export default class Network {
   private _nodes: Map<Id, Node> = new Map();
   links: Link[] = [];
+
   flowModel: FlowModel;
 
   tree: Tree;
   walker: RandomWalker;
   mapequation: MapEquation;
   flowCalculator: PageRank;
+  voter: IterativeVoter;
 
   constructor(flowModel: FlowModel = FlowModel.Directed) {
     this.flowModel = flowModel;
@@ -29,6 +37,7 @@ export default class Network {
     this.walker = new RandomWalker(this);
     this.mapequation = new MapEquation(this);
     this.flowCalculator = new PageRank(this);
+    this.voter = new IterativeVoter(this);
 
     makeObservable(this, {
       haveModules: computed,
@@ -37,6 +46,10 @@ export default class Network {
 
   get nodes(): Node[] {
     return Array.from(this._nodes.values());
+  }
+
+  get numNodes(): number {
+    return this._nodes.size;
   }
 
   getNode(id: Id): Node | null {
@@ -53,7 +66,9 @@ export default class Network {
   }
 
   get haveModules(): boolean {
-    return this.nodes.some((node) => node.module !== 0);
+    const moduleIds = new Set(this.nodes.map((node) => node.module));
+
+    return moduleIds.size > 1;
   }
 
   addNode(node: number | SerializedNode): Node {
