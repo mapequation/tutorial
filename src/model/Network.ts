@@ -52,6 +52,14 @@ export default class Network {
     return this._nodes.size;
   }
 
+  get totalLinkWeight(): number {
+    return this.links.reduce((weight, link) => weight + link.weight, 0.0);
+  }
+
+  get danglingNodes(): Node[] {
+    return this.nodes.filter((node) => node.isDangling);
+  }
+
   getNode(id: Id): Node | null {
     return this._nodes.get(id) ?? null;
   }

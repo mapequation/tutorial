@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { observer } from 'mobx-react';
 import type { Network, Node } from '../../model';
 import Svg from '../Svg';
@@ -6,6 +6,7 @@ import Bar from './Bar';
 import OverflowMask from './OverflowMask';
 import { schemePastel2, schemeSet2 } from 'd3';
 import Convergence from './Convergence';
+import { Button, Header, Icon } from 'semantic-ui-react';
 
 interface Props {
   network: Network;
@@ -15,6 +16,17 @@ interface Props {
 
 function Histogram({ network, width = '40vw', height = '30vw' }: Props) {
   const { nodes } = network;
+
+  const [showVotes, setShowVotes] = useState(false);
+
+  const initVotes = () => {
+    network.voter.initialize();
+    setShowVotes(true);
+  };
+  const vote = () => network.voter.vote();
+
+  const rate = (node: Node): number =>
+    showVotes ? node.votes : node.visitRate;
 
   const [viewBoxWidth, viewBoxHeight] = [1000, 800];
   const viewBox = `0 0 ${viewBoxWidth} ${viewBoxHeight}`;
@@ -82,11 +94,18 @@ function Histogram({ network, width = '40vw', height = '30vw' }: Props) {
           <Bar
             {...barFillStroke(node)}
             opacity={0.6}
-            {...barProps(i, node.visitRate)}
+            {...barProps(i, rate(node))}
           />
         ))}
       </Svg>
-      <Convergence network={network} />
+      <Convergence network={network} rate={rate} />
+      <Header>Iterative voting</Header>
+      <Button onClick={initVotes}>
+        <Icon name="undo alternate" /> Initialize votes
+      </Button>
+      <Button disabled={!showVotes} primary onClick={vote}>
+        <Icon name="step forward" /> Vote
+      </Button>
     </>
   );
 }

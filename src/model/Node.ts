@@ -41,7 +41,6 @@ export default class Node implements SimulationNodeDatum {
       visits: observable,
       votes: observable,
       visitRate: computed,
-      voteRate: computed,
     });
 
     this.network = network;
@@ -58,22 +57,6 @@ export default class Node implements SimulationNodeDatum {
     return totalVisits === 0 ? 0 : this.visits / totalVisits;
   }
 
-  get voteRate(): number {
-    const {
-      network: {
-        numNodes,
-        voter: { totalVotes },
-      },
-      votes,
-    } = this;
-
-    return totalVotes === 0
-      ? numNodes === 0
-        ? 0
-        : 1 / numNodes
-      : votes / totalVotes;
-  }
-
   get module(): number {
     return +this.path;
   }
@@ -82,7 +65,11 @@ export default class Node implements SimulationNodeDatum {
     return this.outLinks.length;
   }
 
-  get isDangling(): number {
+  get outWeight(): number {
+    return this.outLinks.reduce((weight, link) => weight + link.weight, 0.0);
+  }
+
+  get isDangling(): boolean {
     return this.degree === 0;
   }
 

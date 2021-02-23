@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
 import { Progress } from 'semantic-ui-react';
-import type { Network } from '../../model';
+import type { Network, Node } from '../../model';
 
 interface Props {
   network: Network;
+  rate: (node: Node) => number;
 }
 
-export default function ({ network }: Props) {
+export default function ({ network, rate }: Props) {
   const error = network.nodes.reduce((tot, node) => {
-    const diff = Math.abs(node.visitRate - node.flow);
+    const diff = Math.abs(rate(node) - node.flow);
     return tot + diff;
   }, 0.0);
 

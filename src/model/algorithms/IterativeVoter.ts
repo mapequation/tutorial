@@ -1,8 +1,12 @@
 import type Network from '../Network';
 import { action, makeObservable, observable } from 'mobx';
+import { Teleportation } from '../enums';
 
 export default class IterativeVoter {
   private network: Network;
+
+  teleportRate = 0.15;
+  teleportModel = Teleportation.Unrecorded;
 
   totalVotes = 0;
 
@@ -11,19 +15,58 @@ export default class IterativeVoter {
 
     makeObservable(this, {
       totalVotes: observable,
+      initialize: action,
       vote: action,
     });
   }
 
+  initialize() {
+    const { numNodes } = this.network;
+
+    this.totalVotes = 0;
+
+    this.network.nodes.forEach((node) => (node.votes = 1 / numNodes));
+  }
+
   vote() {
-    const { nodes } = this.network;
+    const { nodes, danglingNodes, totalLinkWeight } = this.network;
 
-    const next = {};
+    this.totalVotes++;
 
-    const danglingNodes = nodes.filter((node) => node.isDangling);
+    const next: { [nodeId: string]: number } = {};
+    nodes.forEach((node) => (next[node.id] = 0));
+
+    const alpha = this.teleportRate;
+    const beta = 1 - alpha;
+
+    const danglingVotes = danglingNodes.reduce(
+      (votes, node) => votes + node.votes,
+      0.0,
+    );
+
+    const teleportVotes = alpha + beta * danglingVotes;
 
     for (let node of nodes) {
-      const { votes, degree } = node;
+      const { votes, outLinks, outWeight } = node;
+
+      const teleportRate = outWeight / totalLinkWeight;
+
+      next[node.id] += teleportRate * teleportVotes;
+
+      for (let { target, weight } of outLinks) {
+        const linkFlow = weight / outWeight;
+
+        next[target.id] += beta * linkFlow * votes;
+      }
+    }
+
+    const sum = Array.from(Object.values(next)).reduce(
+      (sum, votes) => sum + votes,
+      0.0,
+    );
+
+    for (let [id, votes] of Object.entries(next)) {
+      this.network.getNode(+id)!.votes = votes / sum;
     }
   }
 }
