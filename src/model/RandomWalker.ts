@@ -4,7 +4,7 @@ import { Teleportation } from './enums';
 import { weightedRandom } from './random';
 import { action, makeObservable, observable } from 'mobx';
 
-export default class RandomWalk {
+export default class RandomWalker {
   network: Network;
 
   current: Node | null = null;

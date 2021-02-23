@@ -7,7 +7,7 @@ import type {
   SerializedNetwork,
   SerializedNode,
 } from '../io/interfaces';
-import RandomWalk from './RandomWalk';
+import RandomWalker from './RandomWalker';
 import { computed, makeObservable } from 'mobx';
 import MapEquation from './MapEquation';
 import PageRank from './PageRank';
@@ -21,7 +21,7 @@ export default class Network {
   flowModel: FlowModel;
 
   tree: Tree;
-  walker: RandomWalk;
+  walker: RandomWalker;
   mapequation: MapEquation;
   flowCalculator: PageRank;
 
@@ -29,7 +29,7 @@ export default class Network {
     this.flowModel = flowModel;
 
     this.tree = new Tree(this);
-    this.walker = new RandomWalk(this);
+    this.walker = new RandomWalker(this);
     this.mapequation = new MapEquation(this);
     this.flowCalculator = new PageRank(this);
 
