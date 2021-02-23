@@ -4,12 +4,12 @@ import type { Network, Node } from '../../model';
 
 interface Props {
   network: Network;
-  rate: (node: Node) => number;
+  getRate: (node: Node) => number;
 }
 
-export default function ({ network, rate }: Props) {
+export default function ({ network, getRate }: Props) {
   const error = network.nodes.reduce((tot, node) => {
-    const diff = Math.abs(rate(node) - node.flow);
+    const diff = Math.abs(getRate(node) - node.flow);
     return tot + diff;
   }, 0.0);
 

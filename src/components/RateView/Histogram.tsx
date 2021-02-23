@@ -10,23 +10,29 @@ import { Button, Header, Icon } from 'semantic-ui-react';
 
 interface Props {
   network: Network;
+  getRate: (node: Node) => number;
+  rate: string;
+  setRate: (rate: string) => void;
   width?: number | string;
   height?: number | string;
 }
 
-function Histogram({ network, width = '40vw', height = '30vw' }: Props) {
+function Histogram({
+  network,
+  getRate,
+  rate,
+  setRate,
+  width = '40vw',
+  height = '30vw',
+}: Props) {
   const { nodes } = network;
-
-  const [showVotes, setShowVotes] = useState(false);
 
   const initVotes = () => {
     network.voter.initialize();
-    setShowVotes(true);
+    setRate('votes');
   };
-  const vote = () => network.voter.vote();
 
-  const rate = (node: Node): number =>
-    showVotes ? node.votes : node.visitRate;
+  const vote = () => network.voter.vote();
 
   const [viewBoxWidth, viewBoxHeight] = [1000, 800];
   const viewBox = `0 0 ${viewBoxWidth} ${viewBoxHeight}`;
@@ -94,16 +100,16 @@ function Histogram({ network, width = '40vw', height = '30vw' }: Props) {
           <Bar
             {...barFillStroke(node)}
             opacity={0.6}
-            {...barProps(i, rate(node))}
+            {...barProps(i, getRate(node))}
           />
         ))}
       </Svg>
-      <Convergence network={network} rate={rate} />
+      <Convergence network={network} getRate={getRate} />
       <Header>Iterative voting</Header>
       <Button onClick={initVotes}>
         <Icon name="undo alternate" /> Initialize votes
       </Button>
-      <Button disabled={!showVotes} primary onClick={vote}>
+      <Button disabled={rate !== 'votes'} primary onClick={vote}>
         <Icon name="step forward" /> Vote
       </Button>
     </>

@@ -13,12 +13,12 @@ import Svg from '../Svg';
 
 interface Props {
   network: NetworkModel;
-  showVisitRate: boolean;
+  getRate: (node: NodeModel) => number;
 }
 
 function Network({
   network,
-  showVisitRate,
+  getRate,
   ...props
 }: Props & SVGProps<SVGSVGElement>) {
   const arrowId = 'arrow';
@@ -26,11 +26,10 @@ function Network({
 
   const nodeScale = scaleSqrt().domain([0, 1]).range([10, 100]);
 
-  const nodeRadius = (node: NodeModel): number =>
-    nodeScale(showVisitRate ? node.visitRate : node.flow);
+  const nodeRadius = (node: NodeModel): number => nodeScale(getRate(node));
 
   const nodeFill = (node: NodeModel): string => {
-    if (showVisitRate && network.walker.current?.id === node.id) {
+    if (network.walker.current?.id === node.id) {
       return network.walker.teleported ? '#FE3265' : schemeSet2[node.module];
     }
 
