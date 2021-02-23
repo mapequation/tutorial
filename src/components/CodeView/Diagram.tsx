@@ -4,7 +4,6 @@ import { TreeNode } from '../../model/algorithms/Tree';
 import EnterFlow from './EnterFlow';
 import ExitFlow from './ExitFlow';
 import Flow from './Flow';
-import Curve from './Curve';
 
 interface Props {
   root: TreeNode;
@@ -84,20 +83,6 @@ export default function Diagram(props: Props) {
             <Flow {...getProps(node)} />
           ),
         )}
-      </g>
-      <g id="curves">
-        {nodes.map(({ parent, x, y, height }) => (
-          <Curve
-            x1={parent!.x}
-            y1={parent!.y}
-            h1={parent!.height}
-            x2={x}
-            y2={y}
-            h2={height}
-            stroke={schemePastel2[parent!.id]}
-            width={barWidth}
-          />
-        ))}
       </g>
     </g>
   );
