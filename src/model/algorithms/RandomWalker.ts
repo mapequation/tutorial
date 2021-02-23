@@ -1,11 +1,11 @@
-import type Network from './Network';
-import type Node from './Node';
-import { Teleportation } from './enums';
-import { weightedRandom } from './random';
+import type Network from '../Network';
+import type Node from '../Node';
+import { Teleportation } from '../enums';
+import { weightedRandom } from '../random';
 import { action, makeObservable, observable } from 'mobx';
 
 export default class RandomWalker {
-  network: Network;
+  private network: Network;
 
   current: Node | null = null;
   prev: Node | null = null;

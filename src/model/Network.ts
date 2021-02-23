@@ -7,11 +7,8 @@ import type {
   SerializedNetwork,
   SerializedNode,
 } from '../io/interfaces';
-import RandomWalker from './RandomWalker';
+import { RandomWalker, MapEquation, PageRank, Tree } from './algorithms';
 import { computed, makeObservable } from 'mobx';
-import MapEquation from './MapEquation';
-import PageRank from './PageRank';
-import Tree from './Tree';
 
 type Id = number;
 

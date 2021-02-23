@@ -1,5 +1,5 @@
 import { computed, makeObservable } from 'mobx';
-import type Network from './Network';
+import type Network from '../Network';
 import type { TreeNode } from './Tree';
 
 const divide = (xs: number[], numerator: number): number[] => {
@@ -20,7 +20,7 @@ const entropy = (ps: number[]): number =>
   normalize(ps).reduce((tot, p) => tot - plogp(p), 0.0);
 
 export default class MapEquation {
-  network: Network;
+  private network: Network;
 
   constructor(network: Network) {
     this.network = network;

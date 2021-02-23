@@ -1,6 +1,6 @@
 import React from 'react';
 import { schemePastel2, schemeSet2 } from 'd3';
-import { TreeNode } from '../../model/Tree';
+import { TreeNode } from '../../model/algorithms/Tree';
 import EnterFlow from './EnterFlow';
 import ExitFlow from './ExitFlow';
 import Flow from './Flow';

@@ -1,5 +1,5 @@
-import { Teleportation } from './enums';
-import type Network from './Network';
+import { Teleportation } from '../enums';
+import type Network from '../Network';
 import { action, makeObservable } from 'mobx';
 
 interface NodeFlow {
@@ -13,7 +13,8 @@ interface FlowLink {
 }
 
 export default class PageRank {
-  network: Network;
+  private network: Network;
+
   teleportModel = Teleportation.Unrecorded;
   teleportProb = 0.15;
 

@@ -1,4 +1,4 @@
-import type Network from './Network';
+import type Network from '../Network';
 
 export class TreeNode {
   id: number;
@@ -98,8 +98,9 @@ export class TreeNode {
 }
 
 export default class Tree {
+  private network: Network;
+
   root = new TreeNode(null);
-  network: Network;
 
   constructor(network: Network) {
     this.network = network;
