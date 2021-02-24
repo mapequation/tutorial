@@ -5,8 +5,6 @@ import Svg from '../Svg';
 import Bar from './Bar';
 import OverflowMask from './OverflowMask';
 import { schemePastel2, schemeSet2 } from 'd3';
-import Convergence from './Convergence';
-import { Button, Header, Icon } from 'semantic-ui-react';
 import { Rate } from '../../model/enums';
 
 interface Props {
@@ -105,14 +103,12 @@ function Histogram({
           />
         ))}
       </Svg>
-      <Convergence network={network} getRate={getRate} />
-      <Header>Iterative voting</Header>
-      <Button onClick={initVotes}>
-        <Icon name="undo alternate" /> Initialize votes
-      </Button>
-      <Button disabled={rate !== Rate.Votes} primary onClick={vote}>
-        <Icon name="step forward" /> Vote
-      </Button>
+      Iterative voting
+      <br />
+      <button onClick={initVotes}>Initialize votes</button>
+      <button disabled={rate !== Rate.Votes} onClick={vote}>
+        Vote
+      </button>
     </>
   );
 }

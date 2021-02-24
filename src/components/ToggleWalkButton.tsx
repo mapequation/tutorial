@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { Button, Icon } from 'semantic-ui-react';
 
 interface Props {
   onClick: () => void;
@@ -21,9 +20,5 @@ export default function ToggleWalkButton({ onClick, interval = 200 }: Props) {
     }
   };
 
-  return (
-    <Button positive={positive} negative={!positive} onClick={toggle}>
-      <Icon name={positive ? 'play' : 'stop'} /> {positive ? 'Start' : 'Stop'}
-    </Button>
-  );
+  return <button onClick={toggle}>{positive ? 'Start' : 'Stop'}</button>;
 }

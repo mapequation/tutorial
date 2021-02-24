@@ -1,5 +1,5 @@
 import React from 'react';
-import { Progress } from 'semantic-ui-react';
+//import { Progress } from 'semantic-ui-react';
 import type { Network, Node } from '../../model';
 
 interface Props {
@@ -15,12 +15,13 @@ export default function Convergence({ network, getRate }: Props) {
 
   const percent = Math.round(Math.max(0, 100 * (1 - error)));
 
-  return (
+  return null;
+  /*return (
     <Progress
       style={{ width: '40vw' }}
       percent={percent}
       size="tiny"
       color="grey"
     />
-  );
+  );*/
 }

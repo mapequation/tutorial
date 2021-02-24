@@ -49,10 +49,6 @@ function Network({
 
   return (
     <Svg
-      style={{
-        borderRadius: '10px',
-        border: 'solid 2px #eee',
-      }}
       className="network"
       width="40vw"
       height="40vw"
