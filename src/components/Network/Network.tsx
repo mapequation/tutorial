@@ -16,12 +16,16 @@ interface Props {
   network: NetworkModel;
   rate: Rate;
   getRate: (node: NodeModel) => number;
+  showLabels: boolean;
+  showModules: boolean;
 }
 
 function Network({
   network,
   rate,
   getRate,
+  showLabels,
+  showModules,
   ...props
 }: Props & SVGProps<SVGSVGElement>) {
   const arrowId = 'arrow';
@@ -32,19 +36,29 @@ function Network({
   const nodeRadius = (node: NodeModel): number => nodeScale(getRate(node));
 
   const nodeFill = (node: NodeModel): string => {
-    if (rate === Rate.Visits && network.walker.current?.id === node.id) {
-      return network.walker.teleported ? '#FE3265' : schemeSet2[node.module];
+    if (network.walker.current?.id === node.id) {
+      if (network.walker.teleported) {
+        return '#FE3265';
+      }
+
+      return !showModules ? schemeSet2[0] : schemePastel2[node.module];
     }
 
-    if (!network.haveModules) return '#fafafa';
+    if (!showModules) return schemePastel2[0];
 
     return schemePastel2[node.module];
   };
 
   const nodeStroke = (node: NodeModel): string => {
-    if (!network.haveModules) return '#888888';
+    if (!showModules) return schemeSet2[0];
 
     return schemeSet2[node.module];
+  };
+
+  const nodeLabel = (node: NodeModel): string => {
+    if (!showLabels) return '';
+
+    return node.code;
   };
 
   return (
@@ -78,7 +92,7 @@ function Network({
           x={node.x}
           y={node.y}
           fill={nodeFill(node)}
-          label={node.code}
+          label={nodeLabel(node)}
           stroke={nodeStroke(node)}
           strokeWidth={2}
         />

@@ -9,6 +9,7 @@ export enum Teleportation {
 }
 
 export enum Rate {
+  None,
   Flow,
   Visits,
   Votes,
