@@ -44,7 +44,7 @@ export default class RandomWalker {
     }
 
     this.teleported =
-      Math.random() < this.teleportRate || this.current?.degree == 0;
+      Math.random() < this.teleportRate || this.current?.degree === 0;
 
     if (this.teleported) {
       return this.teleport();
@@ -72,7 +72,7 @@ export default class RandomWalker {
 
     this.setCurrent(this.network.nodes[index]);
 
-    if (this.teleportModel == Teleportation.Recorded) {
+    if (this.teleportModel === Teleportation.Recorded) {
       this.recordVisit();
     }
   }

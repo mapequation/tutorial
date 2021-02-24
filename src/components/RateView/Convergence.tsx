@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Progress } from 'semantic-ui-react';
 import type { Network, Node } from '../../model';
 
@@ -7,7 +7,7 @@ interface Props {
   getRate: (node: Node) => number;
 }
 
-export default function ({ network, getRate }: Props) {
+export default function Convergence({ network, getRate }: Props) {
   const error = network.nodes.reduce((tot, node) => {
     const diff = Math.abs(getRate(node) - node.flow);
     return tot + diff;

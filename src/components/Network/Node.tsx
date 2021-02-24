@@ -9,14 +9,14 @@ interface Props {
   label?: string;
 }
 
-export default ({
+export default function Node({
   r,
   x,
   y,
   fill,
   label,
   ...props
-}: Props & SVGProps<SVGCircleElement>) => {
+}: Props & SVGProps<SVGCircleElement>) {
   const animatedProps = useSpring({ r, fill });
 
   return (
@@ -49,4 +49,4 @@ export default ({
       )}
     </>
   );
-};
+}

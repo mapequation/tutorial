@@ -1,4 +1,4 @@
-export default `*Vertices 25
+const modular_wd = `*Vertices 25
  1 "1"   
  2 "2"   
  3 "3"   
@@ -73,3 +73,5 @@ export default `*Vertices 25
 6 3 1
 5 2 4
 8 7 5`;
+
+export default modular_wd;

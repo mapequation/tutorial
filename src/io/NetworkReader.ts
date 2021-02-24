@@ -4,7 +4,7 @@ import type {
   SerializedNode,
 } from './interfaces';
 
-const enum Context {
+enum Context {
   Nodes,
   Links,
   None,
@@ -19,7 +19,7 @@ class NetworkReader {
     let directed = false;
 
     for (let line of lines.split('\n')) {
-      if (line.startsWith('#') || line.trim().length == 0) {
+      if (line.startsWith('#') || line.trim().length === 0) {
         continue;
       }
 
@@ -41,15 +41,15 @@ class NetworkReader {
         continue;
       }
 
-      if (context == Context.Nodes) {
+      if (context === Context.Nodes) {
         let match = line.trim().match(/^(\d+) "(.+)"/);
         if (match) {
-          const [_, id, name] = match;
+          const [, id, name] = match;
           nodes.push({ id: +id, name });
         } else {
           console.error(`Cannot parse line: "${line}"`);
         }
-      } else if (context == Context.Links) {
+      } else if (context === Context.Links) {
         const [source, target, weight] = line.split(' ');
         links.push({ source: +source, target: +target, weight: +weight });
       }
@@ -70,7 +70,7 @@ class NetworkReader {
     }
 
     // if only links
-    if (nodes.length == 0) {
+    if (nodes.length === 0) {
       nodeIds.forEach((id) => nodes.push({ id, name: id.toString() }));
     }
 

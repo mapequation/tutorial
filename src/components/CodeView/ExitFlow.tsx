@@ -8,7 +8,7 @@ interface Props {
   dx?: number;
 }
 
-export default function ({
+export default function ExitFlow({
   x,
   y,
   width,

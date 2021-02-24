@@ -44,16 +44,13 @@ export default class PageRank {
 
     nodes.forEach((node, i) => (nodeIndexMap[node] = i));
 
-    let numLinks = 0;
     let sumLinkWeight = 0.0;
     let sumSelfLinkWeight = 0.0;
 
     for (let link of links) {
-      numLinks++;
-
       sumLinkWeight += link.weight;
 
-      if (link.source.id == link.target.id) {
+      if (link.source.id === link.target.id) {
         sumSelfLinkWeight += link.weight;
       }
     }
@@ -137,6 +134,7 @@ export default class PageRank {
     let iterationsRemaining = true;
 
     do {
+      // eslint-disable-next-line no-loop-func
       danglingRank = danglingIndices.reduce((sum, i) => sum + nodeFlow[i], 0.0);
 
       const teleportFlow = alpha + beta * danglingRank;
@@ -153,6 +151,7 @@ export default class PageRank {
       const prevError = error;
       error = 0.0;
 
+      // eslint-disable-next-line no-loop-func
       nodeFlowNext.forEach((next, i) => {
         nodeFlowDiff += next;
         error += Math.abs(nodeFlow[i] - next);
@@ -233,7 +232,7 @@ export default class PageRank {
     for (let link of links) {
       sumLinkWeight += link.weight;
 
-      if (link.source.id == link.target.id) {
+      if (link.source.id === link.target.id) {
         sumSelfLinkWeight += link.weight;
       }
     }

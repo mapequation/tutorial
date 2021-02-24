@@ -1,8 +1,8 @@
 import React, { SVGProps } from 'react';
-import type { Link } from '../../model';
+import type { Link as LinkModel } from '../../model';
 import { animated, useSpring } from 'react-spring';
 
-const linkPosition = (link: Link, r1: number, r2: number) => {
+const linkPosition = (link: LinkModel, r1: number, r2: number) => {
   const x1 = link.source.x || 0;
   const y1 = link.source.y || 0;
   const x2 = link.target.x || 0;
@@ -21,21 +21,21 @@ const linkPosition = (link: Link, r1: number, r2: number) => {
 };
 
 interface Props {
-  link: Link;
+  link: LinkModel;
   sourceRadius: number;
   targetRadius: number;
 }
 
-export default ({
+export default function Link({
   link,
   sourceRadius,
   targetRadius,
   ...props
-}: Props & SVGProps<SVGLineElement>) => {
+}: Props & SVGProps<SVGLineElement>) {
   const animatedProps = useSpring(
     linkPosition(link, sourceRadius, targetRadius),
   );
 
   // @ts-ignore
   return <animated.line className="link" {...animatedProps} {...props} />;
-};
+}

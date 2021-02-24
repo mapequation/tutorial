@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { observer } from 'mobx-react';
 import type { Network, Node } from '../../model';
 import Svg from '../Svg';

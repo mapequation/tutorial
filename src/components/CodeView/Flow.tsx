@@ -5,7 +5,10 @@ interface Props {
   height: number;
 }
 
-export default function ({ y, ...props }: Props & SVGProps<SVGRectElement>) {
+export default function Flow({
+  y,
+  ...props
+}: Props & SVGProps<SVGRectElement>) {
   /*
     Same as a rect, but instead of (x, y) being top left, its on bottom left
      ______________
