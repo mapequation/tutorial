@@ -7,12 +7,13 @@ import OverflowMask from './OverflowMask';
 import { schemePastel2, schemeSet2 } from 'd3';
 import Convergence from './Convergence';
 import { Button, Header, Icon } from 'semantic-ui-react';
+import { Rate } from '../../model/enums';
 
 interface Props {
   network: Network;
   getRate: (node: Node) => number;
-  rate: string;
-  setRate: (rate: string) => void;
+  rate: Rate;
+  setRate: (rate: Rate) => void;
   width?: number | string;
   height?: number | string;
 }
@@ -29,7 +30,7 @@ function Histogram({
 
   const initVotes = () => {
     network.voter.initialize();
-    setRate('votes');
+    setRate(Rate.Votes);
   };
 
   const vote = () => network.voter.vote();
@@ -109,7 +110,7 @@ function Histogram({
       <Button onClick={initVotes}>
         <Icon name="undo alternate" /> Initialize votes
       </Button>
-      <Button disabled={rate !== 'votes'} primary onClick={vote}>
+      <Button disabled={rate !== Rate.Votes} primary onClick={vote}>
         <Icon name="step forward" /> Vote
       </Button>
     </>

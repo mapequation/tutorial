@@ -10,14 +10,17 @@ import type {
 } from '../../model';
 import { observer } from 'mobx-react';
 import Svg from '../Svg';
+import { Rate } from '../../model/enums';
 
 interface Props {
   network: NetworkModel;
+  rate: Rate;
   getRate: (node: NodeModel) => number;
 }
 
 function Network({
   network,
+  rate,
   getRate,
   ...props
 }: Props & SVGProps<SVGSVGElement>) {
@@ -29,7 +32,7 @@ function Network({
   const nodeRadius = (node: NodeModel): number => nodeScale(getRate(node));
 
   const nodeFill = (node: NodeModel): string => {
-    if (network.walker.current?.id === node.id) {
+    if (rate === Rate.Visits && network.walker.current?.id === node.id) {
       return network.walker.teleported ? '#FE3265' : schemeSet2[node.module];
     }
 

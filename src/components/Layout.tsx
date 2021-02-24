@@ -5,21 +5,22 @@ import Network from './Network';
 import ToggleWalkButton from './ToggleWalkButton';
 import RateView from './RateView';
 import CodeView from './CodeView';
+import { Rate } from '../model/enums';
 
 export default function Layout(props: { network: NetworkModel }) {
   const { network } = props;
 
-  const [rate, setRate] = useState('flow');
+  const [rate, setRate] = useState(Rate.Flow);
 
   const step = () => {
-    if (rate !== 'visit rate') setRate('visit rate');
+    if (rate !== Rate.Visits) setRate(Rate.Visits);
     network.walker.step();
   };
 
   const getRate = (node: Node) => {
-    if (rate === 'visit rate') {
+    if (rate === Rate.Visits) {
       return node.visitRate;
-    } else if (rate === 'votes') {
+    } else if (rate === Rate.Votes) {
       return node.votes;
     }
 
@@ -27,14 +28,14 @@ export default function Layout(props: { network: NetworkModel }) {
   };
 
   const resetWalk = () => {
-    setRate('visit rate');
+    setRate(Rate.Visits);
     network.walker.reset();
   };
 
   return (
     <Grid>
       <Grid.Column width={8}>
-        <Network network={network} getRate={getRate} />
+        <Network network={network} getRate={getRate} rate={rate} />
         <br />
         <Header>Random walker</Header>
         <Button onClick={resetWalk}>
