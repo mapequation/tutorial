@@ -2,7 +2,6 @@ import type Network from '../Network';
 import type { TreeNode } from './Tree';
 
 type CompareFn<T> = (a: T, b: T) => number;
-type MapFn<T, U> = (item: T, i: number, items: T[]) => U;
 
 class PriorityQueue<T> {
   private heap: T[] = [];
@@ -15,10 +14,6 @@ class PriorityQueue<T> {
   push(item: T) {
     this.heap.push(item);
     this.heap.sort(this.compareFn);
-  }
-
-  map<U>(callback: MapFn<T, U>): U[] {
-    return this.heap.map(callback);
   }
 
   get size(): number {
