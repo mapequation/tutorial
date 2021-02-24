@@ -1,8 +1,8 @@
 {
   "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
+    "start": "craco start",
+    "build": "craco build",
+    "test": "craco test",
     "eject": "react-scripts eject",
     "format": "prettier --write \"src/**/*.{js,jsx,ts,tsx}\"",
     "lint": "prettier --check \"src/**/*.{js,jsx,ts,tsx}\""
@@ -14,6 +14,7 @@
   "license": "MIT",
   "author": "Anton Eriksson, Daniel Edler",
   "dependencies": {
+    "@craco/craco": "^6.1.1",
     "@testing-library/jest-dom": "^5.11.9",
     "@testing-library/react": "^11.2.5",
     "@testing-library/user-event": "^12.7.3",
@@ -27,11 +28,11 @@
     "react": "^17.0.1",
     "react-dom": "^17.0.1",
     "react-scripts": "4.0.3",
-    "typescript": "^4.2.2",
-    "web-vitals": "^1.1.0",
+    "react-spring": "^9.0.0-rc.3",
     "semantic-ui-css": "^2.4.1",
     "semantic-ui-react": "^2.0.3",
-    "react-spring": "^9.0.0-rc.3"
+    "typescript": "^4.2.2",
+    "web-vitals": "^1.1.0"
   },
   "eslintConfig": {
     "extends": [
@@ -52,7 +53,11 @@
     ]
   },
   "devDependencies": {
+    "@tailwindcss/postcss7-compat": "^2.0.3",
     "@types/d3": "^6.3.0",
-    "prettier": "^2.2.1"
+    "autoprefixer": "^9.8.6",
+    "postcss": "^7.0.35",
+    "prettier": "^2.2.1",
+    "tailwindcss": "npm:@tailwindcss/postcss7-compat@^2.0.3"
   }
 }
