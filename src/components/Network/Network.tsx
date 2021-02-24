@@ -79,9 +79,10 @@ function Network({
         <Node
           key={i}
           r={nodeRadius(node)}
-          cx={node.x}
-          cy={node.y}
+          x={node.x}
+          y={node.y}
           fill={nodeFill(node)}
+          label={node.code}
           stroke={nodeStroke(node)}
           strokeWidth={2}
         />

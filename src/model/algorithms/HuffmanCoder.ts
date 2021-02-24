@@ -88,10 +88,10 @@ function createHuffmanTree<T>(
 
   for (let node of root.depthFirst()) {
     if (node.left) {
-      node.left.code = node.code + '0';
+      node.left.code = node.code + '1';
     }
     if (node.right) {
-      node.right.code = node.code + '1';
+      node.right.code = node.code + '0';
     }
   }
 
