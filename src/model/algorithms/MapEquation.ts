@@ -1,23 +1,7 @@
 import { computed, makeObservable } from 'mobx';
 import type Network from '../Network';
 import type { TreeNode } from './Tree';
-
-const divide = (xs: number[], numerator: number): number[] => {
-  for (let i = 0; i < xs.length; ++i) {
-    xs[i] /= numerator;
-  }
-
-  return xs;
-};
-
-const sum = (xs: number[]): number => xs.reduce((a, b) => a + b, 0.0);
-
-const normalize = (xs: number[]): number[] => divide(xs, sum(xs));
-
-const plogp = (p: number): number => (p > 0 ? p * Math.log2(p) : 0);
-
-const entropy = (ps: number[]): number =>
-  normalize(ps).reduce((tot, p) => tot - plogp(p), 0.0);
+import { entropy, sum } from '../helpers';
 
 export default class MapEquation {
   private network: Network;
@@ -47,7 +31,7 @@ export default class MapEquation {
     }
   }
 
-  static calculateModuleCodelength(module: TreeNode): number {
+  private static calculateModuleCodelength(module: TreeNode): number {
     const p = [module.exitFlow, ...module.map((node) => node.flow)];
 
     module.codelength = sum(p) * entropy(p);
@@ -55,7 +39,7 @@ export default class MapEquation {
     return module.codelength;
   }
 
-  static calculateIndexCodelength(module: TreeNode): number {
+  private static calculateIndexCodelength(module: TreeNode): number {
     const p = [module.exitFlow, ...module.map((module) => module.enterFlow)];
 
     module.codelength = sum(p) * entropy(p);

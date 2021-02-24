@@ -1,8 +1,8 @@
 import type { SimulationNodeDatum } from 'd3';
 import type Link from './Link';
 import type Network from './Network';
-import { weightedRandom } from './random';
 import { computed, makeObservable, observable } from 'mobx';
+import { weightedRandom } from './helpers';
 
 interface Params {
   x?: number;
