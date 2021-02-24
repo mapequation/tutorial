@@ -18,7 +18,7 @@ export default function Diagram(props: Props) {
   const modules = root.sort((a, b) => b.enterFlow - a.enterFlow);
 
   const verticalSpace = 5;
-  const horizontalSpace = width - barWidth - 20;
+  const horizontalSpace = width - barWidth - 100;
   const flowScale = 0.7 * height;
   const minFlow = 0.001;
 
@@ -48,6 +48,7 @@ export default function Diagram(props: Props) {
     const exitFlowNode = new TreeNode(module, module.id);
     exitFlowNode.exitFlow = module.exitFlow > 0 ? module.exitFlow : minFlow;
     exitFlowNode.flow = module.exitFlow;
+    exitFlowNode.exitCode = module.exitCode;
     return exitFlowNode;
   });
 
@@ -72,15 +73,42 @@ export default function Diagram(props: Props) {
     <g>
       <g id="modules">
         {modules.map((module) => (
-          <EnterFlow {...getProps(module)} />
+          <>
+            <EnterFlow {...getProps(module)} />
+            <text
+              x={module.x + barWidth + 20}
+              y={module.y - module.height / 2}
+              dy={4}
+            >
+              {module.enterCode}
+            </text>
+          </>
         ))}
       </g>
       <g id="nodes">
         {nodes.map((node) =>
           node.exitFlow > 0 ? (
-            <ExitFlow {...getProps(node)} />
+            <>
+              <ExitFlow {...getProps(node)} />
+              <text
+                x={node.x + barWidth + 40}
+                y={node.y - node.height / 2}
+                dy={4}
+              >
+                {node.exitCode}
+              </text>
+            </>
           ) : (
-            <Flow {...getProps(node)} />
+            <>
+              <Flow {...getProps(node)} />
+              <text
+                x={node.x + barWidth + 40}
+                y={node.y - node.height / 2}
+                dy={4}
+              >
+                {node.code}
+              </text>
+            </>
           ),
         )}
       </g>
