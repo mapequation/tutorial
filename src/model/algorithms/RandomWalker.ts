@@ -14,7 +14,7 @@ export default class RandomWalker {
   teleported = false;
 
   teleportRate = 0.15;
-  teleportModel = Teleportation.Unrecorded;
+  teleportModel = Teleportation.Recorded;
 
   constructor(network: Network) {
     this.network = network;
@@ -33,14 +33,13 @@ export default class RandomWalker {
 
     this.network.nodes.forEach((node) => (node.visits = 0));
 
-    this.prev = this.current = null;
+    this.setCurrent(null);
   }
 
   step() {
     if (!this.current) {
-      this.prev = this.current = this.network.randomNode();
-      this.current.visits++;
-      this.totalVisits++;
+      this.setCurrent(this.network.randomNode());
+      this.recordVisit();
       return;
     }
 
@@ -58,11 +57,9 @@ export default class RandomWalker {
       throw new Error('No link found, but node has out degree > 0');
     }
 
-    this.prev = this.current;
-    this.current = link.target;
+    this.setCurrent(link.target);
 
-    this.current.visits++;
-    this.totalVisits++;
+    this.recordVisit();
   }
 
   private teleport() {
@@ -73,7 +70,22 @@ export default class RandomWalker {
 
     const index = weightedRandom(degrees);
 
+    this.setCurrent(this.network.nodes[index]);
+
+    if (this.teleportModel == Teleportation.Recorded) {
+      this.recordVisit();
+    }
+  }
+
+  private recordVisit() {
+    if (!this.current) return;
+
+    this.current.visits++;
+    this.totalVisits++;
+  }
+
+  private setCurrent(node: Node | null) {
     this.prev = this.current;
-    this.current = this.network.nodes[index];
+    this.current = node;
   }
 }

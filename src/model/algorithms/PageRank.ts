@@ -15,7 +15,7 @@ interface FlowLink {
 export default class PageRank {
   private network: Network;
 
-  teleportModel = Teleportation.Unrecorded;
+  teleportModel = Teleportation.Recorded;
   teleportProb = 0.15;
 
   constructor(network: Network) {

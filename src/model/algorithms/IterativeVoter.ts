@@ -1,12 +1,10 @@
 import type Network from '../Network';
 import { action, makeObservable, observable } from 'mobx';
-import { Teleportation } from '../enums';
 
 export default class IterativeVoter {
   private network: Network;
 
   teleportRate = 0.15;
-  teleportModel = Teleportation.Unrecorded;
 
   totalVotes = 0;
 
