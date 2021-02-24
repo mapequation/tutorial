@@ -8,6 +8,7 @@ import type {
   SerializedNode,
 } from '../io/interfaces';
 import {
+  HuffmanCoder,
   IterativeVoter,
   MapEquation,
   PageRank,
@@ -29,6 +30,7 @@ export default class Network {
   mapequation: MapEquation;
   flowCalculator: PageRank;
   voter: IterativeVoter;
+  coder: HuffmanCoder;
 
   constructor(flowModel: FlowModel = FlowModel.Directed) {
     this.flowModel = flowModel;
@@ -38,6 +40,7 @@ export default class Network {
     this.mapequation = new MapEquation(this);
     this.flowCalculator = new PageRank(this);
     this.voter = new IterativeVoter(this);
+    this.coder = new HuffmanCoder(this);
 
     makeObservable(this, {
       haveModules: computed,

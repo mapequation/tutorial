@@ -7,6 +7,10 @@ export class TreeNode {
   enterFlow = 0;
   exitFlow = 0;
 
+  code = '';
+  enterCode = '';
+  exitCode = '';
+
   codelength = 0;
 
   x = 0;

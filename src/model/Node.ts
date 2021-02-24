@@ -14,7 +14,6 @@ interface Params {
 export default class Node implements SimulationNodeDatum {
   id: number;
   name: string;
-  code: string = '';
   path: string;
   outLinks: Link[] = [];
 
@@ -49,6 +48,12 @@ export default class Node implements SimulationNodeDatum {
     this.y = y;
     this.name = name || id.toString();
     this.path = path;
+  }
+
+  get code(): string {
+    const treeNode = this.network.tree.root.getLeaf(this.id);
+
+    return treeNode?.code ?? '';
   }
 
   get visitRate(): number {

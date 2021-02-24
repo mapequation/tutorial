@@ -22,6 +22,7 @@ class App extends React.Component<AppProps> {
     network.flowCalculator.calculateFlow();
     network.tree.update();
     network.mapequation.calculateCodelength();
+    network.coder.code();
 
     // TODO generalize and remove
     network.nodes.forEach((node) => {
