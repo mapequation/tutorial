@@ -16,7 +16,7 @@ interface Props {
   height?: number | string;
 }
 
-function Histogram({ network, getRate, rate, showModules }: Props) {
+function Rates({ network, getRate, rate, showModules }: Props) {
   const { nodes } = network;
 
   const [viewBoxWidth, viewBoxHeight] = [1000, 800];
@@ -72,30 +72,28 @@ function Histogram({ network, getRate, rate, showModules }: Props) {
   const nodesByFlow = nodes.sort(byFlow);
 
   return (
-    <>
-      <Svg className="rateView" viewBox={viewBox}>
-        <defs>
-          <OverflowMask
-            id="bar-overflow"
-            numPoints={3 * nodes.length}
-            width={viewBoxWidth}
-            height={200} // NOTE this is the height from the top of the viewBox
+    <Svg className="rateView" viewBox={viewBox}>
+      <defs>
+        <OverflowMask
+          id="bar-overflow"
+          numPoints={3 * nodes.length}
+          width={viewBoxWidth}
+          height={200} // NOTE this is the height from the top of the viewBox
+        />
+      </defs>
+      {nodesByFlow.map((node, i) => (
+        <Bar fill="transparent" stroke="#aaa" {...barProps(i, node.flow)} />
+      ))}
+      {rate !== Rate.None &&
+        nodesByFlow.map((node, i) => (
+          <Bar
+            {...barFillStroke(node)}
+            opacity={0.6}
+            {...barProps(i, getRate(node))}
           />
-        </defs>
-        {nodesByFlow.map((node, i) => (
-          <Bar fill="transparent" stroke="#aaa" {...barProps(i, node.flow)} />
         ))}
-        {rate !== Rate.None &&
-          nodesByFlow.map((node, i) => (
-            <Bar
-              {...barFillStroke(node)}
-              opacity={0.6}
-              {...barProps(i, getRate(node))}
-            />
-          ))}
-      </Svg>
-    </>
+    </Svg>
   );
 }
 
-export default observer(Histogram);
+export default observer(Rates);

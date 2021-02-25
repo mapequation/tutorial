@@ -1,21 +1,27 @@
 import React from 'react';
 import { schemePastel2, schemeSet2 } from 'd3';
-import { TreeNode } from '../../model/algorithms/Tree';
 import EnterFlow from './EnterFlow';
 import ExitFlow from './ExitFlow';
 import Flow from './Flow';
+import { Network } from '../../model';
+import { TreeNode } from '../../model/algorithms/Tree';
+import Svg from '../Svg';
 
 interface Props {
-  root: TreeNode;
-  width: number;
-  height: number;
+  network: Network;
   barWidth?: number;
 }
 
-export default function Diagram(props: Props) {
-  const { root, width, height, barWidth = 200 } = props;
+export default function CodeBooks({ barWidth = 200, network }: Props) {
+  const { root } = network.tree;
+
+  const [viewBoxWidth, viewBoxHeight] = [1000, 1000];
+  const viewBox = `0 0 ${viewBoxWidth} ${viewBoxHeight}`;
 
   const modules = root.sort((a, b) => b.enterFlow - a.enterFlow);
+
+  const width = viewBoxWidth;
+  const height = viewBoxHeight;
 
   const verticalSpace = 5;
   const horizontalSpace = width - barWidth - 100;
@@ -70,48 +76,50 @@ export default function Diagram(props: Props) {
   });
 
   return (
-    <g>
-      <g id="modules">
-        {modules.map((module) => (
-          <>
-            <EnterFlow {...getProps(module)} />
-            <text
-              x={module.x + barWidth + 20}
-              y={module.y - module.height / 2}
-              dy={4}
-            >
-              {module.enterCode}
-            </text>
-          </>
-        ))}
-      </g>
-      <g id="nodes">
-        {nodes.map((node) =>
-          node.exitFlow > 0 ? (
+    <Svg className="codeView" viewBox={viewBox}>
+      <g>
+        <g id="modules">
+          {modules.map((module) => (
             <>
-              <ExitFlow {...getProps(node)} />
+              <EnterFlow {...getProps(module)} />
               <text
-                x={node.x + barWidth + 40}
-                y={node.y - node.height / 2}
+                x={module.x + barWidth + 20}
+                y={module.y - module.height / 2}
                 dy={4}
               >
-                {node.exitCode}
+                {module.enterCode}
               </text>
             </>
-          ) : (
-            <>
-              <Flow {...getProps(node)} />
-              <text
-                x={node.x + barWidth + 40}
-                y={node.y - node.height / 2}
-                dy={4}
-              >
-                {node.code}
-              </text>
-            </>
-          ),
-        )}
+          ))}
+        </g>
+        <g id="nodes">
+          {nodes.map((node) =>
+            node.exitFlow > 0 ? (
+              <>
+                <ExitFlow {...getProps(node)} />
+                <text
+                  x={node.x + barWidth + 40}
+                  y={node.y - node.height / 2}
+                  dy={4}
+                >
+                  {node.exitCode}
+                </text>
+              </>
+            ) : (
+              <>
+                <Flow {...getProps(node)} />
+                <text
+                  x={node.x + barWidth + 40}
+                  y={node.y - node.height / 2}
+                  dy={4}
+                >
+                  {node.code}
+                </text>
+              </>
+            ),
+          )}
+        </g>
       </g>
-    </g>
+    </Svg>
   );
 }
