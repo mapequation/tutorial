@@ -7,7 +7,8 @@
     "format": "prettier --write \"src/**/*.{js,jsx,ts,tsx}\"",
     "lint": "prettier --check \"src/**/*.{js,jsx,ts,tsx}\"",
     "react-spring-issue-1078": "find node_modules -path \\*@react-spring/\\*/package.json -exec sed -i.bak 's/\"sideEffects\": false/\"sideEffects\": true/g' {} +",
-    "postinstall": "npm run react-spring-issue-1078"
+    "postinstall": "npm run react-spring-issue-1078",
+    "deploy": "npm run build && scp -r build/* mapequation:/var/www/demo"
   },
   "name": "mapequation-demo",
   "version": "0.1.0",
