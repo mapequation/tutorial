@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import type { Network as NetworkModel, Node } from '../model';
 import Network from './Network';
 import RateView from './RateView';
@@ -6,6 +6,8 @@ import CodeView from './CodeView';
 import { Rate } from '../model/enums';
 import Header from './Header';
 import Footer from './Footer';
+import useOnScreen from '../hooks/useOnScreen';
+import Button from './Button';
 
 export default function Layout(props: { network: NetworkModel }) {
   const { network } = props;
@@ -21,12 +23,14 @@ export default function Layout(props: { network: NetworkModel }) {
   const interval = 300;
 
   const startRandomWalk = () => {
-    if (walkStarted) {
-      window.clearInterval(intervalId);
-      setIntervalId(intervalStopped);
-    }
+    if (walkStarted) return;
     const id = window.setInterval(() => network.walker.step(), interval);
     setIntervalId(id);
+  };
+
+  const stopRandomWalk = () => {
+    window.clearInterval(intervalId);
+    setIntervalId(intervalStopped);
   };
 
   const getRate = (node: Node) => {
@@ -41,22 +45,33 @@ export default function Layout(props: { network: NetworkModel }) {
     return 1 / network.numNodes;
   };
 
+  const intersected = () => {
+    setRate(Rate.Visits);
+    if (!walkStarted) {
+      startRandomWalk();
+    }
+  };
+
+  const ref = useRef<HTMLDivElement>(null);
+  const isVisible = useOnScreen(ref, 1, intersected);
+
   return (
     <>
       <div className="container mx-auto text-gray-800 text-xl">
         <Header />
-        <div className="fixed -my-40">
-          <Network
-            network={network}
-            getRate={getRate}
-            rate={rate}
-            showLabels={false}
-            showModules={false}
-          />
-        </div>
         <div className="grid grid-cols-2 gap-10">
-          <div />
-          <div>
+          <div className="bg-green-100">
+            <div className="sticky top-60 bg-red-100">
+              <Network
+                network={network}
+                getRate={getRate}
+                rate={rate}
+                showLabels={false}
+                showModules={false}
+              />
+            </div>
+          </div>
+          <div className="bg-blue-100">
             <h2>What is The Map Equation?</h2>
             <ul className="space-y-4 mb-10">
               <li>
@@ -73,23 +88,26 @@ export default function Layout(props: { network: NetworkModel }) {
               </li>
             </ul>
             <div className="flex mb-96">
-              <button
+              <Button
                 className="button button--primary ml-40"
-                type="button"
                 onClick={startRandomWalk}
               >
                 Start random walk
-              </button>
+              </Button>
             </div>
 
             <h2>How to measure random walks?</h2>
 
-            <RateView
-              network={network}
-              getRate={getRate}
-              rate={rate}
-              setRate={setRate}
-            />
+            <div ref={ref} className="mb-96">
+              <RateView
+                network={network}
+                getRate={getRate}
+                rate={rate}
+                showModules={false}
+              />
+            </div>
+
+            <h2>Measuring the description length</h2>
             <CodeView network={network} />
           </div>
         </div>

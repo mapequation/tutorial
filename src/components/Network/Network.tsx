@@ -62,13 +62,7 @@ function Network({
   };
 
   return (
-    <Svg
-      className="network"
-      width="40vw"
-      height="40vw"
-      viewBox="0 0 800 800"
-      {...props}
-    >
+    <Svg className="network" viewBox="0 0 800 800" {...props}>
       <defs>
         <ArrowMarker id={arrowId} fill="#888" />
       </defs>

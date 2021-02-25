@@ -9,17 +9,13 @@ interface Props {
   height?: number | string;
 }
 
-export default function CodeView({
-  network,
-  width = '40vw',
-  height = '40vw',
-}: Props) {
+export default function CodeView({ network }: Props) {
   const [viewBoxWidth, viewBoxHeight] = [1000, 1000];
   const viewBox = `0 0 ${viewBoxWidth} ${viewBoxHeight}`;
 
   return (
     <>
-      <Svg className="codeView" width={width} height={height} viewBox={viewBox}>
+      <Svg className="codeView" viewBox={viewBox}>
         <Diagram
           root={network.tree.root}
           width={viewBoxWidth}

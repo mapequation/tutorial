@@ -11,27 +11,13 @@ interface Props {
   network: Network;
   getRate: (node: Node) => number;
   rate: Rate;
-  setRate: (rate: Rate) => void;
+  showModules: boolean;
   width?: number | string;
   height?: number | string;
 }
 
-function Histogram({
-  network,
-  getRate,
-  rate,
-  setRate,
-  width = '40vw',
-  height = '30vw',
-}: Props) {
+function Histogram({ network, getRate, rate, showModules }: Props) {
   const { nodes } = network;
-
-  const initVotes = () => {
-    network.voter.initialize();
-    setRate(Rate.Votes);
-  };
-
-  const vote = () => network.voter.vote();
 
   const [viewBoxWidth, viewBoxHeight] = [1000, 800];
   const viewBox = `0 0 ${viewBoxWidth} ${viewBoxHeight}`;
@@ -58,10 +44,12 @@ function Histogram({
     mask: 'url(#bar-overflow)',
   });
 
-  const barFillStroke = (node: Node) => ({
-    fill: schemePastel2[node.module],
-    stroke: schemeSet2[node.module],
-  });
+  const barFillStroke = (node: Node) => {
+    return {
+      fill: showModules ? schemePastel2[node.module] : schemePastel2[0],
+      stroke: showModules ? schemeSet2[node.module] : schemeSet2[0],
+    };
+  };
 
   const moduleFlow = (node: Node) => {
     // TODO remove
@@ -81,9 +69,11 @@ function Histogram({
     return b.flow - a.flow;
   };
 
+  const nodesByFlow = nodes.sort(byFlow);
+
   return (
     <>
-      <Svg className="rateView" width={width} height={height} viewBox={viewBox}>
+      <Svg className="rateView" viewBox={viewBox}>
         <defs>
           <OverflowMask
             id="bar-overflow"
@@ -92,23 +82,18 @@ function Histogram({
             height={200} // NOTE this is the height from the top of the viewBox
           />
         </defs>
-        {nodes.sort(byFlow).map((node, i) => (
-          <Bar fill="#fafafa" stroke="#aaa" {...barProps(i, node.flow)} />
+        {nodesByFlow.map((node, i) => (
+          <Bar fill="transparent" stroke="#aaa" {...barProps(i, node.flow)} />
         ))}
-        {nodes.sort(byFlow).map((node, i) => (
-          <Bar
-            {...barFillStroke(node)}
-            opacity={0.6}
-            {...barProps(i, getRate(node))}
-          />
-        ))}
+        {rate !== Rate.None &&
+          nodesByFlow.map((node, i) => (
+            <Bar
+              {...barFillStroke(node)}
+              opacity={0.6}
+              {...barProps(i, getRate(node))}
+            />
+          ))}
       </Svg>
-      Iterative voting
-      <br />
-      <button onClick={initVotes}>Initialize votes</button>
-      <button disabled={rate !== Rate.Votes} onClick={vote}>
-        Vote
-      </button>
     </>
   );
 }
