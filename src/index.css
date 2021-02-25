@@ -21,11 +21,19 @@
   }
 
   strong {
-    @apply tracking-wide text-indigo-800
+    @apply tracking-wide text-indigo-600
+  }
+
+  h1 {
+    @apply font-semibold tracking-wide text-4xl md:text-5xl my-12
   }
 
   h2 {
     @apply font-semibold tracking-wide text-4xl my-10
+  }
+
+  p {
+    @apply my-5
   }
 
   footer a {

@@ -11,7 +11,7 @@ export default function useOnScreen<T>(
   const observer = new IntersectionObserver(
     ([entry]) => {
       setIntersecting(entry.isIntersecting);
-      if (isIntersecting && callback) {
+      if (isIntersecting && callback != null) {
         callback();
       }
     },
