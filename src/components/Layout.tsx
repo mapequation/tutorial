@@ -33,6 +33,19 @@ export default function Layout(props: { network: NetworkModel }) {
     setIntervalId(intervalStopped);
   };
 
+  const resetRandomWalk = () => {
+    stopRandomWalk();
+    network.walker.reset();
+  };
+
+  const stepRandomWalk = () => {
+    stopRandomWalk();
+    network.walker.step();
+  };
+
+  const toggleRandomWalk = () =>
+    walkStarted ? stopRandomWalk() : startRandomWalk();
+
   const getRate = (node: Node) => {
     if (rate === Rate.Visits) {
       return node.visitRate;
@@ -48,7 +61,7 @@ export default function Layout(props: { network: NetworkModel }) {
   const intersected = () => {
     setRate(Rate.Visits);
     if (!walkStarted) {
-      startRandomWalk();
+      //startRandomWalk();
     }
   };
 
@@ -60,7 +73,7 @@ export default function Layout(props: { network: NetworkModel }) {
       <Header />
       <div className="grid grid-cols-2 gap-10">
         <div>
-          <div className="sticky top-60">
+          <div className="sticky top-20">
             <Network
               network={network}
               getRate={getRate}
@@ -87,7 +100,7 @@ export default function Layout(props: { network: NetworkModel }) {
           </ul>
           <div className="flex mb-96">
             <Button
-              className="button button--primary ml-5 md:ml-20 lg:ml-40"
+              className="button button--primary"
               onClick={startRandomWalk}
             >
               Start random walk
@@ -101,6 +114,20 @@ export default function Layout(props: { network: NetworkModel }) {
               rate={rate}
               showModules={false}
             />
+            <div className="flex flex-row space-x-4 my-10">
+              <Button className="button" type="reset" onClick={resetRandomWalk}>
+                Reset
+              </Button>
+              <Button className="button" onClick={stepRandomWalk}>
+                Step
+              </Button>
+              <Button
+                className="button button--primary"
+                onClick={toggleRandomWalk}
+              >
+                {walkStarted ? 'Stop' : 'Start'}
+              </Button>
+            </div>
           </div>
           <h2>Measuring the description length</h2>
           <CodeBooks network={network} />

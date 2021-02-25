@@ -4,11 +4,20 @@
 
 @layer components {
   .button {
-    @apply px-4 py-2 text-base font-medium tracking-wide rounded-lg shadow-sm bg-white border border-gray-300
+    @apply px-4 py-2 text-base font-medium tracking-wide
+      rounded-lg shadow
+      bg-white
+      border border-indigo-500 text-indigo-700
+      hover:border-indigo-400 hover:text-indigo-600
+      active:bg-gray-50
   }
 
   .button--primary {
-    @apply bg-indigo-400 border-indigo-500 text-gray-50 shadow-xl hover:bg-indigo-300 hover:border-indigo-300 active:bg-indigo-400
+    @apply shadow-xl
+    bg-indigo-400 border-indigo-500 text-gray-50
+    hover:bg-indigo-300 hover:border-indigo-400 hover:text-white
+    transform transition hover:-translate-y-1
+    active:bg-indigo-500
   }
 
   strong {
@@ -17,5 +26,9 @@
 
   h2 {
     @apply font-semibold tracking-wide text-4xl my-10
+  }
+
+  footer a {
+    @apply text-indigo-400 hover:text-indigo-300 active:text-indigo-500
   }
 }
