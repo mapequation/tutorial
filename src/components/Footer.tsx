@@ -2,15 +2,15 @@ import React from 'react';
 
 export default function Footer() {
   return (
-    <footer className="mt-96 h-52 py-10 border-t-4 border-gray-100">
-      <ul className="flex flex-col text-center sm:flex-row justify-center gap-x-20">
-        <li>
+    <footer className="mt-96 h-52 py-10">
+      <ul className="flex flex-col md:flex-row justify-center text-center divide-y md:divide-x md:divide-y-0 divide-gray-300">
+        <li className="px-10 py-2">
           <a href="//mapequation.org">mapequation.org</a>
         </li>
-        <li>
+        <li className="px-10 py-2">
           <a href="//www.mapequation.org/about.html">contact</a>
         </li>
-        <li>
+        <li className="px-10 py-2">
           <a href="//github.com/mapequation">github</a>
         </li>
       </ul>
