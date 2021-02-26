@@ -11,6 +11,7 @@ import type {
 import { observer } from 'mobx-react';
 import Svg from '../Svg';
 import { Rate } from '../../model/enums';
+import Walker from './Walker';
 
 interface Props {
   network: NetworkModel;
@@ -18,6 +19,7 @@ interface Props {
   getRate: (node: NodeModel) => number;
   showLabels: boolean;
   showModules: boolean;
+  showWalker: boolean;
 }
 
 function Network({
@@ -26,6 +28,7 @@ function Network({
   getRate,
   showLabels,
   showModules,
+  showWalker,
   ...props
 }: Props & SVGProps<SVGSVGElement>) {
   const arrowId = 'arrow';
@@ -91,6 +94,7 @@ function Network({
           strokeWidth={2}
         />
       ))}
+      {showWalker && <Walker walker={network.walker} />}
     </Svg>
   );
 }

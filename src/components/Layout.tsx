@@ -28,7 +28,7 @@ export default function Layout(props: { network: NetworkModel }) {
 
   const walkStarted = intervalId !== intervalStopped;
 
-  const interval = 200;
+  const interval = 300;
 
   const startRandomWalk = () => {
     if (walkStarted) return;
@@ -236,6 +236,7 @@ export default function Layout(props: { network: NetworkModel }) {
             rate={rate}
             showLabels={false}
             showModules={false}
+            showWalker={true}
           />
         </div>
       </div>
