@@ -133,7 +133,6 @@ export default function Layout(props: { network: NetworkModel }) {
   return (
     <div className="container mx-auto px-5 text-gray-800 text-xl">
       <Header />
-
       <main>
         <div className="grid sm:grid-cols-4 mb-48 gap-x-5 my-20 md:gap-x-10 lg:gap-x-20">
           <div className="w-2/3 sm:w-auto mx-auto sm:my-12">
@@ -142,14 +141,14 @@ export default function Layout(props: { network: NetworkModel }) {
           <div className="md:col-span-3">
             <h1>Complex systems are hard to understand</h1>
             <p>
-              The <strong>network of interactions</strong> between the
-              components of a complex system contains answers to the{' '}
-              <strong>inner-workings</strong> of the system.
+              Networks of nodes and links are powerful abstractions of complex
+              systems.
             </p>
             <p>
-              But large interconnected systems are{' '}
-              <strong>hard to understand</strong>.
+              But when the networks have thousands of nodes and links, they are
+              themselves too complicated to comprehend.
             </p>
+            <p>Unless we simplify and highlight their organization.</p>
           </div>
         </div>
 
@@ -157,12 +156,10 @@ export default function Layout(props: { network: NetworkModel }) {
           <h2>What do we want to understand?</h2>
 
           <p>
-            Like maps simplify and highlight important objects such as
-            neighborhoods, cities, streets, and highways from high-resolution
-            satellite images to help us navigate and explore our surroundings,{' '}
-            <strong>we want to identify functional modules</strong> and how they
-            are connected from large networks.
+            Maps simplify and highlight streets, neighborhoods, cities, and
+            highways from high-resolution satellite images.
           </p>
+          <p>We want to create similar maps of networks.</p>
 
           <div
             ref={mapsWrapperRef}
@@ -192,24 +189,35 @@ export default function Layout(props: { network: NetworkModel }) {
         <div className="flex flex-row flex-wrap lg:flex-nowrap gap-x-20 mb-48 items-center">
           <div className="lg:w-3/5">
             <h2>Network flows</h2>
+            <p>We are often not interested in the network itself.</p>
             <p>
-              We are often not interested in the raw network itself but the{' '}
-              <strong>flows</strong> on the network.
+              We want to know how things move &mdash; flow &mdash; on the
+              network.
             </p>
-            <ul className="ml-6 text-gray-600 list-disc">
-              <li>Flows of ideas in social networks</li>
-              <li>Passenger flows in traffic networks</li>
-              <li>Money flows in transaction networks</li>
+            <ul className="ml-6 list-disc">
+              <li>The flow of ideas in social networks</li>
+              <li>Passenger moving in traffic networks</li>
+              <li>Money in transaction networks</li>
             </ul>
             <p>
-              The flows connect nodes beyond nearest neighbors and interconnect
-              the entire system. Flows tend to stay within certain groups of
-              nodes for a relatively long time before exiting.
+              The things moving on a network tend to stay within certain groups
+              of nodes for a relatively long time before exiting.
             </p>
-            <p>These groups are the flow modules we are interested in.</p>
+            <p>
+              We call these groups modules, and these are what we are interested
+              in.
+            </p>
             <p>
               We can simulate the flows using a <strong>random walk</strong> on
               the network.
+            </p>
+            <p>
+              We can identify four modules. Notice how the random walker will
+              tend to get stuck in each part.
+            </p>
+            <p>
+              To prevent getting stuck, in each step, it teleports to a random
+              node with low probability.
             </p>
 
             <div className="flex flex-row space-x-4 my-10">
@@ -240,23 +248,22 @@ export default function Layout(props: { network: NetworkModel }) {
           <div>
             <h1>The duality between compression and finding regularities</h1>
             <p>
-              Like maps depict regularities of interest in satellite images with
-              less information, we want to exploit the{' '}
-              <strong>
-                duality between finding regularities and compressing information
-              </strong>{' '}
-              for finding modules in large networks.
+              Like maps show interesting things in satellite images using less
+              information, we want to use the duality between finding
+              regularities and compressing information for finding modules in
+              networks.
             </p>
-            <h2>Compression</h2>
             <p>
-              This goal takes us to fundamental principles of cartography and
-              information theory. Information-theoretic compression algorithms
-              identify regularities to compress data.{' '}
-              <strong>
-                The more regularities they find, the better they can compress
-                the data
-              </strong>
-              .
+              This goal leads to fundamental principles of cartography and
+              information theory.
+            </p>
+            <p>
+              Compression algorithms use regularities to compress data. The more
+              they find, the better they can compress.
+            </p>
+            <p>
+              In this image, the top half is easier to compress than the bottom
+              part because of the clear blue sky.
             </p>
           </div>
           <div className="mt-16 flex flex-col items-center space-y-6">
