@@ -81,7 +81,7 @@ export default function Layout(props: { network: NetworkModel }) {
         </div>
 
         <div className="col-span-3 mb-48">
-          <h1>Complex systems are hard to understand</h1>
+          <h1>Page title</h1>
           <p>
             Networks of nodes and links are powerful abstractions of complex
             systems.
@@ -94,7 +94,7 @@ export default function Layout(props: { network: NetworkModel }) {
         </div>
 
         <div className="col-span-4 mb-20">
-          <h2>What do we want to understand?</h2>
+          <h2>Maps of networks</h2>
           <p>
             Maps simplify and highlight streets, neighborhoods, cities, and
             highways from high-resolution satellite images.
@@ -157,8 +157,8 @@ export default function Layout(props: { network: NetworkModel }) {
             the network.
           </p>
           <p>
-            We can identify four modules. Notice how the random walker will tend
-            to get stuck in each part.
+            Here, we can identify four modules. Notice how the random walker
+            will tend to get stuck in the modules.
           </p>
           <p>
             To prevent getting stuck, in each step, it teleports to a random
@@ -170,7 +170,9 @@ export default function Layout(props: { network: NetworkModel }) {
               Step
             </Button>
             <Button
-              className="button button--primary"
+              className={`transition button ${
+                !walkStarted ? 'button--primary' : ''
+              }`}
               onClick={toggleRandomWalk}
             >
               {walkStarted ? 'Stop Random Walk' : 'Start Random Walk'}
@@ -185,7 +187,7 @@ export default function Layout(props: { network: NetworkModel }) {
             rate={rate}
             showLabels={false}
             showModules={false}
-            showWalker={true}
+            showWalker={walkStarted}
           />
         </div>
 

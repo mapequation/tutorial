@@ -35,7 +35,7 @@ interface Props {
 }
 
 export default function Walker({ walker, r = 10 }: Props) {
-  const { current, prev } = walker;
+  const { current, prev, teleported } = walker;
 
   const x2 = current?.x ?? 0;
   const y2 = current?.y ?? 0;
@@ -43,17 +43,22 @@ export default function Walker({ walker, r = 10 }: Props) {
   const x1 = prev ? prev.x : x2;
   const y1 = prev ? prev.y : y2;
 
-  const { x, y, length } = useSpring({
-    reset: true,
-    from: { x: x1, y: y1, length: 0 },
-    to: { x: x2, y: y2, length: Math.PI },
-  });
+  const defaultFill = '#393939';
 
-  const fill = '#393939';
+  const { x, y, length, fill } = useSpring({
+    reset: true,
+    from: { x: x1, y: y1, length: 0, fill: defaultFill },
+    to: {
+      x: x2,
+      y: y2,
+      length: Math.PI,
+      fill: teleported ? '#FE3265' : defaultFill,
+    },
+  });
 
   if (!walker.current) return null;
 
-  if (!walker.prev) return <circle cx={x2} cy={y2} r={r} fill={fill} />;
+  if (!walker.prev) return <circle cx={x2} cy={y2} r={r} fill={defaultFill} />;
 
   // @ts-ignore
   return (

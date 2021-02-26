@@ -40,7 +40,6 @@
     @apply shadow-xl
     bg-blue-400 border-blue-500 text-gray-50
     hover:border-blue-400 hover:text-white
-    transform transition hover:-translate-y-1
     active:bg-blue-500
   }
 

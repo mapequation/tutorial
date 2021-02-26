@@ -40,10 +40,6 @@ function Network({
 
   const nodeFill = (node: NodeModel): string => {
     if (network.walker.current?.id === node.id) {
-      if (network.walker.teleported) {
-        return '#FE3265';
-      }
-
       return !showModules ? schemeSet2[0] : schemePastel2[node.module];
     }
 
@@ -75,7 +71,7 @@ function Network({
           key={i}
           link={link}
           stroke="#888"
-          strokeWidth={1.5 + 20 * link.flow}
+          strokeWidth={1.5 + 30 * link.flow}
           sourceRadius={nodeRadius(link.source)}
           targetRadius={nodeRadius(link.target)}
           markerEnd={markerEnd}
