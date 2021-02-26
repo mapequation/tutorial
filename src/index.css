@@ -1,27 +1,16 @@
+@import url('https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,100;0,300;0,400;0,700;0,900;1,100;1,300;1,400;1,700;1,900&family=Philosopher:ital,wght@0,400;0,700;1,400;1,700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-@layer components {
-  .button {
-    @apply px-4 py-2 text-base font-medium tracking-wide
-      rounded-lg shadow
-      bg-white
-      border border-indigo-500 text-indigo-700
-      hover:border-indigo-400 hover:text-indigo-600
-      active:bg-gray-50
-  }
-
-  .button--primary {
-    @apply shadow-xl
-    bg-indigo-400 border-indigo-500 text-gray-50
-    hover:bg-indigo-300 hover:border-indigo-400 hover:text-white
-    transform transition hover:-translate-y-1
-    active:bg-indigo-500
+@layer base {
+  body {
+    @apply bg-noise bg-50
   }
 
   strong {
-    @apply tracking-wide text-indigo-600
+    @apply tracking-wide text-blue-600
   }
 
   h1 {
@@ -35,8 +24,27 @@
   p {
     @apply my-5
   }
+}
+
+@layer components {
+  .button {
+    @apply px-4 py-2 text-base font-medium tracking-wide
+      rounded-lg shadow
+      bg-white
+      border border-blue-500 text-blue-700
+      hover:border-blue-400 hover:text-blue-600
+      active:bg-gray-50
+  }
+
+  .button--primary {
+    @apply shadow-xl
+    bg-blue-400 border-blue-500 text-gray-50
+    hover:border-blue-400 hover:text-white
+    transform transition hover:-translate-y-1
+    active:bg-blue-500
+  }
 
   footer a {
-    @apply text-indigo-400 hover:text-indigo-300 active:text-indigo-500
+    @apply text-blue-400 hover:text-blue-300 active:text-blue-500
   }
 }
