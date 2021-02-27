@@ -24,9 +24,15 @@ const path = (
 
   const xDeg = (Math.atan2(dir.y, dir.x) * 180) / Math.PI;
 
-  return `M ${xa} ${ya} A ${r} ${r} 0 0 1 ${xb} ${yb} A ${
-    r + Math.sin(length) * (l - r)
-  } ${r} ${xDeg} 0 1 ${xa} ${ya}`;
+  const tailLength = r + Math.sin(length) * (l - r);
+
+  /*
+    SVG path arc
+    A rx ry x-axis-rotation large-arc-flag sweep-flag x y
+   */
+  return `M ${xa} ${ya} \
+          A ${r} ${r} 0 0 1 ${xb} ${yb} \
+          A ${tailLength} ${r} ${xDeg} 0 1 ${xa} ${ya}`;
 };
 
 interface Props {
