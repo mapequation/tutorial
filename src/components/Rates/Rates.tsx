@@ -82,7 +82,7 @@ function Rates({ network, getRate, rate, showModules }: Props) {
         />
       </defs>
       {nodesByFlow.map((node, i) => (
-        <Bar fill="transparent" stroke="#aaa" {...barProps(i, node.flow)} />
+        <Bar fill="transparent" stroke="#ccc" {...barProps(i, node.flow)} />
       ))}
       {rate !== Rate.None &&
         nodesByFlow.map((node, i) => (
