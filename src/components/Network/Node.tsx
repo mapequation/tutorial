@@ -1,23 +1,32 @@
 import React, { SVGProps } from 'react';
+import { Node as NodeModel } from '../../model';
 import { animated, useSpring } from 'react-spring';
 
 interface Props {
+  node: NodeModel;
   r: number;
   x: number;
   y: number;
   fill: string;
-  label?: string;
+  showLabel?: boolean;
 }
 
 export default function Node({
+  node,
   r,
   x,
   y,
   fill,
-  label,
+  showLabel,
   ...props
 }: Props & SVGProps<SVGCircleElement>) {
   const animatedProps = useSpring({ r, fill });
+
+  const textStyle = {
+    fill: '#393939',
+    fontWeight: 800,
+    letterSpacing: '0.1rem',
+  };
 
   return (
     <>
@@ -29,22 +38,16 @@ export default function Node({
         cy={y}
         {...props}
       />
-      {label != null && (
+      {showLabel && (
         <text
           x={x}
           y={y}
-          dy={5}
+          fontSize={16}
           textAnchor="middle"
-          style={{
-            fill: '#888',
-            fontWeight: 800,
-            fontSize: 16,
-            letterSpacing: '0.1rem',
-            textShadow:
-              '-2px -2px 2px #fff, 2px -2px 2px #fff, -2px 2px 2px #fff, 2px 2px 2px #fff',
-          }}
+          dominantBaseline="middle"
+          style={textStyle}
         >
-          {label}
+          {node.code}
         </text>
       )}
     </>

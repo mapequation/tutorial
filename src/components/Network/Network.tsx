@@ -13,6 +13,8 @@ import Svg from '../Svg';
 import { Rate } from '../../model/enums';
 import Walker from './Walker';
 
+const nodeScale = scaleSqrt().domain([0, 1]).range([10, 100]);
+
 interface Props {
   network: NetworkModel;
   rate: Rate;
@@ -34,8 +36,6 @@ function Network({
   const arrowId = 'arrow';
   const markerEnd = network.directed ? `url(#${arrowId})` : undefined;
 
-  const nodeScale = scaleSqrt().domain([0, 1]).range([10, 100]);
-
   const nodeRadius = (node: NodeModel): number => nodeScale(getRate(node));
 
   const nodeFill = (node: NodeModel): string => {
@@ -52,12 +52,6 @@ function Network({
     if (!showModules) return schemeSet2[0];
 
     return schemeSet2[node.module];
-  };
-
-  const nodeLabel = (node: NodeModel): string => {
-    if (!showLabels) return '';
-
-    return node.code;
   };
 
   return (
@@ -80,13 +74,14 @@ function Network({
 
       {network.nodes.map((node: NodeModel, i) => (
         <Node
+          node={node}
           key={i}
           r={nodeRadius(node)}
           x={node.x}
           y={node.y}
           fill={nodeFill(node)}
-          label={nodeLabel(node)}
           stroke={nodeStroke(node)}
+          showLabel={showLabels}
           strokeWidth={2}
         />
       ))}
