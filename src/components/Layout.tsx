@@ -14,6 +14,7 @@ import map3 from '../images/map-3.png';
 import compressionTop from '../images/compression-top.png';
 import compressionBottom from '../images/compression-bottom.png';
 import CodeBooks from './CodeBooks';
+import Trace from './Trace';
 
 export default function Layout(props: { network: NetworkModel }) {
   const { network } = props;
@@ -268,6 +269,9 @@ export default function Layout(props: { network: NetworkModel }) {
               {walkStarted ? 'Stop Random Walk' : 'Start Random Walk'}
             </Button>
           </div>
+
+          <Trace network={network} />
+
           <Rates
             network={network}
             getRate={getRate}

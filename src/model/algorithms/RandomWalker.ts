@@ -12,6 +12,7 @@ export default class RandomWalker {
 
   totalVisits = 0;
   teleported = false;
+  trace: number[] = [];
 
   teleportRate = 0.15;
   teleportModel = Teleportation.Recorded;
@@ -23,6 +24,7 @@ export default class RandomWalker {
       totalVisits: observable,
       current: observable,
       teleported: observable,
+      trace: observable,
       reset: action,
       step: action,
     });
@@ -30,6 +32,7 @@ export default class RandomWalker {
 
   reset() {
     this.totalVisits = 0;
+    this.trace.length = 0;
 
     this.network.nodes.forEach((node) => (node.visits = 0));
 
@@ -82,6 +85,7 @@ export default class RandomWalker {
 
     this.current.visits++;
     this.totalVisits++;
+    this.trace.push(this.current.id);
   }
 
   private setCurrent(node: Node | null) {
