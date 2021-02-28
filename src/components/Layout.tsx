@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { Network as NetworkModel, Node } from '../model';
 import Network from './Network';
 import Rates from './Rates';
@@ -71,21 +71,20 @@ export default function Layout(props: { network: NetworkModel }) {
 
   const firstNetworkRef = useRef<HTMLDivElement>(null);
 
-  const firstNetworkObserver = new IntersectionObserver(
-    (entries, observer) =>
-      entries.forEach((entry) => {
-        if (!entry.isIntersecting) return;
-
-        startRandomWalk();
-
-        observer.unobserve(entry.target);
-      }),
-    { threshold: 1, rootMargin: '0px 0px -100px 0px' },
-  );
-
   useEffect(() => {
-    // @ts-ignore
-    firstNetworkObserver.observe(firstNetworkRef.current);
+    const firstNetworkObserver = new IntersectionObserver(
+      (entries, observer) =>
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+
+          startRandomWalk();
+
+          observer.unobserve(entry.target);
+        }),
+      { threshold: 1, rootMargin: '0px 0px -100px 0px' },
+    );
+
+    firstNetworkObserver.observe(firstNetworkRef.current!);
 
     return () => firstNetworkObserver.disconnect();
   });
