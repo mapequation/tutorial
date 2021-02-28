@@ -22,12 +22,6 @@ export default function Node({
 }: Props & SVGProps<SVGCircleElement>) {
   const animatedProps = useSpring({ r, fill });
 
-  const textStyle = {
-    fill: '#393939',
-    fontWeight: 800,
-    letterSpacing: '0.1rem',
-  };
-
   return (
     <>
       {/* @ts-ignore */}
@@ -43,9 +37,15 @@ export default function Node({
           x={x}
           y={y}
           fontSize={16}
+          fontWeight={800}
           textAnchor="middle"
           dominantBaseline="middle"
-          style={textStyle}
+          fill="#393939"
+          stroke="#fff"
+          strokeWidth={5}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          paintOrder="stroke"
         >
           {node.code}
         </text>
