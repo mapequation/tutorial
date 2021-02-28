@@ -6,44 +6,63 @@
 
 @layer base {
   body {
-    @apply bg-noise bg-50
+    @apply bg-noise bg-50 text-xl text-gray-700 leading-relaxed xl:leading-loose
   }
 
   strong {
-    @apply tracking-wide text-blue-600
+    @apply tracking-wide
+  }
+
+  h1, h2, h3, h4 {
+    @apply font-bold tracking-wide text-gray-900 leading-snug
   }
 
   h1 {
-    @apply font-semibold tracking-wide text-4xl md:text-5xl my-12
+    @apply text-4xl md:text-5xl my-12
   }
 
   h2 {
-    @apply font-semibold tracking-wide text-4xl my-10
+    @apply text-3xl md:text-4xl my-10
   }
 
   p {
     @apply my-5
+  }
+
+  a {
+    @apply text-brand
   }
 }
 
 @layer components {
   .button {
     @apply px-4 py-2 text-base font-medium tracking-wide
-      rounded-lg shadow
-      bg-white
-      border border-blue-500 text-blue-700
-      hover:border-blue-400 hover:text-blue-600
-      active:bg-gray-50
+    rounded-xl shadow
+    bg-white text-gray-800
+    border border-gray-600
+    hover:border-gray-400 hover:text-gray-500
+    active:bg-gray-50
   }
 
   .button--primary {
-    @apply shadow-xl
-    bg-blue-400 border-blue-500 text-gray-50
-    hover:border-blue-400 hover:text-white
-    active:bg-blue-500
+    @apply shadow-lg
+  }
+}
+
+@layer utilities {
+  .filter-grayscale-25 {
+    filter: grayscale(25%);
   }
 
-  footer a {
-    @apply text-blue-400 hover:text-blue-300 active:text-blue-500
+  .filter-grayscale-50 {
+    filter: grayscale(50%);
+  }
+
+  .filter-grayscale-75 {
+    filter: grayscale(75%);
+  }
+
+  .filter-grayscale {
+    filter: grayscale(100%);
   }
 }

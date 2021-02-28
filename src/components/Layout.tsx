@@ -69,10 +69,10 @@ export default function Layout(props: { network: NetworkModel }) {
   };
 
   return (
-    <div className="container mx-auto px-5 text-gray-800 text-xl">
+    <div className="container mx-auto px-5">
       <Header />
       <main className="xl:grid xl:grid-cols-4 xl:gap-x-20">
-        <div className="col-span-1 mb-20">
+        <div className="col-span-1 xl:mt-12 mb-20">
           <img
             className="rounded-full w-1/2 mx-auto xl:w-full"
             src={hairball}
@@ -84,28 +84,25 @@ export default function Layout(props: { network: NetworkModel }) {
           <h1>Page title</h1>
           <p>
             Networks of nodes and links are powerful abstractions of complex
-            systems.
+            systems. But when the networks have thousands of nodes and links,
+            they are themselves too complicated to comprehend, unless we
+            simplify and highlight their organization.
           </p>
-          <p>
-            But when the networks have thousands of nodes and links, they are
-            themselves too complicated to comprehend.
-          </p>
-          <p>Unless we simplify and highlight their organization.</p>
         </div>
 
         <div className="col-span-4 mb-20">
           <h2>Maps of networks</h2>
           <p>
             Maps simplify and highlight streets, neighborhoods, cities, and
-            highways from high-resolution satellite images.
+            highways from high-resolution satellite images. We want to create
+            similar maps of networks.
           </p>
-          <p>We want to create similar maps of networks.</p>
         </div>
 
-        <div className="col-span-4 grid grid-cols-4 gap-x-5 md:gap-x-10 lg:gap-x-20 relative mb-48">
+        <div className="col-span-4 grid grid-cols-4 gap-x-5 md:gap-x-10 lg:gap-x-20 mb-48">
           <div>
             <img
-              className="object-cover rounded-full shadow-xl"
+              className="filter-grayscale-25 object-cover rounded-full shadow-xl"
               src={globe}
               alt="The Earth"
             />
@@ -114,30 +111,30 @@ export default function Layout(props: { network: NetworkModel }) {
             <img
               src={map1}
               alt="Map over Europe"
-              className="object-cover shadow-lg rounded-lg"
+              className="filter-grayscale-25 object-cover rounded-full shadow-xl"
             />
           </div>
           <div className="relative">
             <img
               src={map2}
               alt="Map over Umeå"
-              className="object-cover shadow-lg rounded-lg"
+              className="filter-grayscale-25 object-cover rounded-full shadow-xl"
             />
           </div>
           <div className="relative">
             <img
               src={map3}
               alt="Map over Umeå University"
-              className="object-cover shadow-lg rounded-lg"
+              className="filter-grayscale-25 object-cover rounded-full shadow-xl"
             />
           </div>
         </div>
 
         <div className="col-span-2 xl:mb-48">
           <h2>Network flows</h2>
-          <p>We are often not interested in the network itself.</p>
           <p>
-            We want to know how things move &mdash; flow &mdash; on the network.
+            We are often not interested in the network itself. We want to know
+            how things move &mdash; flow &mdash; on the network.
           </p>
           <ul className="ml-6 list-disc">
             <li>The flow of ideas in social networks</li>
@@ -146,23 +143,15 @@ export default function Layout(props: { network: NetworkModel }) {
           </ul>
           <p>
             The things moving on a network tend to stay within certain groups of
-            nodes for a relatively long time before exiting.
-          </p>
-          <p>
-            We call these groups modules, and these are what we are interested
-            in.
+            nodes for a relatively long time before exiting. We call these
+            groups modules, and these are what we are interested in.
           </p>
           <p>
             We can simulate the flows using a <strong>random walk</strong> on
-            the network.
-          </p>
-          <p>
-            Here, we can identify four modules. Notice how the random walker
-            will tend to get stuck in the modules.
-          </p>
-          <p>
-            To prevent getting stuck, in each step, it teleports to a random
-            node with low probability.
+            the network. Here, we can identify four modules. Notice how the
+            random walker will tend to get stuck in the modules. To prevent
+            getting stuck, in each step, it teleports to a random node with low
+            probability.
           </p>
 
           <div className="flex flex-row justify-center space-x-4 my-10">
@@ -196,25 +185,18 @@ export default function Layout(props: { network: NetworkModel }) {
           <p>
             Like maps show interesting things in satellite images using less
             information, we want to use the duality between finding regularities
-            and compressing information for finding modules in networks.
-          </p>
-          <p>
-            This goal leads to fundamental principles of cartography and
-            information theory.
-          </p>
-          <p>
-            Compression algorithms use regularities to compress data. The more
-            they find, the better they can compress.
-          </p>
-          <p>
-            In this image, the top half is easier to compress than the bottom
-            part because of the clear blue sky.
+            and compressing information for finding modules in networks. This
+            goal leads to fundamental principles of cartography and information
+            theory. Compression algorithms use regularities to compress data.
+            The more they find, the better they can compress. In this image, the
+            top half is easier to compress than the bottom part because of the
+            clear blue sky.
           </p>
         </div>
 
         <div className="col-span-2 mb-48 mt-16 flex flex-col items-center space-y-6">
           <div>
-            5.8 MB (tiff) &rarr; <strong>0.91 MB</strong> (tiff + LZW)
+            5.8 MB &rarr; <strong>0.91 MB</strong>
           </div>
           <div>
             <img
@@ -231,15 +213,15 @@ export default function Layout(props: { network: NetworkModel }) {
             />
           </div>
           <div>
-            5.8 MB (tiff) &rarr; <strong>2.8 MB</strong> (tiff + LZW)
+            5.8 MB &rarr; <strong>2.8 MB</strong>
           </div>
         </div>
 
         <div className="col-span-4 mb-48">
           <h2 className="font-light mx-auto text-center lg:w-3/5 mb-48">
-            We are after the <span className="text-blue-500">regularities</span>{' '}
-            and use the <span className="text-blue-500">compression rate</span>{' '}
-            to measure how good we are at finding them.
+            We are after the <strong>regularities</strong> and use the{' '}
+            <strong>compression rate</strong> to measure how good we are at
+            finding them.
           </h2>
         </div>
 
@@ -247,11 +229,8 @@ export default function Layout(props: { network: NetworkModel }) {
           <h2>Huffman coding</h2>
           <p>
             To use the machinery of information theory, we describe the random
-            walker with a binary message.
-          </p>
-          <p>
-            Huffman coding (Like Morse code, more frequently used symbols should
-            be shorter).
+            walker with a binary message. Huffman coding (Like Morse code, more
+            frequently used symbols should be shorter).
           </p>
         </div>
 
