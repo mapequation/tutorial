@@ -82,6 +82,28 @@ export default class Network {
     return moduleIds.size > 1;
   }
 
+  moduleFlow(node: Node): number {
+    let moduleFlow = 0;
+
+    for (let { module, flow } of this._nodes.values()) {
+      if (module === node.module) {
+        moduleFlow += flow;
+      }
+    }
+
+    return moduleFlow;
+  }
+
+  get maxNodeFlow(): number {
+    let max = -Infinity;
+
+    for (let { flow } of this._nodes.values()) {
+      max = Math.max(flow, max);
+    }
+
+    return max > 0 ? max : 0;
+  }
+
   addNode(node: number | SerializedNode): Node {
     const n =
       typeof node == 'number'

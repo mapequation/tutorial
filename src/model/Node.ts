@@ -74,6 +74,10 @@ export default class Node implements SimulationNodeDatum {
     return this.outLinks.reduce((weight, link) => weight + link.weight, 0.0);
   }
 
+  get moduleFlow(): number {
+    return this.network.moduleFlow(this);
+  }
+
   get isDangling(): boolean {
     return this.degree === 0;
   }

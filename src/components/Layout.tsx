@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import type { Network as NetworkModel, Node } from '../model';
 import Network from './Network';
 import Rates from './Rates';
@@ -67,6 +67,27 @@ export default function Layout(props: { network: NetworkModel }) {
 
     return 1 / network.numNodes;
   };
+
+  const firstNetworkRef = useRef<HTMLDivElement>(null);
+
+  const firstNetworkObserver = new IntersectionObserver(
+    (entries, observer) =>
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+
+        startRandomWalk();
+
+        observer.unobserve(entry.target);
+      }),
+    { threshold: 1, rootMargin: '0px 0px -100px 0px' },
+  );
+
+  useEffect(() => {
+    // @ts-ignore
+    firstNetworkObserver.observe(firstNetworkRef.current);
+
+    return () => firstNetworkObserver.disconnect();
+  });
 
   return (
     <div className="container mx-auto px-5">
@@ -153,30 +174,19 @@ export default function Layout(props: { network: NetworkModel }) {
             getting stuck, in each step, it teleports to a random node with low
             probability.
           </p>
-
-          <div className="flex flex-row justify-center space-x-4 my-10">
-            <Button className="button" onClick={stepRandomWalk}>
-              Step
-            </Button>
-            <Button
-              className={`transition button ${
-                !walkStarted ? 'button--primary' : ''
-              }`}
-              onClick={toggleRandomWalk}
-            >
-              {walkStarted ? 'Stop Random Walk' : 'Start Random Walk'}
-            </Button>
-          </div>
         </div>
 
-        <div className="col-span-2 w-4/5 mx-auto xl:w-full mb-48">
+        <div
+          ref={firstNetworkRef}
+          className="col-span-2 w-4/5 mx-auto xl:w-full mb-48"
+        >
           <Network
             network={network}
             getRate={getRate}
             rate={rate}
             showLabels={false}
             showModules={false}
-            showWalker={walkStarted}
+            showWalker={rate === Rate.Visits}
           />
         </div>
 
@@ -235,6 +245,29 @@ export default function Layout(props: { network: NetworkModel }) {
         </div>
 
         <div className="col-span-2 mb-48">
+          <Network
+            network={network}
+            rate={rate}
+            getRate={getRate}
+            showLabels={true}
+            showModules={false}
+            showWalker={rate === Rate.Visits}
+          />
+
+          <div className="flex flex-row justify-center space-x-4 mb-10">
+            <Button className="button" onClick={resetRandomWalk}>
+              Reset
+            </Button>
+            <Button className="button" onClick={stepRandomWalk}>
+              Step
+            </Button>
+            <Button
+              className={`button ${!walkStarted ? 'button--primary' : ''}`}
+              onClick={toggleRandomWalk}
+            >
+              {walkStarted ? 'Stop Random Walk' : 'Start Random Walk'}
+            </Button>
+          </div>
           <Rates
             network={network}
             getRate={getRate}

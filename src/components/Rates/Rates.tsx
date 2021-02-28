@@ -17,7 +17,7 @@ interface Props {
 }
 
 function Rates({ network, getRate, rate, showModules }: Props) {
-  const { nodes } = network;
+  const { nodes, maxNodeFlow } = network;
 
   const [viewBoxWidth, viewBoxHeight] = [1000, 800];
   const viewBox = `0 0 ${viewBoxWidth} ${viewBoxHeight}`;
@@ -27,11 +27,10 @@ function Rates({ network, getRate, rate, showModules }: Props) {
   const x = (i: number): number => barWidth * i;
 
   const minHeight = 1;
-  const maxFlow = Math.max(...nodes.map((node) => node.flow));
   const maxHeight = viewBoxHeight / 2;
 
   const barHeight = (scale: number): number =>
-    minHeight + (maxHeight * scale) / maxFlow;
+    minHeight + (maxHeight * scale) / maxNodeFlow;
   const y = (scale: number): number => viewBoxHeight - barHeight(scale);
 
   const barProps = (i: number, scale: number) => ({
@@ -51,25 +50,10 @@ function Rates({ network, getRate, rate, showModules }: Props) {
     };
   };
 
-  const moduleFlow = (node: Node) => {
-    // TODO remove
-    let totFlow = 0.0;
-
-    for (let { module, flow } of nodes) {
-      if (module === node.module) {
-        totFlow += flow;
-      }
-    }
-
-    return totFlow;
-  };
-
-  const byFlow = (a: Node, b: Node): number => {
-    if (a.module !== b.module) return moduleFlow(b) - moduleFlow(a);
+  const nodesByFlow = nodes.sort((a: Node, b: Node): number => {
+    if (a.module !== b.module) return b.moduleFlow - a.moduleFlow;
     return b.flow - a.flow;
-  };
-
-  const nodesByFlow = nodes.sort(byFlow);
+  });
 
   return (
     <Svg className="rateView" viewBox={viewBox}>
@@ -87,8 +71,9 @@ function Rates({ network, getRate, rate, showModules }: Props) {
       {rate !== Rate.None &&
         nodesByFlow.map((node, i) => (
           <Bar
-            {...barFillStroke(node)}
+            animate
             opacity={0.6}
+            {...barFillStroke(node)}
             {...barProps(i, getRate(node))}
           />
         ))}
