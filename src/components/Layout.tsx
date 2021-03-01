@@ -89,6 +89,9 @@ export default function Layout(props: { network: NetworkModel }) {
     return () => firstNetworkObserver.disconnect();
   });
 
+  const [showModules, setShowModules] = useState(false);
+  const toggleModules = () => setShowModules(!showModules);
+
   return (
     <div className="container mx-auto px-5">
       <Header />
@@ -250,7 +253,7 @@ export default function Layout(props: { network: NetworkModel }) {
             rate={rate}
             getRate={getRate}
             showLabels={true}
-            showModules={false}
+            showModules={showModules}
             showWalker={rate === Rate.Visits}
           />
 
@@ -267,15 +270,18 @@ export default function Layout(props: { network: NetworkModel }) {
             >
               {walkStarted ? 'Stop Random Walk' : 'Start Random Walk'}
             </Button>
+            <Button className="button" onClick={toggleModules}>
+              {showModules ? 'Hide Modules' : 'Show Modules'}
+            </Button>
           </div>
 
-          <Trace network={network} />
+          <Trace network={network} showModules={showModules} />
 
           <Rates
             network={network}
             getRate={getRate}
             rate={rate}
-            showModules={false}
+            showModules={showModules}
           />
         </div>
 
