@@ -10,6 +10,7 @@ export class TreeNode {
   code = '';
   enterCode = '';
   exitCode = '';
+  oneLevelCode = '';
 
   codelength = 0;
 

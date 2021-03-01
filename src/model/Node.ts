@@ -22,7 +22,6 @@ export default class Node implements SimulationNodeDatum {
   flow: number = 0.0;
   visits: number = 0;
   votes: number = 0;
-  oneLevelCode: string = '';
 
   // d3
   index: number = 0;
@@ -40,7 +39,6 @@ export default class Node implements SimulationNodeDatum {
       flow: observable,
       visits: observable,
       votes: observable,
-      oneLevelCode: observable,
       visitRate: computed,
     });
 
@@ -56,6 +54,12 @@ export default class Node implements SimulationNodeDatum {
     const treeNode = this.network.tree.root.getLeaf(this.id);
 
     return treeNode?.code ?? '';
+  }
+
+  get oneLevelCode(): string {
+    const treeNode = this.network.tree.root.getLeaf(this.id);
+
+    return treeNode?.oneLevelCode ?? '';
   }
 
   get visitRate(): number {

@@ -15,7 +15,7 @@ const Code = ({
   nodes: TreeNode[];
   showModules?: boolean;
 }) => {
-  if (!showModules) return <span>{node.code} </span>;
+  if (!showModules) return <span>{node.oneLevelCode} </span>;
 
   if (i === 0)
     return (
