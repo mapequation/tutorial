@@ -22,6 +22,7 @@ export default class Node implements SimulationNodeDatum {
   flow: number = 0.0;
   visits: number = 0;
   votes: number = 0;
+  oneLevelCode: string = '';
 
   // d3
   index: number = 0;
@@ -39,6 +40,7 @@ export default class Node implements SimulationNodeDatum {
       flow: observable,
       visits: observable,
       votes: observable,
+      oneLevelCode: observable,
       visitRate: computed,
     });
 

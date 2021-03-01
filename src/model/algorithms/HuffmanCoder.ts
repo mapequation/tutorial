@@ -110,6 +110,8 @@ export default class HuffmanCoder {
   code() {
     const { tree } = this.network;
 
+    this.calculateOneLevelCodes();
+
     for (let treeNode of tree.depthFirstModules()) {
       if (treeNode.isLeafModule) {
         this.calculateModuleCodes(treeNode);
@@ -119,10 +121,26 @@ export default class HuffmanCoder {
     }
   }
 
+  private createTree(items: Item[]): HuffmanTree<Item> {
+    return createHuffmanTree(items, this.compareFn, this.addFn);
+  }
+
+  private calculateOneLevelCodes() {
+    const { network } = this;
+
+    const root = this.createTree(network.nodes);
+
+    for (let treeNode of root.depthFirst()) {
+      if (treeNode.isLeaf) {
+        network.getNode(treeNode.data.id!)!.oneLevelCode = treeNode.code;
+      }
+    }
+  }
+
   private calculateIndexCodes(node: TreeNode) {
     const items = node.map(({ id, enterFlow }) => ({ id, flow: enterFlow }));
 
-    const root = createHuffmanTree(items, this.compareFn, this.addFn);
+    const root = this.createTree(items);
 
     for (let treeNode of root.depthFirst()) {
       if (treeNode.isLeaf) {
@@ -143,7 +161,7 @@ export default class HuffmanCoder {
 
     const items = [exit, ...nodes];
 
-    const root = createHuffmanTree(items, this.compareFn, this.addFn);
+    const root = this.createTree(items);
 
     for (let treeNode of root.depthFirst()) {
       if (treeNode.isLeaf) {
