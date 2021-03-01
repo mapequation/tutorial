@@ -54,6 +54,9 @@ function Network({
     return schemeSet2[node.module];
   };
 
+  const getLabel = (node: NodeModel) =>
+    showModules ? node.code : node.oneLevelCode;
+
   return (
     <Svg className="network" viewBox="0 0 800 800" {...props}>
       <defs>
@@ -82,6 +85,7 @@ function Network({
           fill={nodeFill(node)}
           stroke={nodeStroke(node)}
           showLabel={showLabels}
+          getLabel={getLabel}
           strokeWidth={2}
         />
       ))}
