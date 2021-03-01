@@ -9,6 +9,7 @@ interface Props {
   y: number;
   fill: string;
   showLabel?: boolean;
+  getLabel?: (node: NodeModel) => string;
 }
 
 export default function Node({
@@ -18,6 +19,7 @@ export default function Node({
   y,
   fill,
   showLabel,
+  getLabel = (node: NodeModel) => node.oneLevelCode,
   ...props
 }: Props & SVGProps<SVGCircleElement>) {
   const animatedProps = useSpring({ r, fill });
@@ -47,7 +49,7 @@ export default function Node({
           strokeLinejoin="round"
           paintOrder="stroke"
         >
-          {node.code}
+          {getLabel(node)}
         </text>
       )}
     </>
