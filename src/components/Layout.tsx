@@ -185,8 +185,7 @@ export default function Layout(props: { network: NetworkModel }) {
         >
           <Network
             network={network}
-            getRate={getRate}
-            rate={rate}
+            getRate={() => 1 / network.numNodes}
             showLabels={false}
             showModules={false}
             showWalker={rate === Rate.Visits}
@@ -250,7 +249,6 @@ export default function Layout(props: { network: NetworkModel }) {
         <div className="col-span-2 mb-48">
           <Network
             network={network}
-            rate={rate}
             getRate={getRate}
             showLabels={true}
             showModules={showModules}

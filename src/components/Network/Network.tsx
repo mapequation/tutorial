@@ -10,14 +10,12 @@ import type {
 } from '../../model';
 import { observer } from 'mobx-react';
 import Svg from '../Svg';
-import { Rate } from '../../model/enums';
 import Walker from './Walker';
 
 const nodeScale = scaleSqrt().domain([0, 1]).range([10, 100]);
 
 interface Props {
   network: NetworkModel;
-  rate: Rate;
   getRate: (node: NodeModel) => number;
   showLabels: boolean;
   showModules: boolean;
@@ -26,7 +24,6 @@ interface Props {
 
 function Network({
   network,
-  rate,
   getRate,
   showLabels,
   showModules,
