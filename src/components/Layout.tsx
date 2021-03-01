@@ -135,21 +135,21 @@ export default function Layout(props: { network: NetworkModel }) {
             <img
               src={map1}
               alt="Map over Europe"
-              className="filter-grayscale-25 object-cover rounded-full shadow-xl"
+              className="filter-grayscale-25 object-cover rounded-xl shadow-xl"
             />
           </div>
           <div className="relative">
             <img
               src={map2}
               alt="Map over Umeå"
-              className="filter-grayscale-25 object-cover rounded-full shadow-xl"
+              className="filter-grayscale-25 object-cover rounded-xl shadow-xl"
             />
           </div>
           <div className="relative">
             <img
               src={map3}
               alt="Map over Umeå University"
-              className="filter-grayscale-25 object-cover rounded-full shadow-xl"
+              className="filter-grayscale-25 object-cover rounded-xl shadow-xl"
             />
           </div>
         </div>
