@@ -6,7 +6,7 @@
 
 @layer base {
   body {
-    @apply bg-noise bg-50 text-xl text-gray-700 leading-relaxed xl:leading-loose
+    @apply bg-noise bg-50 text-gray-700 leading-relaxed xl:leading-relaxed
   }
 
   strong {

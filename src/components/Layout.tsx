@@ -93,7 +93,7 @@ export default function Layout(props: { network: NetworkModel }) {
   const toggleModules = () => setShowModules(!showModules);
 
   return (
-    <div className="container mx-auto px-5">
+    <div className="container max-w-screen-xl mx-auto px-5">
       <Header />
       <main className="xl:grid xl:grid-cols-4 xl:gap-x-20">
         <div className="col-span-1 xl:mt-12 mb-20">
