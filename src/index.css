@@ -65,4 +65,8 @@
   .filter-grayscale {
     filter: grayscale(100%);
   }
+
+  .-word-spacing-7 {
+    word-spacing: -7px;
+  }
 }

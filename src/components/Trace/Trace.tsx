@@ -20,7 +20,7 @@ const Code = ({
   if (i === 0)
     return (
       <span style={{ color: schemeSet2[node.parent?.id ?? 0] }}>
-        &rarr; {node.parent?.enterCode} {node.code}{' '}
+        {node.parent?.enterCode} {node.code}{' '}
       </span>
     );
 
@@ -39,7 +39,7 @@ const Code = ({
         {prev.parent?.exitCode}{' '}
       </span>
       <span style={{ color: schemeSet2[node.parent?.id ?? 0] }}>
-        &rarr; {node.parent?.enterCode} {node.code}{' '}
+        {node.parent?.enterCode} {node.code}{' '}
       </span>
     </>
   );
@@ -67,7 +67,7 @@ function Trace({ network, showModules = false }: Props) {
   return (
     <div
       ref={containerRef}
-      className="px-4 py-2 w-full h-32 overflow-y-auto overscroll-contain rounded-lg border-2 border-gray-200 leading-snug text-sm font-mono"
+      className="px-4 py-2 w-full h-32 overflow-y-auto overscroll-contain rounded-lg border-2 border-gray-200 leading-snug text-sm font-mono -word-spacing-7"
     >
       {nodes.map((node, i, nodes) => (
         <Code
