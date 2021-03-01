@@ -17,5 +17,5 @@ export default function Flow({
     (x, y)
 
    */
-  return <rect y={y - props.height} {...props} />;
+  return <rect strokeLinejoin="round" y={y - props.height} {...props} />;
 }

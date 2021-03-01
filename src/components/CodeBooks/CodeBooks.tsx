@@ -28,8 +28,9 @@ export default function CodeBooks({ barWidth = 200, network }: Props) {
   const flowScale = 0.7 * height;
   const minFlow = 0.001;
 
-  const x = 0;
-  const y = height;
+  // Don't start in right in corner to avoid clipping.
+  const x = 5;
+  const y = height - 5;
   let currentY = y;
 
   modules.forEach((module, i) => {

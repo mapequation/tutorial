@@ -13,8 +13,8 @@ export default function EnterFlow({
   y,
   width,
   height,
-  dx = 20,
-  ...pathProps
+  dx = 10,
+  ...props
 }: Props & SVGProps<SVGPathElement>) {
   /*
      Drawn clock-wise from (x, y)
@@ -30,5 +30,5 @@ export default function EnterFlow({
   const dy = height / 2;
   const path = `M ${x} ${y} l ${dx} ${-dy} l ${-dx} ${-dy} l ${width} 0 l 0 ${height} z`;
 
-  return <path strokeLinejoin="round" {...pathProps} d={path} />;
+  return <path strokeLinejoin="round" {...props} d={path} />;
 }
