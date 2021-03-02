@@ -17,7 +17,7 @@ export default function Header() {
           The Map Equation
         </div>
       </h1>
-      <div className="mt-24 md:mt-44 text-gray-700 text-xl sm:text-2xl md:text-3xl lg:text-5xl">
+      <div className="mt-24 md:mt-44 text-xl sm:text-2xl md:text-3xl lg:text-5xl">
         <BlockMath math="L(M) = q_\curvearrowright H(\mathcal{Q}) + \sum_{i = 1}^{m}{p_{\circlearrowright}^i H(\mathcal{P}^i)}" />
       </div>
     </header>

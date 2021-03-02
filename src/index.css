@@ -6,7 +6,7 @@
 
 @layer base {
   body {
-    @apply bg-noise bg-50 text-gray-700 leading-relaxed xl:leading-relaxed
+    @apply bg-noise bg-50 text-gray-700 leading-relaxed xl:leading-relaxed dark:text-gray-200 dark:bg-gray-900
   }
 
   strong {
@@ -14,7 +14,7 @@
   }
 
   h1, h2, h3, h4 {
-    @apply font-bold tracking-wide text-gray-900 leading-snug
+    @apply font-bold tracking-wide text-gray-900 leading-snug dark:text-gray-200
   }
 
   h1 {
@@ -42,10 +42,18 @@
     border border-gray-600
     hover:border-gray-400 hover:text-gray-500
     active:bg-gray-50
+    dark:bg-gray-700 dark:text-gray-100
+    dark:border-black
+    dark:hover:bg-gray-600 dark:hover:text-gray-50
+    dark:active:bg-gray-900
   }
 
   .button--primary {
     @apply shadow-lg
+  }
+
+  .toggle-darkmode {
+    @apply hidden
   }
 }
 
@@ -69,4 +77,24 @@
   .-word-spacing-7 {
     word-spacing: -7px;
   }
+}
+
+label[for="toggle-darkmode"] {
+  @apply absolute top-6 right-12 block box-border w-14 h-6 bg-gray-100 border-2 border-gray-200 rounded-full shadow dark:border-gray-700;
+}
+
+label[for="toggle-darkmode"]::after {
+  content: '';
+  top: -0.25rem;
+  left: -0.25rem;
+  @apply absolute w-7 h-7 box-border block bg-gray-100 border-2 border-gray-300 rounded-full shadow-md dark:border-gray-800 dark:bg-gray-700;
+  transition: 250ms left ease;
+}
+
+html.dark label[for="toggle-darkmode"] {
+  @apply bg-gradient-to-r from-green-400 to-blue-500
+}
+
+html.dark label[for="toggle-darkmode"]::after {
+  left: 1.8rem;
 }

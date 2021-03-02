@@ -41,7 +41,6 @@ export default function Layout(props: { network: NetworkModel }) {
     setIntervalId(intervalStopped);
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const resetRandomWalk = () => {
     setRate(Rate.None);
     stopRandomWalk();
@@ -92,8 +91,20 @@ export default function Layout(props: { network: NetworkModel }) {
   const [showModules, setShowModules] = useState(false);
   const toggleModules = () => setShowModules(!showModules);
 
+  const toggleDarkMode = () => {
+    const html = document.getElementsByTagName('html')[0];
+    html.classList.toggle('dark');
+  };
+
   return (
     <div className="container max-w-screen-xl mx-auto px-5">
+      <input
+        type="checkbox"
+        id="toggle-darkmode"
+        className="toggle-darkmode"
+        onClick={toggleDarkMode}
+      />
+      <label htmlFor="toggle-darkmode" />
       <Header />
       <main className="xl:grid xl:grid-cols-4 xl:gap-x-20">
         <div className="col-span-1 xl:mt-12 mb-20">

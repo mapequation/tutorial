@@ -67,7 +67,7 @@ function Trace({ network, showModules = false }: Props) {
   return (
     <div
       ref={containerRef}
-      className="px-4 py-2 w-full h-32 overflow-y-auto overscroll-contain rounded-lg border-2 border-gray-200 leading-snug text-sm font-mono -word-spacing-7"
+      className="px-4 py-2 w-full h-32 overflow-y-auto overscroll-contain rounded-lg border-2 border-gray-200 dark:border-gray-700 leading-snug text-sm font-mono -word-spacing-7"
     >
       {nodes.map((node, i, nodes) => (
         <Code
