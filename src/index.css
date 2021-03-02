@@ -80,14 +80,14 @@
 }
 
 label[for="toggle-darkmode"] {
-  @apply absolute top-6 right-12 block box-border w-14 h-6 bg-gray-100 border-2 border-gray-200 rounded-full shadow dark:border-gray-700;
+  @apply absolute top-2 right-3 md:top-6 md:right-8 block box-border w-10 h-4 bg-gray-100 border border-gray-200 rounded-full shadow dark:border-gray-700;
 }
 
 label[for="toggle-darkmode"]::after {
   content: '';
-  top: -0.25rem;
-  left: -0.25rem;
-  @apply absolute w-7 h-7 box-border block bg-gray-100 border-2 border-gray-300 rounded-full shadow-md dark:border-gray-800 dark:bg-gray-700;
+  top: -0.2rem;
+  left: -0.2rem;
+  @apply absolute w-5 h-5 box-border block bg-gray-100 border border-gray-200 rounded-full shadow dark:border-gray-900 dark:bg-gray-700;
   transition: 250ms left ease;
 }
 
@@ -96,5 +96,5 @@ html.dark label[for="toggle-darkmode"] {
 }
 
 html.dark label[for="toggle-darkmode"]::after {
-  left: 1.8rem;
+  left: 1.2rem;
 }

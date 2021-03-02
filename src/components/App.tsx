@@ -1,5 +1,4 @@
 import React from 'react';
-import './App.css';
 import { modular_wd_json } from '../networks';
 import { Network as NetworkModel } from '../model';
 import Layout from './Layout';
