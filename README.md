@@ -1,1 +1,0 @@
-# Map Equation Demo Application
