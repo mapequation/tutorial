@@ -1,7 +1,6 @@
 import React from 'react';
-// @ts-ignore
-import { BlockMath } from 'react-katex';
 import 'katex/dist/katex.min.css';
+import TeX from '@matejmazur/react-katex';
 import logo from '../images/twocolormapicon.svg';
 
 export default function Header() {
@@ -17,8 +16,8 @@ export default function Header() {
           The Map Equation
         </div>
       </h1>
-      <div className="mt-24 md:mt-44 text-xl sm:text-2xl md:text-3xl lg:text-5xl">
-        <BlockMath math="L(M) = q_\curvearrowright H(\mathcal{Q}) + \sum_{i = 1}^{m}{p_{\circlearrowright}^i H(\mathcal{P}^i)}" />
+      <div className="flex justify-center mt-24 md:mt-44 text-xl sm:text-2xl md:text-3xl lg:text-5xl">
+        <TeX math="L(M) = q_\curvearrowright H(\mathcal{Q}) + \sum_{i = 1}^{m}{p_{\circlearrowright}^i H(\mathcal{P}^i)}" />
       </div>
     </header>
   );
