@@ -51,15 +51,21 @@ export default function Walker({ walker, r = 10 }: Props) {
 
   const defaultFill = '#393939';
 
-  const { x, y, length, fill } = useSpring({
+  const { x, y, length, fill, opacity } = useSpring({
     reset: true,
-    from: { x: x1, y: y1, length: 0, fill: defaultFill },
-    to: {
-      x: x2,
-      y: y2,
-      length: Math.PI,
-      fill: teleported ? '#FE3265' : defaultFill,
-    },
+    from: { x: x1, y: y1, length: 0, fill: defaultFill, opacity: 1 },
+    to: [
+      {
+        x: x2,
+        y: y2,
+        length: Math.PI,
+        fill: teleported ? '#FE3265' : defaultFill,
+        opacity: 1,
+      },
+      {
+        opacity: 0.5,
+      },
+    ],
   });
 
   if (!walker.current) return null;
@@ -71,6 +77,7 @@ export default function Walker({ walker, r = 10 }: Props) {
     <animated.path
       d={to([x, y, length], (x, y, length) => path(x1, y1, x, y, r, length))}
       fill={fill}
+      opacity={opacity}
     />
   );
 }
