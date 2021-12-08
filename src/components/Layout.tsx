@@ -68,6 +68,8 @@ export default function Layout(props: { network: NetworkModel }) {
     return 1 / network.numNodes;
   };
 
+  const getUniformRate = (node: Node) => 1 / network.numNodes;
+
   const firstNetworkRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -116,7 +118,7 @@ export default function Layout(props: { network: NetworkModel }) {
         </div>
 
         <div className="col-span-3 mb-48">
-          <h1>Page title</h1>
+          <h1>A network is not enough</h1>
           <p>
             Networks of nodes and links are powerful abstractions of complex
             systems. But when the networks have thousands of nodes and links,
@@ -128,9 +130,9 @@ export default function Layout(props: { network: NetworkModel }) {
         <div className="col-span-4 mb-20">
           <h2>Maps of networks</h2>
           <p>
-            Maps simplify and highlight streets, neighborhoods, cities, and
-            highways from high-resolution satellite images. We want to create
-            similar maps of networks.
+            Geographic maps <b>simplify</b> and <b>highlight</b> streets,
+            neighborhoods, cities, and highways from high-resolution satellite
+            images. We want to create similar maps of networks.
           </p>
         </div>
 
@@ -183,10 +185,9 @@ export default function Layout(props: { network: NetworkModel }) {
           </p>
           <p>
             We can simulate the flows using a <strong>random walk</strong> on
-            the network. Here, we can identify four modules. Notice how the
-            random walker will tend to get stuck in the modules. To prevent
-            getting stuck, in each step, it teleports to a random node with low
-            probability.
+            the network. Notice how the random walker will tend to get stuck in
+            modules. To prevent getting too stuck, it teleports with a low
+            probability to a random node.
           </p>
         </div>
 
@@ -206,14 +207,10 @@ export default function Layout(props: { network: NetworkModel }) {
         <div className="col-span-2 mb-20 xl:mb-48">
           <h1>The duality between compression and finding regularities</h1>
           <p>
-            Like maps show interesting things in satellite images using less
-            information, we want to use the duality between finding regularities
-            and compressing information for finding modules in networks. This
-            goal leads to fundamental principles of cartography and information
-            theory. Compression algorithms use regularities to compress data.
-            The more they find, the better they can compress. In this image, the
-            top half is easier to compress than the bottom part because of the
-            clear blue sky.
+            Compression algorithms use regularities to compress data. The more
+            regularities they find, the better they can compress. In this image,
+            the top half is easier to compress than the bottom part because of
+            the repeated pattern in the clear blue sky.
           </p>
         </div>
 
@@ -241,32 +238,20 @@ export default function Layout(props: { network: NetworkModel }) {
         </div>
 
         <div className="col-span-4 mb-48">
-          <h2 className="font-light mx-auto text-center lg:w-3/5 mb-48">
-            We are after the <strong>regularities</strong> and use the{' '}
-            <strong>compression rate</strong> to measure how good we are at
-            finding them.
+          <h2 className="font-light mx-auto text-center lg:w-3/5 mb-48 leading-relaxed">
+            By searching for <strong>optimal compression</strong> we will find
+            the <strong>regularities</strong> that simplifies the data.
           </h2>
         </div>
 
-        <div className="col-span-2 mb-20 xl:mb-48">
+        <div className="col-span-4">
           <h2>Huffman coding</h2>
           <p>
             To use the machinery of information theory, we describe the random
             walker with a binary message. Huffman coding (Like Morse code, more
             frequently used symbols should be shorter).
           </p>
-        </div>
-
-        <div className="col-span-2 mb-48">
-          <Network
-            network={network}
-            getRate={getRate}
-            showLabels={true}
-            showModules={showModules}
-            showWalker={rate === Rate.Visits}
-          />
-
-          <div className="flex flex-row justify-center space-x-4 mb-10">
+          <div className="flex flex-row justify-center space-x-4 mt-10 mb-10">
             <Button className="button" onClick={resetRandomWalk}>
               Reset
             </Button>
@@ -279,13 +264,34 @@ export default function Layout(props: { network: NetworkModel }) {
             >
               {walkStarted ? 'Stop Random Walk' : 'Start Random Walk'}
             </Button>
-            <Button className="button" onClick={toggleModules}>
-              {showModules ? 'Hide Modules' : 'Show Modules'}
-            </Button>
           </div>
+        </div>
 
-          <Trace network={network} showModules={showModules} />
+        <div className="col-span-2 mb-48">
+          <Network
+            network={network}
+            getRate={getUniformRate}
+            showLabels={true}
+            showModules={false}
+            showWalker={rate === Rate.Visits}
+          />
 
+          <Trace network={network} showModules={false} />
+        </div>
+
+        <div className="col-span-2 mb-48">
+          <Network
+            network={network}
+            getRate={getUniformRate}
+            showLabels={true}
+            showModules={true}
+            showWalker={rate === Rate.Visits}
+          />
+
+          <Trace network={network} showModules={true} />
+        </div>
+
+        <div className="col-span-2 mb-48">
           <Rates
             network={network}
             getRate={getRate}
