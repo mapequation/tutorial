@@ -80,8 +80,8 @@ export default function CodeBooks({ barWidth = 200, network }: Props) {
     <Svg className="codeView" viewBox={viewBox}>
       <g>
         <g id="modules">
-          {modules.map((module) => (
-            <>
+          {modules.map((module, i) => (
+            <g key={i}>
               <EnterFlow {...getProps(module)} />
               <text
                 x={module.x + barWidth + 20}
@@ -90,13 +90,13 @@ export default function CodeBooks({ barWidth = 200, network }: Props) {
               >
                 {module.enterCode}
               </text>
-            </>
+            </g>
           ))}
         </g>
         <g id="nodes">
-          {nodes.map((node) =>
+          {nodes.map((node, i) =>
             node.exitFlow > 0 ? (
-              <>
+              <g key={i}>
                 <ExitFlow {...getProps(node)} />
                 <text
                   x={node.x + barWidth + 40}
@@ -105,9 +105,9 @@ export default function CodeBooks({ barWidth = 200, network }: Props) {
                 >
                   {node.exitCode}
                 </text>
-              </>
+              </g>
             ) : (
-              <>
+              <g key={i}>
                 <Flow {...getProps(node)} />
                 <text
                   x={node.x + barWidth + 40}
@@ -116,7 +116,7 @@ export default function CodeBooks({ barWidth = 200, network }: Props) {
                 >
                   {node.code}
                 </text>
-              </>
+              </g>
             ),
           )}
         </g>
