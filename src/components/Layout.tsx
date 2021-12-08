@@ -20,6 +20,7 @@ export default function Layout(props: { network: NetworkModel }) {
   const { network } = props;
 
   const [rate, setRate] = useState(Rate.None);
+  const [nodeSizeShowsRate, setNodeSizeShowsRate] = useState(false);
 
   const intervalStopped = -1;
 
@@ -52,6 +53,9 @@ export default function Layout(props: { network: NetworkModel }) {
     setRate(Rate.Visits);
     network.walker.step();
   };
+
+  const toggleNodeSizeShowsRate = () =>
+    setNodeSizeShowsRate(!nodeSizeShowsRate);
 
   const toggleRandomWalk = () =>
     walkStarted ? stopRandomWalk() : startRandomWalk();
@@ -264,13 +268,23 @@ export default function Layout(props: { network: NetworkModel }) {
             >
               {walkStarted ? 'Stop Random Walk' : 'Start Random Walk'}
             </Button>
+            <Button
+              className={`button ${
+                !nodeSizeShowsRate ? 'button--primary' : ''
+              }`}
+              onClick={toggleNodeSizeShowsRate}
+            >
+              {nodeSizeShowsRate
+                ? 'Hide current visit rate'
+                : 'Show current visit rate'}
+            </Button>
           </div>
         </div>
 
         <div className="col-span-2 mb-48">
           <Network
             network={network}
-            getRate={getUniformRate}
+            getRate={nodeSizeShowsRate ? getRate : getUniformRate}
             showLabels={true}
             showModules={false}
             showWalker={rate === Rate.Visits}
@@ -282,7 +296,7 @@ export default function Layout(props: { network: NetworkModel }) {
         <div className="col-span-2 mb-48">
           <Network
             network={network}
-            getRate={getUniformRate}
+            getRate={nodeSizeShowsRate ? getRate : getUniformRate}
             showLabels={true}
             showModules={true}
             showWalker={rate === Rate.Visits}
