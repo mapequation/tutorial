@@ -1,10 +1,24 @@
 import type { NextPage } from 'next';
 import Head from 'next/head';
-import App from '../components/App';
+import { modular_wd_json } from '../networks';
+import { Network } from '../model';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
+import Layout from '../components/Layout';
 
 const Home: NextPage = () => {
+  const network = Network.parse(modular_wd_json);
+  network.flowCalculator.calculateFlow();
+  network.tree.update();
+  network.mapequation.calculateCodelength();
+  network.coder.code();
+
+  // TODO generalize and remove
+  network.nodes.forEach((node) => {
+    node.x *= 800;
+    node.y *= 800;
+  });
+
   const toggleDarkMode = () => {
     const html = document.getElementsByTagName('html')[0];
     html.classList.toggle('dark');
@@ -35,7 +49,7 @@ const Home: NextPage = () => {
 
         <Header />
 
-        <App />
+        <Layout network={network} />
 
         <Footer />
       </div>
