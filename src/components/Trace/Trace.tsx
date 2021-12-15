@@ -64,31 +64,52 @@ function Trace({ network, showModules = false }: Props) {
     containerRef.current!.scrollTop = lastRef.current?.offsetTop ?? 0;
   }, [last]);
 
+  const oneLevelCodeLength = nodes
+    .map((node) => node.oneLevelCode)
+    .join('').length;
+
+  const codelength = nodes
+    .map((node, i, nodes) => {
+      if (i === 0) return node.parent?.enterCode + node.code; // first node must enter module
+      const prev = nodes[i - 1];
+      if (prev.parent?.id === node.parent?.id) return node.code; // same module
+      return prev.parent?.exitCode! + node.parent?.enterCode + node.code; // different module: exit, enter, code
+    })
+    .join('').length;
+
+  const avgCodelength =
+    nodes.length === 0
+      ? 0
+      : (showModules === true ? codelength : oneLevelCodeLength) / nodes.length;
+
   return (
-    <div
-      ref={containerRef}
-      className="px-4 py-2 w-full h-32 overflow-y-auto overscroll-contain rounded-lg border-2 border-gray-200 dark:border-gray-700 leading-snug text-sm font-mono -word-spacing-7"
-    >
-      {nodes.map((node, i, nodes) => (
-        <Code
-          node={node}
-          i={i}
-          key={i}
-          nodes={nodes}
-          showModules={showModules}
-        />
-      ))}
-      <strong ref={lastRef}>
-        {last && (
+    <>
+      <div
+        ref={containerRef}
+        className="px-4 py-2 w-full h-32 overflow-y-auto overscroll-contain rounded-lg border-2 border-gray-200 dark:border-gray-700 leading-snug text-sm font-mono -word-spacing-7"
+      >
+        {nodes.map((node, i, nodes) => (
           <Code
-            node={last}
-            i={nodes.length}
+            node={node}
+            i={i}
+            key={i}
             nodes={nodes}
             showModules={showModules}
           />
-        )}
-      </strong>
-    </div>
+        ))}
+        <strong ref={lastRef}>
+          {last && (
+            <Code
+              node={last}
+              i={nodes.length}
+              nodes={nodes}
+              showModules={showModules}
+            />
+          )}
+        </strong>
+      </div>
+      Average codelength: {avgCodelength.toFixed(3)} bits
+    </>
   );
 }
 
