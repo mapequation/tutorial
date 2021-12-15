@@ -1,7 +1,7 @@
 import type Network from '../Network';
 import type Node from '../Node';
 import { Teleportation } from '../enums';
-import { action, makeObservable, observable } from 'mobx';
+import { action, computed, makeObservable, observable } from 'mobx';
 import { weightedRandom } from '../helpers';
 
 export default class RandomWalker {
@@ -17,6 +17,10 @@ export default class RandomWalker {
   teleportRate = 0.15;
   teleportModel = Teleportation.Recorded;
 
+  private readonly intervalStopped = -1;
+  private intervalId = this.intervalStopped;
+  private interval = 400;
+
   constructor(network: Network) {
     this.network = network;
 
@@ -25,12 +29,32 @@ export default class RandomWalker {
       current: observable,
       teleported: observable,
       trace: observable,
+      start: action,
+      stop: action,
       reset: action,
       step: action,
+      isStarted: computed,
     });
   }
 
+  get isStarted() {
+    return this.intervalId !== this.intervalStopped;
+  }
+
+  start() {
+    if (this.isStarted) return;
+
+    this.intervalId = window.setInterval(() => this.step(false), this.interval);
+  }
+
+  stop() {
+    window.clearInterval(this.intervalId);
+    this.intervalId = this.intervalStopped;
+  }
+
   reset() {
+    if (this.isStarted) this.stop();
+
     this.totalVisits = 0;
     this.trace.length = 0;
 
@@ -39,7 +63,9 @@ export default class RandomWalker {
     this.setCurrent(null);
   }
 
-  step() {
+  step(stop = true) {
+    if (stop && this.isStarted) this.stop();
+
     if (!this.current) {
       this.setCurrent(this.network.randomNode());
       this.recordVisit();

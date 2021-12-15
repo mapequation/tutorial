@@ -11,43 +11,28 @@ export default function Layout({ network }: { network: NetworkModel }) {
   const [rate, setRate] = useState(Rate.None);
   const [nodeSizeShowsRate, setNodeSizeShowsRate] = useState(false);
 
-  const intervalStopped = -1;
-
-  const [intervalId, setIntervalId] = useState(intervalStopped);
-
-  const walkStarted = intervalId !== intervalStopped;
-
-  const interval = 400;
-
   const startRandomWalk = useCallback(() => {
-    if (walkStarted) return;
+    network.walker.start();
     setRate(Rate.Visits);
-    const id = window.setInterval(() => network.walker.step(), interval);
-    setIntervalId(id);
-  }, [walkStarted, network, interval]);
+  }, [network]);
 
-  const stopRandomWalk = () => {
-    window.clearInterval(intervalId);
-    setIntervalId(intervalStopped);
-  };
+  const stopRandomWalk = () => network.walker.stop();
 
   const resetRandomWalk = () => {
-    setRate(Rate.None);
-    stopRandomWalk();
     network.walker.reset();
+    setRate(Rate.None);
   };
 
   const stepRandomWalk = () => {
-    stopRandomWalk();
-    setRate(Rate.Visits);
     network.walker.step();
+    setRate(Rate.Visits);
   };
 
   const toggleNodeSizeShowsRate = () =>
     setNodeSizeShowsRate(!nodeSizeShowsRate);
 
   const toggleRandomWalk = () =>
-    walkStarted ? stopRandomWalk() : startRandomWalk();
+    network.walker.isStarted ? stopRandomWalk() : startRandomWalk();
 
   const getRate = (node: Node) => {
     if (rate === Rate.Visits) {
@@ -82,9 +67,6 @@ export default function Layout({ network }: { network: NetworkModel }) {
 
     return () => firstNetworkObserver.disconnect();
   }, [startRandomWalk]);
-
-  const [showModules, setShowModules] = useState(false);
-  const toggleModules = () => setShowModules(!showModules);
 
   return (
     <main className="xl:grid xl:grid-cols-4 xl:gap-x-20">
@@ -238,10 +220,14 @@ export default function Layout({ network }: { network: NetworkModel }) {
             Step
           </Button>
           <Button
-            className={`button ${!walkStarted ? 'button--primary' : ''}`}
+            className={`button ${
+              !network.walker.isStarted ? 'button--primary' : ''
+            }`}
             onClick={toggleRandomWalk}
           >
-            {walkStarted ? 'Stop Random Walk' : 'Start Random Walk'}
+            {network.walker.isStarted
+              ? 'Stop Random Walk'
+              : 'Start Random Walk'}
           </Button>
           <Button
             className={`button ${!nodeSizeShowsRate ? 'button--primary' : ''}`}
@@ -276,16 +262,16 @@ export default function Layout({ network }: { network: NetworkModel }) {
         <Trace network={network} showModules={true} />
       </div>
 
-      <div className="col-span-2 mb-48 hidden">
+      <div className="col-span-2 mb-48">
         <Rates
           network={network}
           getRate={getRate}
           rate={rate}
-          showModules={showModules}
+          showModules={true}
         />
       </div>
 
-      <div className="col-span-2 mb-48 hidden">
+      <div className="col-span-2 mb-48">
         <CodeBooks network={network} />
         <br />
         {'One-level codelength'}{' '}
