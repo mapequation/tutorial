@@ -1,13 +1,13 @@
 import React from 'react';
 import { modular_wd_json } from '../networks';
-import { Network as NetworkModel } from '../model';
+import { Network } from '../model';
 import Layout from './Layout';
 
 interface AppProps {}
 
 interface AppState {
   loading: boolean;
-  network?: NetworkModel;
+  network?: Network;
 }
 
 class App extends React.Component<AppProps> {
@@ -17,7 +17,7 @@ class App extends React.Component<AppProps> {
   };
 
   componentDidMount() {
-    const network = NetworkModel.parse(modular_wd_json);
+    const network = Network.parse(modular_wd_json);
     network.flowCalculator.calculateFlow();
     network.tree.update();
     network.mapequation.calculateCodelength();
@@ -43,10 +43,10 @@ class App extends React.Component<AppProps> {
     const { loading, network } = this.state;
 
     return (
-      <div className="App">
+      <>
         {loading && <p>Loading...</p>}
         {!loading && network != null && <Layout network={network} />}
-      </div>
+      </>
     );
   }
 }

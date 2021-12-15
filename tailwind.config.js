@@ -1,5 +1,8 @@
 module.exports = {
-  purge: ['./src/**/*.{js,jsx,ts,tsx}', './public/index.html'],
+  content: [
+    './src/pages/**/*.{js,ts,jsx,tsx}',
+    './src/components/**/*.{js,ts,jsx,tsx}',
+  ],
   darkMode: 'class', // or 'media' or 'class'
   theme: {
     extend: {
@@ -17,7 +20,7 @@ module.exports = {
         brand: '#b22222',
       },
       backgroundImage: (theme) => ({
-        noise: 'url("images/noise-100-90-5.png")',
+        noise: 'url("/demo/images/noise-100-90-5.png")',
       }),
       backgroundSize: {
         // prettier-ignore

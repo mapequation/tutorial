@@ -1,7 +1,6 @@
 import React from 'react';
 import 'katex/dist/katex.min.css';
 import TeX from '@matejmazur/react-katex';
-import logo from '../images/twocolormapicon.svg';
 
 export default function Header() {
   return (
@@ -9,7 +8,7 @@ export default function Header() {
       <h1 className="flex flex-row justify-center gap-x-2 md:gap-x-4 lg:gap-x-8">
         <img
           className="h-8 sm:h-10 md:h-12 lg:h-24"
-          src={logo}
+          src="/demo/images/twocolormapicon.svg"
           alt="Map Equation logo"
         />
         <div className="text-brand font-brand tracking-tight text-3xl sm:text-4xl md:text-5xl lg:text-8xl">
