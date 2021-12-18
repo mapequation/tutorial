@@ -38,21 +38,17 @@ function Network({
 
   const nodeRadius = (node: NodeModel): number => nodeScale(getNodeRate(node));
 
-  const nodeFill = (node: NodeModel): string => {
-    if (network.walker.current?.id === node.id) {
-      return !showModules ? schemeSet2[0] : schemePastel2[node.module];
-    }
+  const scheme = schemePastel2;
+  const visitScheme = schemeSet2;
+  const strokeScheme = visitScheme;
+  const schemeIndex = (node: NodeModel) => (showModules ? node.module : 0);
 
-    if (!showModules) return schemePastel2[0];
+  const nodeFill = (node: NodeModel) =>
+    network.walker.isVisiting(node)
+      ? visitScheme[schemeIndex(node)]
+      : scheme[schemeIndex(node)];
 
-    return schemePastel2[node.module];
-  };
-
-  const nodeStroke = (node: NodeModel): string => {
-    if (!showModules) return schemeSet2[0];
-
-    return schemeSet2[node.module];
-  };
+  const nodeStroke = (node: NodeModel) => strokeScheme[schemeIndex(node)];
 
   const getLabel = (node: NodeModel) =>
     showModules ? node.code : node.oneLevelCode;

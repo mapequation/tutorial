@@ -42,6 +42,10 @@ export default class RandomWalker {
     return this.intervalId !== this.intervalStopped;
   }
 
+  isVisiting(node: Node) {
+    return this.current?.id === node.id;
+  }
+
   start() {
     if (this.isStarted) return;
 
