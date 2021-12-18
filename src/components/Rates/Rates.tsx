@@ -1,6 +1,7 @@
 import React from 'react';
 import { observer } from 'mobx-react';
 import type { Network, Node } from '../../model';
+import { getRate } from '../../model';
 import Svg from '../Svg';
 import Bar from './Bar';
 import OverflowMask from './OverflowMask';
@@ -9,15 +10,16 @@ import { Rate } from '../../model/enums';
 
 interface Props {
   network: Network;
-  getRate: (node: Node) => number;
   rate: Rate;
-  showModules: boolean;
+  showModules?: boolean;
   width?: number | string;
   height?: number | string;
 }
 
-function Rates({ network, getRate, rate, showModules }: Props) {
+function Rates({ network, rate, showModules = true }: Props) {
   const { nodes, maxNodeFlow } = network;
+
+  const getNodeRate = getRate(rate, 1 / nodes.length);
 
   const [viewBoxWidth, viewBoxHeight] = [1000, 800];
   const viewBox = `0 0 ${viewBoxWidth} ${viewBoxHeight}`;
@@ -79,7 +81,7 @@ function Rates({ network, getRate, rate, showModules }: Props) {
             animate
             opacity={0.6}
             {...barFillStroke(node)}
-            {...barProps(i, getRate(node))}
+            {...barProps(i, getNodeRate(node))}
           />
         ))}
     </Svg>

@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import type { NextPage } from 'next';
 import Head from 'next/head';
+import { observer } from 'mobx-react';
 import { modular_wd_json } from '../networks';
-import { Network as NetworkModel, Node, Rate } from '../model';
+import { Network as NetworkModel, Rate } from '../model';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import Network from '../components/Network';
@@ -11,58 +12,46 @@ import Button from '../components/Button';
 import CodeBooks from '../components/CodeBooks';
 import Trace from '../components/Trace';
 
-const Home: NextPage = () => {
-  const network = NetworkModel.parse(modular_wd_json);
-  network.flowCalculator.calculateFlow();
-  network.tree.update();
-  network.mapequation.calculateCodelength();
-  network.coder.code();
+const network = NetworkModel.parse(modular_wd_json);
+network.flowCalculator.calculateFlow();
+network.tree.update();
+network.mapequation.calculateCodelength();
+network.coder.code();
 
-  // TODO generalize and remove
-  network.nodes.forEach((node) => {
-    node.x *= 800;
-    node.y *= 800;
-  });
+// TODO generalize and remove
+network.nodes.forEach((node) => {
+  node.x *= 800;
+  node.y *= 800;
+});
 
+const Home: NextPage = observer(() => {
   const [rate, setRate] = useState(Rate.None);
-  const [nodeSizeShowsRate, setNodeSizeShowsRate] = useState(false);
+  const [showWalker, setShowWalker] = useState(false);
 
   const startRandomWalk = useCallback(() => {
     network.walker.start();
+    setShowWalker(true);
     setRate(Rate.Visits);
   }, [network]);
 
-  const stopRandomWalk = () => network.walker.stop();
+  const stopRandomWalk = () => {
+    network.walker.stop();
+  };
 
   const resetRandomWalk = () => {
     network.walker.reset();
+    setShowWalker(false);
     setRate(Rate.None);
   };
 
   const stepRandomWalk = () => {
     network.walker.step();
+    setShowWalker(true);
     setRate(Rate.Visits);
   };
 
-  const toggleNodeSizeShowsRate = () =>
-    setNodeSizeShowsRate(!nodeSizeShowsRate);
-
   const toggleRandomWalk = () =>
     network.walker.isStarted ? stopRandomWalk() : startRandomWalk();
-
-  const getRate = (node: Node) => {
-    if (rate === Rate.Visits) {
-      return node.visitRate;
-    } else if (rate === Rate.Votes) {
-      return node.votes;
-    } else if (rate === Rate.Flow) {
-      return node.flow;
-    }
-
-    return 1 / network.numNodes;
-  };
-
-  const getUniformRate = (_: Node) => 1 / network.numNodes;
 
   const firstNetworkRef = useRef<HTMLDivElement>(null);
 
@@ -201,11 +190,7 @@ const Home: NextPage = () => {
             ref={firstNetworkRef}
             className="col-span-2 w-4/5 mx-auto xl:w-full mb-48"
           >
-            <Network
-              network={network}
-              getRate={() => 1 / network.numNodes}
-              showWalker={rate === Rate.Visits}
-            />
+            <Network network={network} showWalker={showWalker} />
           </div>
 
           <div className="col-span-2 mb-20 xl:mb-48">
@@ -274,11 +259,13 @@ const Home: NextPage = () => {
               </Button>
               <Button
                 className={`button ${
-                  !nodeSizeShowsRate ? 'button--primary' : ''
+                  rate === Rate.Visits ? 'button--primary' : ''
                 }`}
-                onClick={toggleNodeSizeShowsRate}
+                onClick={() =>
+                  setRate(rate === Rate.Visits ? Rate.None : Rate.Visits)
+                }
               >
-                {nodeSizeShowsRate ? 'Hide visit rate' : 'Show visit rate'}
+                {rate === Rate.Visits ? 'Hide visit rate' : 'Show visit rate'}
               </Button>
             </div>
           </div>
@@ -286,9 +273,9 @@ const Home: NextPage = () => {
           <div className="col-span-2 mb-48">
             <Network
               network={network}
-              getRate={nodeSizeShowsRate ? getRate : getUniformRate}
+              rate={rate}
               showLabels
-              showWalker={rate === Rate.Visits}
+              showWalker={showWalker}
             />
 
             <Trace network={network} />
@@ -297,22 +284,17 @@ const Home: NextPage = () => {
           <div className="col-span-2 mb-48">
             <Network
               network={network}
-              getRate={nodeSizeShowsRate ? getRate : getUniformRate}
+              rate={rate}
               showLabels
               showModules
-              showWalker={rate === Rate.Visits}
+              showWalker={showWalker}
             />
 
             <Trace network={network} showModules />
           </div>
 
           <div className="col-span-2 mb-48">
-            <Rates
-              network={network}
-              getRate={getRate}
-              rate={rate}
-              showModules
-            />
+            <Rates network={network} rate={Rate.Visits} showModules />
           </div>
 
           <div className="col-span-2 mb-48">
@@ -335,6 +317,6 @@ const Home: NextPage = () => {
       </div>
     </>
   );
-};
+});
 
 export default Home;

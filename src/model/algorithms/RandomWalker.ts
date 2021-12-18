@@ -18,7 +18,7 @@ export default class RandomWalker {
   teleportModel = Teleportation.Recorded;
 
   private readonly intervalStopped = -1;
-  private intervalId = this.intervalStopped;
+  intervalId = this.intervalStopped;
   private interval = 400;
 
   constructor(network: Network) {
@@ -29,6 +29,7 @@ export default class RandomWalker {
       current: observable,
       teleported: observable,
       trace: observable,
+      intervalId: observable,
       start: action,
       stop: action,
       reset: action,

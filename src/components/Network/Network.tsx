@@ -8,6 +8,7 @@ import type {
   Network as NetworkModel,
   Node as NodeModel,
 } from '../../model';
+import { Rate, getRate } from '../../model';
 import { observer } from 'mobx-react';
 import Svg from '../Svg';
 import Walker from './Walker';
@@ -16,7 +17,7 @@ const nodeScale = scaleSqrt().domain([0, 1]).range([10, 100]);
 
 interface Props {
   network: NetworkModel;
-  getRate: (node: NodeModel) => number;
+  rate?: Rate;
   showLabels?: boolean;
   showModules?: boolean;
   showWalker?: boolean;
@@ -24,7 +25,7 @@ interface Props {
 
 function Network({
   network,
-  getRate,
+  rate = Rate.None,
   showLabels = false,
   showModules = false,
   showWalker = false,
@@ -33,7 +34,9 @@ function Network({
   const arrowId = 'arrow';
   const markerEnd = network.directed ? `url(#${arrowId})` : undefined;
 
-  const nodeRadius = (node: NodeModel): number => nodeScale(getRate(node));
+  const getNodeRate = getRate(rate, 1 / network.numNodes);
+
+  const nodeRadius = (node: NodeModel): number => nodeScale(getNodeRate(node));
 
   const nodeFill = (node: NodeModel): string => {
     if (network.walker.current?.id === node.id) {
