@@ -204,8 +204,6 @@ const Home: NextPage = () => {
             <Network
               network={network}
               getRate={() => 1 / network.numNodes}
-              showLabels={false}
-              showModules={false}
               showWalker={rate === Rate.Visits}
             />
           </div>
@@ -289,24 +287,23 @@ const Home: NextPage = () => {
             <Network
               network={network}
               getRate={nodeSizeShowsRate ? getRate : getUniformRate}
-              showLabels={true}
-              showModules={false}
+              showLabels
               showWalker={rate === Rate.Visits}
             />
 
-            <Trace network={network} showModules={false} />
+            <Trace network={network} />
           </div>
 
           <div className="col-span-2 mb-48">
             <Network
               network={network}
               getRate={nodeSizeShowsRate ? getRate : getUniformRate}
-              showLabels={true}
-              showModules={true}
+              showLabels
+              showModules
               showWalker={rate === Rate.Visits}
             />
 
-            <Trace network={network} showModules={true} />
+            <Trace network={network} showModules />
           </div>
 
           <div className="col-span-2 mb-48">
@@ -314,7 +311,7 @@ const Home: NextPage = () => {
               network={network}
               getRate={getRate}
               rate={rate}
-              showModules={true}
+              showModules
             />
           </div>
 

@@ -17,17 +17,17 @@ const nodeScale = scaleSqrt().domain([0, 1]).range([10, 100]);
 interface Props {
   network: NetworkModel;
   getRate: (node: NodeModel) => number;
-  showLabels: boolean;
-  showModules: boolean;
-  showWalker: boolean;
+  showLabels?: boolean;
+  showModules?: boolean;
+  showWalker?: boolean;
 }
 
 function Network({
   network,
   getRate,
-  showLabels,
-  showModules,
-  showWalker,
+  showLabels = false,
+  showModules = false,
+  showWalker = false,
   ...props
 }: Props & SVGProps<SVGSVGElement>) {
   const arrowId = 'arrow';
