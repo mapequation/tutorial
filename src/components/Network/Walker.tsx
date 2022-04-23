@@ -1,6 +1,5 @@
-import React from 'react';
-import { RandomWalker } from '../../model/algorithms';
-import { useSpring, animated, to } from 'react-spring';
+import { RandomWalker } from "../../model/algorithms";
+import { animated, to, useSpring } from "react-spring";
 
 const path = (
   x1: number,
@@ -8,7 +7,7 @@ const path = (
   x2: number,
   y2: number,
   r: number,
-  length: number,
+  length: number
 ): string => {
   const dx = x2 - x1 || 1e-7;
   const dy = y2 - y1 || 1e-7;
@@ -49,7 +48,7 @@ export default function Walker({ walker, r = 10 }: Props) {
   const x1 = prev ? prev.x : x2;
   const y1 = prev ? prev.y : y2;
 
-  const defaultFill = '#393939';
+  const defaultFill = "#393939";
 
   const { x, y, length, fill, opacity } = useSpring({
     reset: true,
@@ -59,7 +58,7 @@ export default function Walker({ walker, r = 10 }: Props) {
         x: x2,
         y: y2,
         length: Math.PI,
-        fill: teleported ? '#FE3265' : defaultFill,
+        fill: teleported ? "#FE3265" : defaultFill,
         opacity: 1,
       },
       {

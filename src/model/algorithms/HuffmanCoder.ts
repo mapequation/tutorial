@@ -1,5 +1,5 @@
-import type Network from '../Network';
-import type { TreeNode } from './Tree';
+import type Network from "../Network";
+import type { TreeNode } from "./Tree";
 
 type CompareFn<T> = (a: T, b: T) => number;
 
@@ -29,7 +29,7 @@ class HuffmanNode<T> {
   left: HuffmanNode<T> | null = null;
   right: HuffmanNode<T> | null = null;
   data: T;
-  code: string = '';
+  code: string = "";
 
   constructor(data: T, left?: HuffmanNode<T>, right?: HuffmanNode<T>) {
     this.data = data;
@@ -60,7 +60,7 @@ type HuffmanTree<T> = HuffmanNode<T>;
 function createHuffmanTree<T>(
   items: T[],
   compareFn: CompareFn<T>,
-  addFn: AddFn<T>,
+  addFn: AddFn<T>
 ): HuffmanTree<T> {
   const nodeCompareFn = (a: HuffmanNode<T>, b: HuffmanNode<T>) =>
     compareFn(a.data, b.data);
@@ -83,10 +83,10 @@ function createHuffmanTree<T>(
 
   for (let node of root.depthFirst()) {
     if (node.left) {
-      node.left.code = node.code + '0';
+      node.left.code = node.code + "0";
     }
     if (node.right) {
-      node.right.code = node.code + '1';
+      node.right.code = node.code + "1";
     }
   }
 
@@ -99,7 +99,7 @@ type Item = {
 };
 
 export default class HuffmanCoder {
-  private network: Network;
+  private readonly network: Network;
   private readonly compareFn = (a: Item, b: Item) => a.flow - b.flow;
   private readonly addFn = (a: Item, b: Item) => ({ flow: a.flow + b.flow });
 

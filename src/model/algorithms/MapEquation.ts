@@ -1,10 +1,10 @@
-import { computed, makeObservable } from 'mobx';
-import type Network from '../Network';
-import type { TreeNode } from './Tree';
-import { entropy, sum } from '../helpers';
+import { computed, makeObservable } from "mobx";
+import type Network from "../Network";
+import type { TreeNode } from "./Tree";
+import { entropy, sum } from "../helpers";
 
 export default class MapEquation {
-  private network: Network;
+  private readonly network: Network;
 
   constructor(network: Network) {
     this.network = network;

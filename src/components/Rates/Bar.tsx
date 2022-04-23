@@ -1,5 +1,5 @@
-import React, { SVGProps } from 'react';
-import { useSpring, animated } from 'react-spring';
+import { SVGProps } from "react";
+import { animated, useSpring } from "react-spring";
 
 interface Props {
   y: number;

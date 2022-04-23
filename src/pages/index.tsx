@@ -1,16 +1,16 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
-import type { NextPage } from 'next';
-import Head from 'next/head';
-import { observer } from 'mobx-react';
-import { modular_wd_json } from '../networks';
-import { Network as NetworkModel, Rate } from '../model';
-import Header from '../components/Header';
-import Footer from '../components/Footer';
-import Network from '../components/Network';
-import Rates from '../components/Rates';
-import Button from '../components/Button';
-import CodeBooks from '../components/CodeBooks';
-import Trace from '../components/Trace';
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { NextPage } from "next";
+import Head from "next/head";
+import { observer } from "mobx-react";
+import { modular_wd_json } from "../networks";
+import { Network as NetworkModel, Rate } from "../model";
+import Header from "../components/Header";
+import Footer from "../components/Footer";
+import Network from "../components/Network";
+import Rates from "../components/Rates";
+import Button from "../components/Button";
+import CodeBooks from "../components/CodeBooks";
+import Trace from "../components/Trace";
 
 const network = NetworkModel.parse(modular_wd_json);
 network.flowCalculator.calculateFlow();
@@ -32,7 +32,7 @@ const Home: NextPage = observer(() => {
     network.walker.start();
     setShowWalker(true);
     setRate(Rate.Visits);
-  }, [network]);
+  }, []);
 
   const stopRandomWalk = () => {
     network.walker.stop();
@@ -65,7 +65,7 @@ const Home: NextPage = observer(() => {
 
           observer.unobserve(entry.target);
         }),
-      { threshold: 1, rootMargin: '0px 0px -100px 0px' },
+      { threshold: 1, rootMargin: "0px 0px -100px 0px" }
     );
 
     firstNetworkObserver.observe(firstNetworkRef.current!);
@@ -249,23 +249,23 @@ const Home: NextPage = observer(() => {
               </Button>
               <Button
                 className={`button ${
-                  !network.walker.isStarted ? 'button--primary' : ''
+                  !network.walker.isStarted ? "button--primary" : ""
                 }`}
                 onClick={toggleRandomWalk}
               >
                 {network.walker.isStarted
-                  ? 'Stop Random Walk'
-                  : 'Start Random Walk'}
+                  ? "Stop Random Walk"
+                  : "Start Random Walk"}
               </Button>
               <Button
                 className={`button ${
-                  rate === Rate.Visits ? 'button--primary' : ''
+                  rate === Rate.Visits ? "button--primary" : ""
                 }`}
                 onClick={() =>
                   setRate(rate === Rate.Visits ? Rate.None : Rate.Visits)
                 }
               >
-                {rate === Rate.Visits ? 'Hide visit rate' : 'Show visit rate'}
+                {rate === Rate.Visits ? "Hide visit rate" : "Show visit rate"}
               </Button>
             </div>
           </div>
@@ -300,16 +300,16 @@ const Home: NextPage = observer(() => {
           <div className="col-span-2 mb-48">
             <CodeBooks network={network} />
             <br />
-            {'One-level codelength'}{' '}
-            {network.mapequation.oneLevelCodelength.toFixed(3)} {'bits'}
+            {"One-level codelength"}{" "}
+            {network.mapequation.oneLevelCodelength.toFixed(3)} {"bits"}
             <br />
-            {'Index codelength'}{' '}
-            {network.mapequation.indexCodelength.toFixed(3)} {'bits'}
+            {"Index codelength"}{" "}
+            {network.mapequation.indexCodelength.toFixed(3)} {"bits"}
             <br />
-            {'Module codelength'}{' '}
-            {network.mapequation.moduleCodelength.toFixed(3)} {'bits'}
+            {"Module codelength"}{" "}
+            {network.mapequation.moduleCodelength.toFixed(3)} {"bits"}
             <br />
-            {'Codelength'} {network.mapequation.codelength.toFixed(3)} {'bits'}
+            {"Codelength"} {network.mapequation.codelength.toFixed(3)} {"bits"}
           </div>
         </main>
 

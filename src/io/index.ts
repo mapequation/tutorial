@@ -1,1 +1,1 @@
-export { default as NetworkReader } from './NetworkReader';
+export { default as NetworkReader } from "./NetworkReader";

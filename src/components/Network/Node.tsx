@@ -1,6 +1,6 @@
-import React, { SVGProps } from 'react';
-import { Node as NodeModel } from '../../model';
-import { animated, useSpring } from 'react-spring';
+import { SVGProps } from "react";
+import { Node as NodeModel } from "../../model";
+import { animated, useSpring } from "react-spring";
 
 interface Props {
   node: NodeModel;

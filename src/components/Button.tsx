@@ -1,7 +1,7 @@
-import React, { HTMLProps } from 'react';
+import { HTMLProps } from "react";
 
 export default function Button({
-  type = 'button',
+  type = "button",
   ...props
 }: HTMLProps<HTMLButtonElement>) {
   // @ts-ignore

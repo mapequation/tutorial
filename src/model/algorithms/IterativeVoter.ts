@@ -1,8 +1,8 @@
-import type Network from '../Network';
-import { action, makeObservable, observable } from 'mobx';
+import type Network from "../Network";
+import { action, makeObservable, observable } from "mobx";
 
 export default class IterativeVoter {
-  private network: Network;
+  private readonly network: Network;
 
   teleportRate = 0.15;
 
@@ -39,7 +39,7 @@ export default class IterativeVoter {
 
     const danglingVotes = danglingNodes.reduce(
       (votes, node) => votes + node.votes,
-      0.0,
+      0.0
     );
 
     const teleportVotes = alpha + beta * danglingVotes;
@@ -60,7 +60,7 @@ export default class IterativeVoter {
 
     const sum = Array.from(Object.values(next)).reduce(
       (sum, votes) => sum + votes,
-      0.0,
+      0.0
     );
 
     for (let [id, votes] of Object.entries(next)) {

@@ -2,7 +2,7 @@ import type {
   SerializedLink,
   SerializedNetwork,
   SerializedNode,
-} from './interfaces';
+} from "./interfaces";
 
 enum Context {
   Nodes,
@@ -18,21 +18,21 @@ class NetworkReader {
     let context = Context.None;
     let directed = false;
 
-    for (let line of lines.split('\n')) {
-      if (line.startsWith('#') || line.trim().length === 0) {
+    for (const line of lines.split("\n")) {
+      if (line.startsWith("#") || line.trim().length === 0) {
         continue;
       }
 
-      if (line.startsWith('*')) {
-        let lower = line.toLowerCase();
-        if (lower.startsWith('*nodes') || lower.startsWith('*vertices')) {
+      if (line.startsWith("*")) {
+        const lower = line.toLowerCase();
+        if (lower.startsWith("*nodes") || lower.startsWith("*vertices")) {
           context = Context.Nodes;
         } else if (
-          lower.startsWith('*links') ||
-          lower.startsWith('*edges') ||
-          lower.startsWith('*arcs')
+          lower.startsWith("*links") ||
+          lower.startsWith("*edges") ||
+          lower.startsWith("*arcs")
         ) {
-          directed = lower.startsWith('*links');
+          directed = lower.startsWith("*links");
           context = Context.Links;
         } else {
           context = Context.None;
@@ -50,7 +50,7 @@ class NetworkReader {
           console.error(`Cannot parse line: "${line}"`);
         }
       } else if (context === Context.Links) {
-        const [source, target, weight] = line.split(' ');
+        const [source, target, weight] = line.split(" ");
         links.push({ source: +source, target: +target, weight: +weight });
       }
     }
@@ -74,7 +74,7 @@ class NetworkReader {
       nodeIds.forEach((id) => nodes.push({ id, name: id.toString() }));
     }
 
-    const flowModel = directed ? 'directed' : 'undirected';
+    const flowModel = directed ? "directed" : "undirected";
 
     return { flowModel, nodes, links };
   }

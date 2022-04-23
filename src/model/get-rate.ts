@@ -1,5 +1,5 @@
-import type { Node } from '.';
-import { Rate } from '.';
+import type { Node } from ".";
+import { Rate } from ".";
 
 export function getRate(rate: Rate, _default = 0) {
   return (node: Node) => {

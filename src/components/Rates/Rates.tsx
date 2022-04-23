@@ -1,12 +1,10 @@
-import React from 'react';
-import { observer } from 'mobx-react';
-import type { Network, Node } from '../../model';
-import { getRate } from '../../model';
-import Svg from '../Svg';
-import Bar from './Bar';
-import OverflowMask from './OverflowMask';
-import { schemePastel2, schemeSet2 } from 'd3';
-import { Rate } from '../../model/enums';
+import { observer } from "mobx-react";
+import type { Network, Node } from "../../model";
+import { getRate, Rate } from "../../model";
+import Svg from "../Svg";
+import Bar from "./Bar";
+import OverflowMask from "./OverflowMask";
+import { schemePastel2, schemeSet2 } from "d3";
 
 interface Props {
   network: Network;
@@ -41,7 +39,7 @@ function Rates({ network, rate, showModules = true }: Props) {
     width: barWidth,
     height: barHeight(scale),
     strokeWidth: 2,
-    mask: 'url(#bar-overflow)',
+    mask: "url(#bar-overflow)",
   });
 
   const barFillStroke = (node: Node) => {

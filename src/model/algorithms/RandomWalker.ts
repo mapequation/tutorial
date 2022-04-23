@@ -1,8 +1,8 @@
-import type Network from '../Network';
-import type Node from '../Node';
-import { Teleportation } from '../enums';
-import { action, computed, makeObservable, observable } from 'mobx';
-import { weightedRandom } from '../helpers';
+import type Network from "../Network";
+import type Node from "../Node";
+import { Teleportation } from "../enums";
+import { action, computed, makeObservable, observable } from "mobx";
+import { weightedRandom } from "../helpers";
 
 export default class RandomWalker {
   private network: Network;
@@ -88,7 +88,7 @@ export default class RandomWalker {
     const link = this.current?.randomLink();
 
     if (!link) {
-      throw new Error('No link found, but node has out degree > 0');
+      throw new Error("No link found, but node has out degree > 0");
     }
 
     this.setCurrent(link.target);
@@ -99,7 +99,7 @@ export default class RandomWalker {
   private teleport() {
     // set teleport-weight of current to 0 to avoid self-teleportation
     const degrees = this.network.nodes.map((node) =>
-      node.id === this.current?.id ? 0 : node.degree,
+      node.id === this.current?.id ? 0 : node.degree
     );
 
     const index = weightedRandom(degrees);

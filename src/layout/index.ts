@@ -1,1 +1,1 @@
-export { default as forceDirected } from './force-directed';
+export { default as forceDirected } from "./force-directed";

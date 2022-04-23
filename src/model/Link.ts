@@ -1,5 +1,5 @@
-import type Node from './Node';
-import type { SimulationLinkDatum } from 'd3';
+import type Node from "./Node";
+import type { SimulationLinkDatum } from "d3";
 
 export default class Link implements SimulationLinkDatum<Node> {
   source: Node;

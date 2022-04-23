@@ -1,17 +1,17 @@
-import React, { SVGProps } from 'react';
-import { scaleSqrt, schemePastel2, schemeSet2 } from 'd3';
-import Link from './Link';
-import Node from './Node';
-import ArrowMarker from './ArrowMarker';
+import { SVGProps } from "react";
+import { scaleSqrt, schemePastel2, schemeSet2 } from "d3";
+import Link from "./Link";
+import Node from "./Node";
+import ArrowMarker from "./ArrowMarker";
 import type {
   Link as LinkModel,
   Network as NetworkModel,
   Node as NodeModel,
-} from '../../model';
-import { Rate, getRate } from '../../model';
-import { observer } from 'mobx-react';
-import Svg from '../Svg';
-import Walker from './Walker';
+} from "../../model";
+import { getRate, Rate } from "../../model";
+import { observer } from "mobx-react";
+import Svg from "../Svg";
+import Walker from "./Walker";
 
 const nodeScale = scaleSqrt().domain([0, 1]).range([10, 100]);
 
@@ -31,7 +31,7 @@ function Network({
   showWalker = false,
   ...props
 }: Props & SVGProps<SVGSVGElement>) {
-  const arrowId = 'arrow';
+  const arrowId = "arrow";
   const markerEnd = network.directed ? `url(#${arrowId})` : undefined;
 
   const getNodeRate = getRate(rate, 1 / network.numNodes);

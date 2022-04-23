@@ -1,8 +1,8 @@
-import type { SimulationNodeDatum } from 'd3';
-import type Link from './Link';
-import type Network from './Network';
-import { computed, makeObservable, observable } from 'mobx';
-import { weightedRandom } from './helpers';
+import type { SimulationNodeDatum } from "d3";
+import type Link from "./Link";
+import type Network from "./Network";
+import { computed, makeObservable, observable } from "mobx";
+import { weightedRandom } from "./helpers";
 
 interface Params {
   x?: number;
@@ -33,7 +33,7 @@ export default class Node implements SimulationNodeDatum {
   constructor(
     network: Network,
     id: number,
-    { x = 0, y = 0, name = '', path = '0' }: Params = {},
+    { x = 0, y = 0, name = "", path = "0" }: Params = {}
   ) {
     makeObservable(this, {
       flow: observable,
@@ -53,13 +53,13 @@ export default class Node implements SimulationNodeDatum {
   get code(): string {
     const treeNode = this.network.tree.root.getLeaf(this.id);
 
-    return treeNode?.code ?? '';
+    return treeNode?.code ?? "";
   }
 
   get oneLevelCode(): string {
     const treeNode = this.network.tree.root.getLeaf(this.id);
 
-    return treeNode?.oneLevelCode ?? '';
+    return treeNode?.oneLevelCode ?? "";
   }
 
   get visitRate(): number {

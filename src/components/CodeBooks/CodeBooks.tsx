@@ -1,11 +1,10 @@
-import React from 'react';
-import { schemePastel2, schemeSet2 } from 'd3';
-import EnterFlow from './EnterFlow';
-import ExitFlow from './ExitFlow';
-import Flow from './Flow';
-import { Network } from '../../model';
-import { TreeNode } from '../../model/algorithms/Tree';
-import Svg from '../Svg';
+import { schemePastel2, schemeSet2 } from "d3";
+import EnterFlow from "./EnterFlow";
+import ExitFlow from "./ExitFlow";
+import Flow from "./Flow";
+import { Network } from "../../model";
+import { TreeNode } from "../../model/algorithms/Tree";
+import Svg from "../Svg";
 
 interface Props {
   network: Network;
@@ -117,7 +116,7 @@ export default function CodeBooks({ barWidth = 200, network }: Props) {
                   {node.code}
                 </text>
               </g>
-            ),
+            )
           )}
         </g>
       </g>

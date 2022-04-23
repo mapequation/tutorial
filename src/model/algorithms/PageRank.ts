@@ -1,6 +1,6 @@
-import { Teleportation } from '../enums';
-import type Network from '../Network';
-import { action, makeObservable } from 'mobx';
+import { Teleportation } from "../enums";
+import type Network from "../Network";
+import { action, makeObservable } from "mobx";
 
 interface NodeFlow {
   [nodeId: number]: number;
@@ -13,7 +13,7 @@ interface FlowLink {
 }
 
 export default class PageRank {
-  private network: Network;
+  private readonly network: Network;
 
   teleportModel = Teleportation.Recorded;
   teleportProb = 0.15;
@@ -140,7 +140,7 @@ export default class PageRank {
       const teleportFlow = alpha + beta * danglingRank;
 
       nodeFlowNext = teleportRates.map(
-        (teleportRate) => teleportFlow * teleportRate,
+        (teleportRate) => teleportFlow * teleportRate
       );
 
       for (let link of flowLinks) {
@@ -183,7 +183,7 @@ export default class PageRank {
     } while (!converged && iterationsRemaining);
 
     console.log(
-      `Finished after ${numIterations} iterations with error ${error}`,
+      `Finished after ${numIterations} iterations with error ${error}`
     );
 
     let sumNodeRank = 1.0;

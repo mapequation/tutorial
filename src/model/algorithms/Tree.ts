@@ -1,4 +1,4 @@
-import type Network from '../Network';
+import type Network from "../Network";
 
 export class TreeNode {
   id: number;
@@ -7,10 +7,10 @@ export class TreeNode {
   enterFlow = 0;
   exitFlow = 0;
 
-  code = '';
-  enterCode = '';
-  exitCode = '';
-  oneLevelCode = '';
+  code = "";
+  enterCode = "";
+  exitCode = "";
+  oneLevelCode = "";
 
   codelength = 0;
 

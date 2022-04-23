@@ -1,12 +1,12 @@
-import Link from './Link';
-import Node from './Node';
-import { FlowModel } from './enums';
-import { NetworkReader } from '../io';
+import Link from "./Link";
+import Node from "./Node";
+import { FlowModel } from "./enums";
+import { NetworkReader } from "../io";
 import type {
   Parser,
   SerializedNetwork,
   SerializedNode,
-} from '../io/interfaces';
+} from "../io/interfaces";
 import {
   HuffmanCoder,
   IterativeVoter,
@@ -14,8 +14,8 @@ import {
   PageRank,
   RandomWalker,
   Tree,
-} from './algorithms';
-import { computed, makeObservable } from 'mobx';
+} from "./algorithms";
+import { computed, makeObservable } from "mobx";
 
 type Id = number;
 
@@ -106,7 +106,7 @@ export default class Network {
 
   addNode(node: number | SerializedNode): Node {
     const n =
-      typeof node == 'number'
+      typeof node == "number"
         ? new Node(this, node)
         : new Node(this, node.id, node);
 
@@ -160,7 +160,7 @@ export default class Network {
 
   static parseString(
     lines: string,
-    parser: Parser = NetworkReader.parse,
+    parser: Parser = NetworkReader.parse
   ): Network {
     return Network.parse(parser(lines));
   }
