@@ -27,6 +27,7 @@ network.nodes.forEach((node) => {
 const Home: NextPage = observer(() => {
   const [rate, setRate] = useState(Rate.None);
   const [showWalker, setShowWalker] = useState(false);
+  const firstNetworkRef = useRef<HTMLDivElement>(null);
 
   const startRandomWalk = useCallback(() => {
     network.walker.start();
@@ -53,10 +54,11 @@ const Home: NextPage = observer(() => {
   const toggleRandomWalk = () =>
     network.walker.isStarted ? stopRandomWalk() : startRandomWalk();
 
-  const firstNetworkRef = useRef<HTMLDivElement>(null);
-
   useEffect(() => {
-    const firstNetworkObserver = new IntersectionObserver(
+    const currentRef = firstNetworkRef.current;
+    if (!currentRef) return;
+
+    const observer = new IntersectionObserver(
       (entries, observer) =>
         entries.forEach((entry) => {
           if (!entry.isIntersecting) return;
@@ -68,9 +70,9 @@ const Home: NextPage = observer(() => {
       { threshold: 1, rootMargin: "0px 0px -100px 0px" }
     );
 
-    firstNetworkObserver.observe(firstNetworkRef.current!);
+    observer.observe(currentRef);
 
-    return () => firstNetworkObserver.disconnect();
+    return () => observer.disconnect();
   }, [startRandomWalk]);
 
   return (

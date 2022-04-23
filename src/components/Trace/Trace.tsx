@@ -51,36 +51,41 @@ interface Props {
 }
 
 function Trace({ network, showModules = false }: Props) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const lastRef = useRef<HTMLElement>(null);
+
   const { walker, tree } = network;
 
   const nodes = walker.trace.map((id) => tree.root.getLeaf(id)!);
 
   const last = nodes.pop();
 
-  const containerRef = useRef<HTMLDivElement>(null);
-  const lastRef = useRef<HTMLElement>(null);
-
   useEffect(() => {
     containerRef.current!.scrollTop = lastRef.current?.offsetTop ?? 0;
   }, [last]);
 
-  const oneLevelCodeLength = nodes
-    .map((node) => node.oneLevelCode)
-    .join("").length;
+  const avgCodelength = (() => {
+    if (nodes.length === 0) return 0;
 
-  const codelength = nodes
-    .map((node, i, nodes) => {
-      if (i === 0) return node.parent?.enterCode + node.code; // first node must enter module
-      const prev = nodes[i - 1];
-      if (prev.parent?.id === node.parent?.id) return node.code; // same module
-      return prev.parent?.exitCode! + node.parent?.enterCode + node.code; // different module: exit, enter, code
-    })
-    .join("").length;
+    if (showModules) {
+      const codelength = nodes
+        .map((node, i, nodes) => {
+          if (i === 0) return node.parent?.enterCode + node.code; // first node must enter module
+          const prev = nodes[i - 1];
+          if (prev.parent?.id === node.parent?.id) return node.code; // same module
+          return prev.parent?.exitCode! + node.parent?.enterCode + node.code; // different module: exit, enter, code
+        })
+        .join("").length;
 
-  const avgCodelength =
-    nodes.length === 0
-      ? 0
-      : (showModules === true ? codelength : oneLevelCodeLength) / nodes.length;
+      return codelength / nodes.length;
+    }
+
+    const oneLevelCodeLength = nodes
+      .map((node) => node.oneLevelCode)
+      .join("").length;
+
+    return oneLevelCodeLength / nodes.length;
+  })();
 
   return (
     <>
@@ -90,9 +95,9 @@ function Trace({ network, showModules = false }: Props) {
       >
         {nodes.map((node, i, nodes) => (
           <Code
+            key={i}
             node={node}
             i={i}
-            key={i}
             nodes={nodes}
             showModules={showModules}
           />

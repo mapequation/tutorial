@@ -17,8 +17,8 @@ export default class RandomWalker {
   teleportRate = 0.15;
   teleportModel = Teleportation.Recorded;
 
-  private readonly intervalStopped = -1;
-  intervalId = this.intervalStopped;
+  private readonly intervalStopped = -1 as const;
+  intervalId: number = this.intervalStopped;
   private interval = 400;
 
   constructor(network: Network) {
@@ -97,8 +97,8 @@ export default class RandomWalker {
   }
 
   private teleport() {
-    // set teleport-weight of current to 0 to avoid self-teleportation
     const degrees = this.network.nodes.map((node) =>
+      // set teleport-weight of current to 0 to avoid self-teleportation
       node.id === this.current?.id ? 0 : node.degree
     );
 

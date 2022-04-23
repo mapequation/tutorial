@@ -4,7 +4,6 @@ import ExitFlow from "./ExitFlow";
 import Flow from "./Flow";
 import { Network } from "../../model";
 import { TreeNode } from "../../model/algorithms/Tree";
-import Svg from "../Svg";
 
 interface Props {
   network: Network;
@@ -75,8 +74,15 @@ export default function CodeBooks({ barWidth = 200, network }: Props) {
     currentY -= node.height + verticalSpace;
   });
 
+  const fontSize = (height: number) => Math.max(Math.sqrt(height) * 3, 7);
+
   return (
-    <Svg className="codeView" viewBox={viewBox}>
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      version="1.1"
+      className="codeView"
+      viewBox={viewBox}
+    >
       <g>
         <g id="modules">
           {modules.map((module, i) => (
@@ -85,7 +91,8 @@ export default function CodeBooks({ barWidth = 200, network }: Props) {
               <text
                 x={module.x + barWidth + 20}
                 y={module.y - module.height / 2}
-                dy={4}
+                dominantBaseline="middle"
+                fontSize={fontSize(module.height)}
               >
                 {module.enterCode}
               </text>
@@ -100,7 +107,8 @@ export default function CodeBooks({ barWidth = 200, network }: Props) {
                 <text
                   x={node.x + barWidth + 40}
                   y={node.y - node.height / 2}
-                  dy={4}
+                  dominantBaseline="middle"
+                  fontSize={fontSize(node.height)}
                 >
                   {node.exitCode}
                 </text>
@@ -111,7 +119,8 @@ export default function CodeBooks({ barWidth = 200, network }: Props) {
                 <text
                   x={node.x + barWidth + 40}
                   y={node.y - node.height / 2}
-                  dy={4}
+                  dominantBaseline="middle"
+                  fontSize={fontSize(node.height)}
                 >
                   {node.code}
                 </text>
@@ -120,6 +129,6 @@ export default function CodeBooks({ barWidth = 200, network }: Props) {
           )}
         </g>
       </g>
-    </Svg>
+    </svg>
   );
 }

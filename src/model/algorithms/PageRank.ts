@@ -134,7 +134,6 @@ export default class PageRank {
     let iterationsRemaining = true;
 
     do {
-      // eslint-disable-next-line no-loop-func
       danglingRank = danglingIndices.reduce((sum, i) => sum + nodeFlow[i], 0.0);
 
       const teleportFlow = alpha + beta * danglingRank;
@@ -151,7 +150,6 @@ export default class PageRank {
       const prevError = error;
       error = 0.0;
 
-      // eslint-disable-next-line no-loop-func
       nodeFlowNext.forEach((next, i) => {
         nodeFlowDiff += next;
         error += Math.abs(nodeFlow[i] - next);

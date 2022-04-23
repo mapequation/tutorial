@@ -4,7 +4,7 @@ import { action, makeObservable, observable } from "mobx";
 export default class IterativeVoter {
   private readonly network: Network;
 
-  teleportRate = 0.15;
+  readonly teleportRate = 0.15;
 
   totalVotes = 0;
 
@@ -58,13 +58,13 @@ export default class IterativeVoter {
       }
     }
 
-    const sum = Array.from(Object.values(next)).reduce(
+    const totalVotes = Array.from(Object.values(next)).reduce(
       (sum, votes) => sum + votes,
       0.0
     );
 
     for (let [id, votes] of Object.entries(next)) {
-      this.network.getNode(+id)!.votes = votes / sum;
+      this.network.getNode(+id)!.votes = votes / totalVotes;
     }
   }
 }

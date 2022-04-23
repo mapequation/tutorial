@@ -1,7 +1,6 @@
 import { observer } from "mobx-react";
 import type { Network, Node } from "../../model";
 import { getRate, Rate } from "../../model";
-import Svg from "../Svg";
 import Bar from "./Bar";
 import OverflowMask from "./OverflowMask";
 import { schemePastel2, schemeSet2 } from "d3";
@@ -55,7 +54,11 @@ function Rates({ network, rate, showModules = true }: Props) {
   });
 
   return (
-    <Svg className="rateView" viewBox={viewBox}>
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      className="rateView"
+      viewBox={viewBox}
+    >
       <defs>
         <OverflowMask
           id="bar-overflow"
@@ -82,7 +85,7 @@ function Rates({ network, rate, showModules = true }: Props) {
             {...barProps(i, getNodeRate(node))}
           />
         ))}
-    </Svg>
+    </svg>
   );
 }
 

@@ -20,22 +20,19 @@ class PriorityQueue<T> {
     return this.heap.length;
   }
 
-  popLeft(): T | null {
-    return this.heap.shift() ?? null;
+  popLeft(): T | undefined {
+    return this.heap.shift();
   }
 }
 
 class HuffmanNode<T> {
-  left: HuffmanNode<T> | null = null;
-  right: HuffmanNode<T> | null = null;
-  data: T;
   code: string = "";
 
-  constructor(data: T, left?: HuffmanNode<T>, right?: HuffmanNode<T>) {
-    this.data = data;
-    if (left) this.left = left;
-    if (right) this.right = right;
-  }
+  constructor(
+    public data: T,
+    public left?: HuffmanNode<T>,
+    public right?: HuffmanNode<T>
+  ) {}
 
   *depthFirst(): Generator<HuffmanNode<T>> {
     yield this;

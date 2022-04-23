@@ -43,10 +43,10 @@ export class TreeNode {
 
   getLeaf(id: number): TreeNode | null {
     if (this.isLeafModule) {
-      return this.has(id) ? this.get(id) : null;
+      return this.get(id);
     }
 
-    for (let child of this.children.values()) {
+    for (const child of this.children.values()) {
       const found = child.getLeaf(id);
       if (found) return found;
     }

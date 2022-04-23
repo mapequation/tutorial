@@ -3,14 +3,9 @@ import { scaleSqrt, schemePastel2, schemeSet2 } from "d3";
 import Link from "./Link";
 import Node from "./Node";
 import ArrowMarker from "./ArrowMarker";
-import type {
-  Link as LinkModel,
-  Network as NetworkModel,
-  Node as NodeModel,
-} from "../../model";
+import type { Network as NetworkModel, Node as NodeModel } from "../../model";
 import { getRate, Rate } from "../../model";
 import { observer } from "mobx-react";
-import Svg from "../Svg";
 import Walker from "./Walker";
 
 const nodeScale = scaleSqrt().domain([0, 1]).range([10, 100]);
@@ -54,12 +49,17 @@ function Network({
     showModules ? node.code : node.oneLevelCode;
 
   return (
-    <Svg className="network" viewBox="0 0 800 800" {...props}>
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      className="network"
+      viewBox="0 0 800 800"
+      {...props}
+    >
       <defs>
         <ArrowMarker id={arrowId} fill="#888" />
       </defs>
 
-      {network.links.map((link: LinkModel, i) => (
+      {network.links.map((link, i) => (
         <Link
           key={i}
           link={link}
@@ -71,7 +71,7 @@ function Network({
         />
       ))}
 
-      {network.nodes.map((node: NodeModel, i) => (
+      {network.nodes.map((node, i) => (
         <Node
           node={node}
           key={i}
@@ -86,7 +86,7 @@ function Network({
         />
       ))}
       {showWalker && <Walker walker={network.walker} />}
-    </Svg>
+    </svg>
   );
 }
 
