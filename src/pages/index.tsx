@@ -73,11 +73,6 @@ const Home: NextPage = observer(() => {
     return () => firstNetworkObserver.disconnect();
   }, [startRandomWalk]);
 
-  const toggleDarkMode = () => {
-    const html = document.getElementsByTagName('html')[0];
-    html.classList.toggle('dark');
-  };
-
   return (
     <>
       <Head>
@@ -93,14 +88,6 @@ const Home: NextPage = observer(() => {
       </Head>
 
       <div className="container max-w-screen-xl mx-auto px-5">
-        <input
-          type="checkbox"
-          id="toggle-darkmode"
-          className="toggle-darkmode"
-          onClick={toggleDarkMode}
-        />
-        <label htmlFor="toggle-darkmode" />
-
         <Header />
 
         <main className="xl:grid xl:grid-cols-4 xl:gap-x-20">

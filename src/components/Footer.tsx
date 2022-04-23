@@ -3,7 +3,7 @@ import { HTMLProps } from "react";
 const ListLink = ({ children, ...props }: HTMLProps<HTMLAnchorElement>) => (
   <li>
     <a
-      className="inline-block px-10 py-2 hover:text-gray-600 dark:hover:text-gray-400"
+      className="inline-block px-10 py-2 hover:text-gray-600"
       {...props}
     >
       {children}
