@@ -62,9 +62,9 @@ export default class MapEquation {
 
     const codelengths = [];
 
-    for (let module of tree.depthFirstModules()) {
-      if (!module.isLeafModule) {
-        codelengths.push(module.codelength);
+    for (let module_ of tree.depthFirstModules()) {
+      if (!module_.isLeafModule) {
+        codelengths.push(module_.codelength);
       }
     }
 
@@ -80,9 +80,9 @@ export default class MapEquation {
 
     const codelengths = [];
 
-    for (let module of tree.depthFirstModules()) {
-      if (module.isLeafModule) {
-        codelengths.push(module.codelength);
+    for (let module_ of tree.depthFirstModules()) {
+      if (module_.isLeafModule) {
+        codelengths.push(module_.codelength);
       }
     }
 
