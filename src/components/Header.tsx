@@ -15,7 +15,7 @@ export default function Header() {
         </div>
       </h1>
       <div className="flex justify-center mt-24 md:mt-44 text-xl sm:text-2xl md:text-3xl lg:text-5xl">
-        <TeX math="L(M) = q_\curvearrowright H(\mathcal{Q}) + \sum_{i = 1}^{m}{p_{\circlearrowright}^i H(\mathcal{P}^i)}" />
+        <TeX math="L(M) = q_\curvearrowleft H(\mathcal{Q}) + \sum_{i = 1}^{m}{p_{\circlearrowright}^i H(\mathcal{P}^i)}" />
       </div>
     </header>
   );
