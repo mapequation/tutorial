@@ -25,14 +25,13 @@ network.nodes.forEach((node) => {
 });
 
 const Home: NextPage = observer(() => {
-  const [rate, setRate] = useState(Rate.None);
+  const [rate, setRate] = useState(Rate.Visits);
   const [showWalker, setShowWalker] = useState(false);
   const firstNetworkRef = useRef<HTMLDivElement>(null);
 
   const startRandomWalk = useCallback(() => {
     network.walker.start();
     setShowWalker(true);
-    setRate(Rate.Visits);
   }, []);
 
   const stopRandomWalk = () => {
@@ -42,13 +41,11 @@ const Home: NextPage = observer(() => {
   const resetRandomWalk = () => {
     network.walker.reset();
     setShowWalker(false);
-    setRate(Rate.None);
   };
 
   const stepRandomWalk = () => {
     network.walker.step();
     setShowWalker(true);
-    setRate(Rate.Visits);
   };
 
   const toggleRandomWalk = () =>
