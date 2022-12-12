@@ -4,6 +4,7 @@ export interface SerializedNode {
   x?: number;
   y?: number;
   path?: string;
+  flow?: number;
 }
 
 export interface SerializedLink {

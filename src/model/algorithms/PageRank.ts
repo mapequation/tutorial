@@ -139,7 +139,7 @@ export default class PageRank {
       const teleportFlow = alpha + beta * danglingRank;
 
       nodeFlowNext = teleportRates.map(
-        (teleportRate) => teleportFlow * teleportRate
+        (teleportRate) => teleportFlow * teleportRate,
       );
 
       for (let link of flowLinks) {
@@ -181,7 +181,7 @@ export default class PageRank {
     } while (!converged && iterationsRemaining);
 
     console.log(
-      `Finished after ${numIterations} iterations with error ${error}`
+      `Finished after ${numIterations} iterations with error ${error}`,
     );
 
     let sumNodeRank = 1.0;

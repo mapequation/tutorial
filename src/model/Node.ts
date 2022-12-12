@@ -9,6 +9,7 @@ interface Params {
   y?: number;
   name?: string;
   path?: string;
+  flow?: number;
 }
 
 export default class Node implements SimulationNodeDatum {
@@ -33,7 +34,7 @@ export default class Node implements SimulationNodeDatum {
   constructor(
     network: Network,
     id: number,
-    { x = 0, y = 0, name = "", path = "0" }: Params = {}
+    { x = 0, y = 0, name = "", path = "0", flow = 0.0 }: Params = {}
   ) {
     makeObservable(this, {
       flow: observable,
@@ -48,6 +49,7 @@ export default class Node implements SimulationNodeDatum {
     this.y = y;
     this.name = name || id.toString();
     this.path = path;
+    this.flow = flow;
   }
 
   get code(): string {

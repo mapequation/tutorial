@@ -104,10 +104,10 @@ export default class Network {
     return max > 0 ? max : 0;
   }
 
-  addNode(node: number | SerializedNode): Node {
+  addNode = (node: number | SerializedNode): Node => {
     const n =
       typeof node == "number"
-        ? new Node(this, node)
+        ? new Node(this, node,)
         : new Node(this, node.id, node);
 
     this._nodes.set(n.id, n);
@@ -115,7 +115,7 @@ export default class Network {
     return n;
   }
 
-  addLink({
+  addLink = ({
     source,
     target,
     weight = 1.0,
@@ -123,7 +123,7 @@ export default class Network {
     source: number;
     target: number;
     weight: number;
-  }) {
+  }) => {
     const duplicate = this.directed
       ? (link: Link) => link.source.id === source && link.target.id === target
       : (link: Link) =>
@@ -152,8 +152,14 @@ export default class Network {
 
     const self = new Network(flowModel as FlowModel);
 
-    nodes.forEach((node) => self.addNode(node));
-    links.forEach((link) => self.addLink(link));
+    const numNodes = nodes.length;
+    const initialFlow = numNodes !== 0 ? 1 / numNodes : 1;
+
+    nodes.forEach((node) => {
+      if (node.flow === undefined) node.flow = initialFlow;
+      self.addNode(node)
+    });
+    links.forEach(self.addLink);
 
     return self;
   }
