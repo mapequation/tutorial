@@ -13,6 +13,9 @@ export default class RandomWalker {
   totalVisits = 0;
   teleported = false;
   trace: number[] = [];
+  nodeTrace: Node[] = [];
+  private readonly maxVisibleLength = 50;
+
 
   teleportRate = 0.15;
   teleportModel = Teleportation.Recorded;
@@ -62,6 +65,7 @@ export default class RandomWalker {
 
     this.totalVisits = 0;
     this.trace.length = 0;
+    this.nodeTrace.length = 0;
 
     this.network.nodes.forEach((node) => (node.visits = 0));
 
@@ -104,7 +108,8 @@ export default class RandomWalker {
 
     const index = weightedRandom(degrees);
 
-    this.setCurrent(this.network.nodes[index]);
+    const current = this.network.nodes[index];
+    this.setCurrent(current);
 
     if (this.teleportModel === Teleportation.Recorded) {
       this.recordVisit();
@@ -117,6 +122,14 @@ export default class RandomWalker {
     this.current.visits++;
     this.totalVisits++;
     this.trace.push(this.current.id);
+    this.pushCurrent(this.current)
+  }
+
+  private pushCurrent(node: Node) {
+    this.nodeTrace.push(node);
+    if (this.nodeTrace.length > this.maxVisibleLength) {
+      this.nodeTrace.shift();
+    }
   }
 
   private setCurrent(node: Node | null) {

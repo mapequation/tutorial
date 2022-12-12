@@ -7,6 +7,7 @@ import type { Network as NetworkModel, Node as NodeModel } from "../../model";
 import { getRate, Rate } from "../../model";
 import { observer } from "mobx-react";
 import Walker from "./Walker";
+import WalkTrace from "./WalkTrace";
 
 const nodeScale = scaleSqrt().domain([0, 1]).range([10, 100]);
 
@@ -85,6 +86,7 @@ function Network({
           strokeWidth={2}
         />
       ))}
+      {showWalker && <WalkTrace walker={network.walker} />}
       {showWalker && <Walker walker={network.walker} />}
     </svg>
   );
