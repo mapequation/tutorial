@@ -7,7 +7,7 @@ export default function Header() {
       <h1 className="flex flex-row justify-center gap-x-2 md:gap-x-4 lg:gap-x-8">
         <img
           className="h-8 sm:h-10 md:h-12 lg:h-24"
-          src="/demo/images/twocolormapicon.svg"
+          src="//mapequation.org/assets/img/twocolormapicon_whiteboarder.svg"
           alt="Map Equation logo"
         />
         <div className="text-brand font-brand tracking-tight text-3xl sm:text-4xl md:text-5xl lg:text-8xl">
