@@ -67,24 +67,23 @@ function Trace({ network, showModules = false }: Props) {
   const avgCodelength = (() => {
     if (nodes.length === 0) return 0;
 
-    if (showModules) {
-      const codelength = nodes
-        .map((node, i, nodes) => {
-          if (i === 0) return node.parent?.enterCode + node.code; // first node must enter module
-          const prev = nodes[i - 1];
-          if (prev.parent?.id === node.parent?.id) return node.code; // same module
-          return prev.parent?.exitCode! + node.parent?.enterCode + node.code; // different module: exit, enter, code
-        })
+    if (!showModules) {
+      const oneLevelCodes = nodes
+        .map((node) => node.oneLevelCode)
         .join("").length;
-
-      return codelength / nodes.length;
+      return oneLevelCodes / nodes.length;
     }
 
-    const oneLevelCodeLength = nodes
-      .map((node) => node.oneLevelCode)
+    const codes = nodes
+      .map((node, i, nodes) => {
+        if (i === 0) return node.parent?.enterCode + node.code; // first node must enter module
+        const prev = nodes[i - 1];
+        if (prev.parent?.id === node.parent?.id) return node.code; // same module
+        return prev.parent?.exitCode! + node.parent?.enterCode + node.code; // different module: exit, enter, code
+      })
       .join("").length;
 
-    return oneLevelCodeLength / nodes.length;
+    return codes / nodes.length;
   })();
 
   return (
