@@ -17,6 +17,8 @@ interface Props {
   showLabels?: boolean;
   showModules?: boolean;
   showWalker?: boolean;
+  width?: number,
+  height?: number
 }
 
 function Network({
@@ -25,6 +27,8 @@ function Network({
   showLabels = false,
   showModules = false,
   showWalker = false,
+  width = 800,
+  height = 800,
   ...props
 }: Props & SVGProps<SVGSVGElement>) {
   const arrowId = "arrow";
@@ -53,7 +57,7 @@ function Network({
     <svg
       xmlns="http://www.w3.org/2000/svg"
       className="network"
-      viewBox="0 0 800 800"
+      viewBox={`0 0 ${width} ${height}`}
       {...props}
     >
       <defs>
