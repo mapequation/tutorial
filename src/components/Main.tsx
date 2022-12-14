@@ -174,7 +174,6 @@ export default observer(function Main() {
           rate={rate}
           showLabels
           showModules
-          showEnterExit
           showWalker={showWalker}
         />
 
