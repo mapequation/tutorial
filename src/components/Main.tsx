@@ -6,6 +6,7 @@ import Button from "./Button";
 import Trace from "./Trace/Trace";
 import Rates from "./Rates/Rates";
 import CodeBooks from "./CodeBooks";
+import { observer } from "mobx-react";
 
 const network = NetworkModel.parse(modular_wd_json);
 network.flowCalculator.calculateFlow()
@@ -20,7 +21,7 @@ network.nodes.forEach((node) => {
 });
 
 
-export default function Main() {
+export default observer(function Main() {
   const [rate, setRate] = useState(Rate.Visits);
   const [showWalker, setShowWalker] = useState(false);
   const firstNetworkRef = useRef<HTMLDivElement>(null);
@@ -172,6 +173,7 @@ export default function Main() {
           rate={rate}
           showLabels
           showModules
+          showEnterExit
           showWalker={showWalker}
         />
 
@@ -198,4 +200,4 @@ export default function Main() {
       </div>
     </>
   )
-}
+});

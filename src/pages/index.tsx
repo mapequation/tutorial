@@ -1,13 +1,12 @@
 import type { NextPage } from "next";
 import Head from "next/head";
 import dynamic from "next/dynamic";
-import { observer } from "mobx-react";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 
 const Main = dynamic(() => import("../components/Main"), { ssr: false });
 
-const Home: NextPage = observer(() => {
+const Home: NextPage = () => {
   return (
     <>
       <Head>
@@ -115,6 +114,6 @@ const Home: NextPage = observer(() => {
       </div>
     </>
   );
-});
+};
 
 export default Home;
