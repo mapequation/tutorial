@@ -7,12 +7,14 @@ export default class IterativeVoter {
   readonly teleportRate = 0.15;
 
   totalVotes = 0;
+  error = 0;
 
   constructor(network: Network) {
     this.network = network;
 
     makeObservable(this, {
       totalVotes: observable,
+      error: observable,
       initialize: action,
       vote: action,
     });
@@ -22,8 +24,14 @@ export default class IterativeVoter {
     const { numNodes } = this.network;
 
     this.totalVotes = 0;
-
-    this.network.nodes.forEach((node) => (node.voteRate = 1 / numNodes));
+    this.error = 0;
+    
+    this.network.nodes.forEach((node) => {
+      node.voteRate = 1 / numNodes;
+      this.error += (node.voteRate - node.flow) ** 2; 
+    });
+    
+    this.error /= this.network.numNodes;
   }
 
   vote() {
@@ -60,8 +68,15 @@ export default class IterativeVoter {
       0.0
     );
 
+    this.error = 0;
+
     for (let [id, votes] of Object.entries(next)) {
-      this.network.getNode(+id)!.voteRate = votes / totalVotes;
+      const voteRate = votes / totalVotes;
+      const node = this.network.getNode(+id)!;
+      node.voteRate = voteRate;
+      this.error += (voteRate - node.flow) ** 2;
     }
+
+    this.error /= this.network.numNodes;
   }
 }
