@@ -23,7 +23,7 @@ export default class IterativeVoter {
 
     this.totalVotes = 0;
 
-    this.network.nodes.forEach((node) => (node.votes = 1 / numNodes));
+    this.network.nodes.forEach((node) => (node.voteRate = 1 / numNodes));
   }
 
   vote() {
@@ -37,34 +37,31 @@ export default class IterativeVoter {
     const alpha = this.teleportRate;
     const beta = 1 - alpha;
 
-    const danglingVotes = danglingNodes.reduce(
-      (votes, node) => votes + node.votes,
+    const danglingVoteRate = danglingNodes.reduce(
+      (sum, node) => sum + node.voteRate,
       0.0
     );
 
-    const teleportVotes = alpha + beta * danglingVotes;
+    const teleportVoteRate = alpha + beta * danglingVoteRate;
 
-    for (let node of nodes) {
-      const { votes, outLinks, outWeight } = node;
-
-      const teleportRate = outWeight / totalLinkWeight;
-
-      next[node.id] += teleportRate * teleportVotes;
+    for (let { voteRate, outLinks, outWeight } of nodes) {
+      const teleportVotes = teleportVoteRate * outWeight / totalLinkWeight;
+      const linkVotes = beta * voteRate;
 
       for (let { target, weight } of outLinks) {
         const linkFlow = weight / outWeight;
 
-        next[target.id] += beta * linkFlow * votes;
+        next[target.id] += (teleportVotes + linkVotes) * linkFlow;
       }
     }
 
     const totalVotes = Array.from(Object.values(next)).reduce(
-      (sum, votes) => sum + votes,
+      (sum, voteRates) => sum + voteRates,
       0.0
     );
 
     for (let [id, votes] of Object.entries(next)) {
-      this.network.getNode(+id)!.votes = votes / totalVotes;
+      this.network.getNode(+id)!.voteRate = votes / totalVotes;
     }
   }
 }
