@@ -76,7 +76,7 @@ export default class RandomWalker {
     if (stop && this.isStarted) this.stop();
 
     if (!this.current) {
-      this.setCurrent(this.network.randomNode());
+      this.setCurrent(this.network.nodes[0]);
       this.recordVisit();
       return;
     }
