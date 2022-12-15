@@ -15,4 +15,8 @@ export default class Link implements SimulationLinkDatum<Node> {
     this.target = target;
     this.weight = weight;
   }
+
+  get reversed(): Link {
+    return new Link(this.target, this.source, this.weight);
+  }
 }

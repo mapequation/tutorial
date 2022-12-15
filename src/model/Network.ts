@@ -107,19 +107,15 @@ export default class Network {
   addNode = (node: number | SerializedNode): Node => {
     const n =
       typeof node == "number"
-        ? new Node(this, node,)
+        ? new Node(this, node)
         : new Node(this, node.id, node);
 
     this._nodes.set(n.id, n);
 
     return n;
-  }
+  };
 
-  addLink = ({
-    source,
-    target,
-    weight = 1.0,
-  }: {
+  addLink = ({ source, target, weight = 1.0 }: {
     source: number;
     target: number;
     weight: number;
@@ -143,9 +139,14 @@ export default class Network {
     const link = new Link(sourceNode, targetNode, weight);
 
     sourceNode.addLink(link);
-
     this.links.push(link);
-  }
+
+    if (!this.directed) {
+      const reversed = link.reversed;
+      targetNode.addLink(reversed);
+      this.links.push(reversed);
+    }
+  };
 
   static parse(network: SerializedNetwork): Network {
     const { flowModel, nodes, links } = network;
@@ -157,7 +158,7 @@ export default class Network {
 
     nodes.forEach((node) => {
       if (node.flow === undefined) node.flow = initialFlow;
-      self.addNode(node)
+      self.addNode(node);
     });
     links.forEach(self.addLink);
 
