@@ -142,9 +142,7 @@ export default class Network {
     this.links.push(link);
 
     if (!this.directed) {
-      const reversed = link.reversed;
-      targetNode.addLink(reversed);
-      this.links.push(reversed);
+      targetNode.addLink(link.reversed);
     }
   };
 

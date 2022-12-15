@@ -245,14 +245,18 @@ export default class PageRank {
 
       const linkFlow = link.weight / sumUndirLinkWeight;
 
-      // TODO source and target?
-      if (link.source.id in nodeFlowMap) {
-        nodeFlowMap[link.source.id] += linkFlow;
-      } else {
-        nodeFlowMap[link.source.id] = linkFlow;
+      for (let nodeId of [link.source.id, link.target.id]) {
+        if (nodeId in nodeFlowMap) {
+          nodeFlowMap[nodeId] += linkFlow;
+        } else {
+          nodeFlowMap[nodeId] = linkFlow;
+        }
       }
     }
-  }
 
-  // TODO update flow
+    for (let [nodeId, flow] of Object.entries(nodeFlowMap)) {
+      const node = this.network.getNode(+nodeId)!;
+      node.flow = flow
+    }
+  }
 }

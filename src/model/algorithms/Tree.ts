@@ -139,8 +139,15 @@ export default class Tree {
       // Note: assumes at same level
       // TODO in general, need to equalize levels
       while (sourceParent !== targetParent) {
-        sourceParent!.exitFlow += flow;
-        targetParent!.enterFlow += flow;
+        if (network.directed) {
+          sourceParent!.exitFlow += flow;
+          targetParent!.enterFlow += flow;
+        } else {
+          sourceParent!.exitFlow += flow / 2;
+          sourceParent!.enterFlow += flow / 2;
+          targetParent!.exitFlow += flow / 2;
+          targetParent!.enterFlow += flow / 2;
+        }
 
         sourceParent = sourceParent!.parent;
         targetParent = targetParent!.parent;
