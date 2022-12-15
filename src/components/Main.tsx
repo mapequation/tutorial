@@ -1,5 +1,5 @@
 import { Network as NetworkModel, Rate } from "../model";
-import { modular_wd_json } from "../networks";
+import { modular_w_json } from "../networks";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Network from "./Network/Network";
 import Button from "./Button";
@@ -8,7 +8,7 @@ import Rates from "./Rates/Rates";
 import CodeBooks from "./CodeBooks";
 import { observer } from "mobx-react";
 
-const network = NetworkModel.parse(modular_wd_json);
+const network = NetworkModel.parse(modular_w_json);
 network.flowCalculator.calculateFlow()
 network.tree.update();
 network.mapequation.calculateCodelength();
