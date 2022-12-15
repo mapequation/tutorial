@@ -3,6 +3,7 @@ import type Node from "../Node";
 import { Teleportation } from "../enums";
 import { action, computed, makeObservable, observable } from "mobx";
 import { weightedRandom } from "../helpers";
+import { DEFAULT_TELEPORT_MODEL, DEFAULT_TELEPORT_RATE } from ".";
 
 export default class RandomWalker {
   private network: Network;
@@ -16,9 +17,8 @@ export default class RandomWalker {
   nodeTrace: Node[] = [];
   private readonly maxVisibleLength = 50;
 
-
-  teleportRate = 0.15;
-  teleportModel = Teleportation.Recorded;
+  private readonly teleportRate: number;
+  private readonly teleportModel = DEFAULT_TELEPORT_MODEL;
 
   private readonly intervalStopped = -1 as const;
   intervalId: number = this.intervalStopped;
@@ -26,6 +26,7 @@ export default class RandomWalker {
 
   constructor(network: Network) {
     this.network = network;
+    this.teleportRate = this.network.directed ? DEFAULT_TELEPORT_RATE : 0;
 
     makeObservable(this, {
       totalVisits: observable,
