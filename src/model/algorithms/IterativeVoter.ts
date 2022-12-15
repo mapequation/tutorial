@@ -25,12 +25,12 @@ export default class IterativeVoter {
 
     this.totalVotes = 0;
     this.error = 0;
-    
+
     this.network.nodes.forEach((node) => {
       node.voteRate = 1 / numNodes;
-      this.error += (node.voteRate - node.flow) ** 2; 
+      this.error += (node.voteRate - node.flow) ** 2;
     });
-    
+
     this.error /= this.network.numNodes;
   }
 
