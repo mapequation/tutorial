@@ -23,7 +23,7 @@ network.nodes.forEach((node) => {
 
 
 export default observer(function Main() {
-  const [rate, setRate] = useState(Rate.Visits);
+  const [rate, setRate] = useState(Rate.None);
   const [showWalker, setShowWalker] = useState(false);
   const firstNetworkRef = useRef<HTMLDivElement>(null);
 
