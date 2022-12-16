@@ -16,7 +16,6 @@ interface Props {
   rate?: Rate;
   showLabels?: boolean;
   showModules?: boolean;
-  showWalker?: boolean;
   width?: number,
   height?: number
 }
@@ -26,9 +25,9 @@ function Network({
   rate = Rate.Uniform,
   showLabels = false,
   showModules = false,
-  showWalker = false,
   width = 800,
   height = 800,
+  children,
   ...props
 }: Props & SVGProps<SVGSVGElement>) {
   const arrowId = "arrow";
@@ -90,8 +89,8 @@ function Network({
           strokeWidth={2}
         />
       ))}
-      {showWalker && <WalkTrace walker={network.walker} />}
-      {showWalker && <Walker walker={network.walker} />}
+
+      {children}
     </svg>
   );
 }

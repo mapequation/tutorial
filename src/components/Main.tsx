@@ -1,15 +1,15 @@
+import { observer } from "mobx-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Network as NetworkModel, Rate } from "../model";
 import { modular_w_json } from "../networks";
-import { useCallback, useEffect, useRef, useState } from "react";
-import Network from "./Network/Network";
 import Button from "./Button";
-import Trace from "./Trace/Trace";
-import Rates from "./Rates/Rates";
+import { Network, Walker, WalkTrace } from "./Network";
+import Trace from "./Trace";
+import Rates from "./Rates";
 import CodeBooks from "./CodeBooks";
-import { observer } from "mobx-react";
 
 const network = NetworkModel.parse(modular_w_json);
-network.flowCalculator.calculateFlow()
+network.flowCalculator.calculateFlow();
 network.tree.update();
 network.mapequation.calculateCodelength();
 network.coder.code();
@@ -24,30 +24,9 @@ network.nodes.forEach((node) => {
 
 export default observer(function Main() {
   const [rate, setRate] = useState(Rate.Uniform);
-  const [showWalker, setShowWalker] = useState(false);
   const firstNetworkRef = useRef<HTMLDivElement>(null);
 
-  const startRandomWalk = useCallback(() => {
-    network.walker.start();
-    setShowWalker(true);
-  }, []);
-
-  const stopRandomWalk = () => {
-    network.walker.stop();
-  };
-
-  const resetRandomWalk = () => {
-    network.walker.reset();
-    setShowWalker(false);
-  };
-
-  const stepRandomWalk = () => {
-    network.walker.step();
-    setShowWalker(true);
-  };
-
-  const toggleRandomWalk = () =>
-    network.walker.isStarted ? stopRandomWalk() : startRandomWalk();
+  const startRandomWalk = useCallback(() => network.walker.start(), []);
 
   useEffect(() => {
     const currentRef = firstNetworkRef.current;
@@ -71,13 +50,18 @@ export default observer(function Main() {
   }, [startRandomWalk]);
 
 
+  const walkTrace = <WalkTrace walker={network.walker} />;
+  const walker = <Walker walker={network.walker} />;
+
   return (
     <>
       <div
         ref={firstNetworkRef}
         className="col-span-2 w-4/5 mx-auto xl:w-full mb-48"
       >
-        <Network network={network} showWalker={showWalker} />
+        <Network network={network}>
+          {walker}
+        </Network>
       </div>
 
       <div className="col-span-2 mb-20 xl:mb-48">
@@ -128,17 +112,17 @@ export default observer(function Main() {
           more frequently used symbols should be shorter).
         </p>
         <div className="flex flex-row justify-center space-x-4 mt-10 mb-10">
-          <Button className="button" onClick={resetRandomWalk}>
+          <Button className="button" onClick={() => network.walker.reset()}>
             Reset
           </Button>
-          <Button className="button" onClick={stepRandomWalk}>
+          <Button className="button" onClick={() => network.walker.step()}>
             Step
           </Button>
           <Button
             className={`button ${
               !network.walker.isStarted ? "button--primary" : ""
             }`}
-            onClick={toggleRandomWalk}
+            onClick={() => network.walker.isStarted ? network.walker.stop() : startRandomWalk()}
           >
             {network.walker.isStarted
               ? "Stop Random Walk"
@@ -162,8 +146,10 @@ export default observer(function Main() {
           network={network}
           rate={rate}
           showLabels
-          showWalker={showWalker}
-        />
+        >
+          {walkTrace}
+          {walker}
+        </Network>
 
         <Trace network={network} />
       </div>
@@ -174,8 +160,10 @@ export default observer(function Main() {
           rate={rate}
           showLabels
           showModules
-          showWalker={showWalker}
-        />
+        >
+          {walkTrace}
+          {walker}
+        </Network>
 
         <Trace network={network} showModules />
       </div>
@@ -199,5 +187,5 @@ export default observer(function Main() {
         {"Codelength"} {network.mapequation.codelength.toFixed(3)} {"bits"}
       </div>
     </>
-  )
+  );
 });

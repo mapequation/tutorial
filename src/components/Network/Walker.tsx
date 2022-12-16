@@ -1,5 +1,6 @@
-import { RandomWalker } from "../../model/algorithms";
+import { observer } from "mobx-react";
 import { animated, to, useSpring } from "react-spring";
+import { RandomWalker } from "../../model/algorithms";
 
 const path = (
   x1: number,
@@ -39,7 +40,7 @@ interface Props {
   r?: number;
 }
 
-export default function Walker({ walker, r = 10 }: Props) {
+export default observer(function Walker({ walker, r = 10 }: Props) {
   const { current, prev, teleported } = walker;
 
   const x2 = current?.x ?? 0;
@@ -79,4 +80,4 @@ export default function Walker({ walker, r = 10 }: Props) {
       opacity={opacity}
     />
   );
-}
+});

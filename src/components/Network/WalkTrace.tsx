@@ -1,5 +1,6 @@
-import { RandomWalker } from "../../model/algorithms";
+import { observer } from "mobx-react";
 import { animated, useSpring } from "react-spring";
+import { RandomWalker } from "../../model/algorithms";
 import * as d3 from "d3";
 import Path from "./utils/Path";
 
@@ -12,7 +13,7 @@ interface Props {
   stroke?: string;
 }
 
-export default function WalkTrace({
+export default observer(function WalkTrace({
     walker,
     opacity = 0.7,
     minWidth = 1,
@@ -69,7 +70,7 @@ export default function WalkTrace({
       />
     </>
   );
-}
+});
 
 const curve = d3.curveCatmullRom.alpha(0.5);
 
