@@ -23,7 +23,7 @@ export default class RandomWalker {
 
   private readonly intervalStopped = -1 as const;
   intervalId: number = this.intervalStopped;
-  private interval = 400;
+  interval = 350;
 
   constructor(network: Network) {
     this.network = network;
