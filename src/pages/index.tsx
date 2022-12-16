@@ -10,13 +10,13 @@ const Home: NextPage = () => {
   return (
     <>
       <Head>
-        <title>Understanding The Map Equation</title>
+        <title>The Map Equation</title>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="theme-color" content="#000000" />
         <meta
           name="description"
-          content="Understand how The Map Equation works"
+          content="Understand the mechanics of The Map Equation"
         />
         <link rel="icon" href="/favicon.ico" />
       </Head>
