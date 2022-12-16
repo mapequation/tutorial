@@ -16,7 +16,7 @@ interface Props {
 function Rates({ network, rate, showModules = true }: Props) {
   const { nodes, maxNodeFlow } = network;
 
-  const getNodeRate = getRate(rate, 1 / nodes.length);
+  const getNodeRate = getRate(rate);
 
   const [viewBoxWidth, viewBoxHeight] = [1000, 800];
   const viewBox = `0 0 ${viewBoxWidth} ${viewBoxHeight}`;

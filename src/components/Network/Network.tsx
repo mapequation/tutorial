@@ -34,7 +34,7 @@ function Network({
   const arrowId = "arrow";
   const markerEnd = network.directed ? `url(#${arrowId})` : undefined;
 
-  const getNodeRate = getRate(rate, 1 / network.numNodes);
+  const getNodeRate = getRate(rate);
 
   const nodeRadius = (node: NodeModel): number => nodeScale(getNodeRate(node));
 
