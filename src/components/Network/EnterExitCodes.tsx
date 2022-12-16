@@ -1,4 +1,4 @@
-import { Fragment } from "react";
+import { Fragment, SVGProps } from "react";
 import type { Network } from "../../model";
 import { scheme, schemeAlt } from "../scheme";
 import { EnterFlow, ExitFlow } from "../CodeBooks";
@@ -23,9 +23,11 @@ export default observer(function EnterExitCodes({ network, x = 0, y = 0 }: Props
 
   const barWidth = 60;
   const barHeight = 20;
-  const moduleX = 0;
+
   const moduleY = barHeight + 4;
+
   const fontSize = 14;
+  const textOffset = 5;
 
   const { current, prev } = walker;
 
@@ -33,46 +35,42 @@ export default observer(function EnterExitCodes({ network, x = 0, y = 0 }: Props
   const prevModuleId = prev ? tree.root.getLeaf(prev.id)?.parent?.id : -1;
   const moduleChanged = currentModuleId !== prevModuleId;
 
+  const CodeWord = (props: SVGProps<SVGTextElement>) =>
+    <text dominantBaseline="middle" fontSize={fontSize}{...props} />;
+
   return <g transform={`translate(${x}, ${y})`}>
-    {modules.map((module, i) =>
-      <Fragment key={i}>
-        <text
-          dominantBaseline="middle"
-          textAnchor="end"
-          fontSize={fontSize}
-          x={moduleX - 4}
-          y={i * moduleY - barHeight * 0.45}
-        >
-          {module.enterCode}
-        </text>
-        <EnterFlow
-          fill={moduleChanged && module.id === currentModuleId ? schemeAlt[module.id] : scheme[module.id]}
-          stroke={schemeAlt[module.id]}
-          strokeWidth={2}
-          width={barWidth}
-          height={barHeight}
-          x={moduleX}
-          y={i * moduleY}
-        />
-        <ExitFlow
-          fill={moduleChanged && module.id === prevModuleId ? schemeAlt[module.id] : scheme[module.id]}
-          stroke={schemeAlt[module.id]}
-          strokeWidth={2}
-          pointerInside
-          width={barWidth}
-          height={barHeight}
-          x={moduleX + barWidth + 5}
-          y={i * moduleY}
-        />
-        <text
-          dominantBaseline="middle"
-          fontSize={fontSize}
-          x={moduleX + 2 * barWidth + 10}
-          y={i * moduleY - barHeight * 0.45}
-        >
-          {module.exitCode}
-        </text>
-      </Fragment>,
+    {modules.map((module, i) => {
+        const mainColor = scheme[module.id];
+        const altColor = schemeAlt[module.id];
+
+        const currentY = i * moduleY;
+        const textY = currentY - barHeight * 0.45;
+        const enterX = barWidth;
+
+        return <Fragment key={i}>
+          <CodeWord x={-textOffset} y={textY} textAnchor="end">{module.exitCode}</CodeWord>
+          <ExitFlow
+            fill={moduleChanged && module.id === currentModuleId ? altColor : mainColor}
+            stroke={altColor}
+            strokeWidth={2}
+            pointerInside
+            width={barWidth}
+            height={barHeight}
+            x={0}
+            y={currentY}
+          />
+          <EnterFlow
+            fill={moduleChanged && module.id === prevModuleId ? altColor : mainColor}
+            stroke={altColor}
+            strokeWidth={2}
+            width={barWidth}
+            height={barHeight}
+            x={enterX}
+            y={currentY}
+          />
+          <CodeWord x={enterX + barWidth + textOffset} y={textY}>{module.enterCode}</CodeWord>
+        </Fragment>;
+      },
     )}
   </g>;
 });
