@@ -3,7 +3,7 @@ import type { Network, Node } from "../../model";
 import { getRate, Rate } from "../../model";
 import Bar from "./Bar";
 import OverflowMask from "./OverflowMask";
-import { schemePastel2, schemeSet2 } from "d3";
+import { scheme, schemeAlt } from "../scheme";
 
 interface Props {
   network: Network;
@@ -43,8 +43,8 @@ function Rates({ network, rate, showModules = true }: Props) {
 
   const barFillStroke = (node: Node) => {
     return {
-      fill: showModules ? schemePastel2[node.module] : schemePastel2[0],
-      stroke: showModules ? schemeSet2[node.module] : schemeSet2[0],
+      fill: showModules ? scheme[node.module] : scheme[0],
+      stroke: showModules ? schemeAlt[node.module] : schemeAlt[0],
     };
   };
 

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
-import { Network } from "../../model";
 import { observer } from "mobx-react";
-import { schemeSet2 } from "d3";
+import { schemeAlt } from "../scheme";
+import { Network } from "../../model";
 import { TreeNode } from "../../model/algorithms/Tree";
 
 const Code = ({
@@ -19,7 +19,7 @@ const Code = ({
 
   if (i === 0)
     return (
-      <span style={{ color: schemeSet2[node.parent?.id ?? 0] }}>
+      <span style={{ color: schemeAlt[node.parent?.id ?? 0] }}>
         {node.parent?.enterCode} {node.code}{" "}
       </span>
     );
@@ -28,17 +28,17 @@ const Code = ({
 
   if (prev.parent?.id === node.parent?.id)
     return (
-      <span style={{ color: schemeSet2[node.parent?.id ?? 0] }}>
+      <span style={{ color: schemeAlt[node.parent?.id ?? 0] }}>
         {node.code}{" "}
       </span>
     );
 
   return (
     <>
-      <span style={{ color: schemeSet2[prev.parent?.id ?? 0] }}>
+      <span style={{ color: schemeAlt[prev.parent?.id ?? 0] }}>
         {prev.parent?.exitCode}{" "}
       </span>
-      <span style={{ color: schemeSet2[node.parent?.id ?? 0] }}>
+      <span style={{ color: schemeAlt[node.parent?.id ?? 0] }}>
         {node.parent?.enterCode} {node.code}{" "}
       </span>
     </>

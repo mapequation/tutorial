@@ -1,9 +1,9 @@
-import { schemePastel2, schemeSet2 } from "d3";
+import { scheme, schemeAlt } from "../scheme";
+import { Network } from "../../model";
+import { TreeNode } from "../../model/algorithms/Tree";
 import EnterFlow from "./EnterFlow";
 import ExitFlow from "./ExitFlow";
 import Flow from "./Flow";
-import { Network } from "../../model";
-import { TreeNode } from "../../model/algorithms/Tree";
 
 interface Props {
   network: Network;
@@ -44,8 +44,8 @@ export default function CodeBooks({ barWidth = 200, network }: Props) {
     y,
     width: barWidth,
     height,
-    fill: schemePastel2[parent!.isRoot ? id : parent!.id],
-    stroke: schemeSet2[parent!.isRoot ? id : parent!.id],
+    fill: scheme[parent!.isRoot ? id : parent!.id],
+    stroke: schemeAlt[parent!.isRoot ? id : parent!.id],
     strokeWidth: 2,
   });
 

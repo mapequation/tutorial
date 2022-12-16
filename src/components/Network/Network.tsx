@@ -1,13 +1,12 @@
 import { SVGProps } from "react";
-import { scaleSqrt, schemePastel2, schemeSet2 } from "d3";
-import Link from "./Link";
-import Node from "./Node";
-import ArrowMarker from "./ArrowMarker";
+import { observer } from "mobx-react";
+import { scaleSqrt } from "d3";
 import type { Network as NetworkModel, Node as NodeModel } from "../../model";
 import { getRate, Rate } from "../../model";
-import { observer } from "mobx-react";
-import Walker from "./Walker";
-import WalkTrace from "./WalkTrace";
+import { scheme, schemeAlt } from "../scheme";
+import ArrowMarker from "./ArrowMarker";
+import Link from "./Link";
+import Node from "./Node";
 
 const nodeScale = scaleSqrt().domain([0, 1]).range([10, 100]);
 
@@ -37,17 +36,14 @@ function Network({
 
   const nodeRadius = (node: NodeModel): number => nodeScale(getNodeRate(node));
 
-  const scheme = schemePastel2;
-  const visitScheme = schemeSet2;
-  const strokeScheme = visitScheme;
   const schemeIndex = (node: NodeModel) => (showModules ? node.module : 0);
 
   const nodeFill = (node: NodeModel) =>
     network.walker.isVisiting(node)
-      ? visitScheme[schemeIndex(node)]
+      ? schemeAlt[schemeIndex(node)]
       : scheme[schemeIndex(node)];
 
-  const nodeStroke = (node: NodeModel) => strokeScheme[schemeIndex(node)];
+  const nodeStroke = (node: NodeModel) => schemeAlt[schemeIndex(node)];
 
   const getLabel = (node: NodeModel) =>
     showModules ? node.code : node.oneLevelCode;
