@@ -75,7 +75,7 @@ function Rates({ network, rate, showModules = true }: Props) {
           {...barProps(i, node.flow)}
         />
       ))}
-      {rate !== Rate.None &&
+      {rate !== Rate.Uniform &&
         nodesByFlow.map((node, i) => (
           <Bar
             key={i}

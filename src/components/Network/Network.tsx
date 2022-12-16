@@ -23,7 +23,7 @@ interface Props {
 
 function Network({
   network,
-  rate = Rate.None,
+  rate = Rate.Uniform,
   showLabels = false,
   showModules = false,
   showWalker = false,

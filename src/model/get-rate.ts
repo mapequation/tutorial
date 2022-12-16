@@ -10,7 +10,7 @@ export function getRate(rate: Rate) {
         return node.voteRate;
       case Rate.Flow:
         return node.flow;
-      case Rate.None:
+      case Rate.Uniform:
         return 1 / node.network.numNodes;
     }
   };

@@ -23,7 +23,7 @@ network.nodes.forEach((node) => {
 
 
 export default observer(function Main() {
-  const [rate, setRate] = useState(Rate.None);
+  const [rate, setRate] = useState(Rate.Uniform);
   const [showWalker, setShowWalker] = useState(false);
   const firstNetworkRef = useRef<HTMLDivElement>(null);
 
@@ -149,7 +149,7 @@ export default observer(function Main() {
               rate === Rate.Visits ? "button--primary" : ""
             }`}
             onClick={() =>
-              setRate(rate === Rate.Visits ? Rate.None : Rate.Visits)
+              setRate(rate === Rate.Visits ? Rate.Uniform : Rate.Visits)
             }
           >
             {rate === Rate.Visits ? "Hide visit rate" : "Show visit rate"}
