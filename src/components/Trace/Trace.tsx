@@ -1,49 +1,7 @@
 import { useEffect, useRef } from "react";
 import { observer } from "mobx-react";
-import { schemeAlt } from "../scheme";
 import { Network } from "../../model";
-import { TreeNode } from "../../model/algorithms/Tree";
-
-const Code = ({
-  node,
-  i,
-  nodes,
-  showModules = false,
-}: {
-  node: TreeNode;
-  i: number;
-  nodes: TreeNode[];
-  showModules?: boolean;
-}) => {
-  if (!showModules) return <span>{node.oneLevelCode} </span>;
-
-  if (i === 0)
-    return (
-      <span style={{ color: schemeAlt[node.parent?.id ?? 0] }}>
-        {node.parent?.enterCode} {node.code}{" "}
-      </span>
-    );
-
-  const prev = nodes[i - 1];
-
-  if (prev.parent?.id === node.parent?.id)
-    return (
-      <span style={{ color: schemeAlt[node.parent?.id ?? 0] }}>
-        {node.code}{" "}
-      </span>
-    );
-
-  return (
-    <>
-      <span style={{ color: schemeAlt[prev.parent?.id ?? 0] }}>
-        {prev.parent?.exitCode}{" "}
-      </span>
-      <span style={{ color: schemeAlt[node.parent?.id ?? 0] }}>
-        {node.parent?.enterCode} {node.code}{" "}
-      </span>
-    </>
-  );
-};
+import CodeWord from "./CodeWord";
 
 interface Props {
   network: Network;
@@ -54,27 +12,25 @@ function Trace({ network, showModules = false }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const lastRef = useRef<HTMLElement>(null);
 
-  const { walker, tree } = network;
-
-  const nodes = walker.trace.map((id) => tree.root.getLeaf(id)!);
-
-  const last = nodes.pop();
+  const { walker } = network;
+  const trace = walker.trace.map((id) => network.tree.root.getLeaf(id)!);
+  const last = trace.pop();
 
   useEffect(() => {
     containerRef.current!.scrollTop = lastRef.current?.offsetTop ?? 0;
   }, [last]);
 
   const avgCodelength = (() => {
-    if (nodes.length === 0) return 0;
+    if (trace.length === 0) return 0;
 
     if (!showModules) {
-      const oneLevelCodes = nodes
+      const oneLevelCodes = trace
         .map((node) => node.oneLevelCode)
         .join("").length;
-      return oneLevelCodes / nodes.length;
+      return oneLevelCodes / trace.length;
     }
 
-    const codes = nodes
+    const codes = trace
       .map((node, i, nodes) => {
         if (i === 0) return node.parent?.enterCode + node.code; // first node must enter module
         const prev = nodes[i - 1];
@@ -83,7 +39,7 @@ function Trace({ network, showModules = false }: Props) {
       })
       .join("").length;
 
-    return codes / nodes.length;
+    return codes / trace.length;
   })();
 
   return (
@@ -92,21 +48,19 @@ function Trace({ network, showModules = false }: Props) {
         ref={containerRef}
         className="px-4 py-2 w-full h-32 overflow-y-auto overscroll-contain rounded-lg border-2 border-gray-200 leading-snug text-sm font-mono -word-spacing-7"
       >
-        {nodes.map((node, i, nodes) => (
-          <Code
+        {trace.map((node, i, nodes) => (
+          <CodeWord
             key={i}
             node={node}
-            i={i}
-            nodes={nodes}
+            prev={nodes[i - 1]}
             showModules={showModules}
           />
         ))}
         <strong ref={lastRef}>
           {last && (
-            <Code
+            <CodeWord
               node={last}
-              i={nodes.length}
-              nodes={nodes}
+              prev={trace[trace.length - 2]}
               showModules={showModules}
             />
           )}
