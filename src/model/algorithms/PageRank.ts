@@ -23,11 +23,11 @@ export default class PageRank {
     this.network = network;
 
     makeObservable(this, {
-      calculateFlow: action,
+      calculate: action,
     });
   }
 
-  calculateFlow() {
+  calculate() {
     return this.network.directed
       ? this.calcDirectedFlow()
       : this.calcUndirectedFlow();

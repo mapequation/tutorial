@@ -19,7 +19,7 @@ export default class MapEquation {
     });
   }
 
-  calculateCodelength() {
+  calculate() {
     const { tree } = this.network;
 
     for (let treeNode of tree.depthFirstModules()) {

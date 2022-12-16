@@ -12,11 +12,7 @@ import { Network as NetworkModel, Rate } from "../model";
 import Button from "../components/Button";
 
 const network = NetworkModel.parse(modular_w_json);
-network.flowCalculator.calculateFlow();
-network.tree.update();
-network.mapequation.calculateCodelength();
-network.coder.code();
-network.voter.initialize();
+
 network.walker.interval = 250;
 
 // TODO generalize and remove

@@ -28,7 +28,7 @@ export default class Network {
   tree: Tree;
   walker: RandomWalker;
   mapequation: MapEquation;
-  flowCalculator: PageRank;
+  visitRates: PageRank;
   voter: IterativeVoter;
   coder: HuffmanCoder;
 
@@ -38,13 +38,21 @@ export default class Network {
     this.tree = new Tree(this);
     this.walker = new RandomWalker(this);
     this.mapequation = new MapEquation(this);
-    this.flowCalculator = new PageRank(this);
+    this.visitRates = new PageRank(this);
     this.voter = new IterativeVoter(this);
     this.coder = new HuffmanCoder(this);
 
     makeObservable(this, {
       haveModules: computed,
     });
+  }
+
+  finalize() {
+    this.visitRates.calculate();
+    this.tree.update()
+    this.mapequation.calculate()
+    this.coder.code();
+    this.voter.initialize();
   }
 
   get nodes(): Node[] {
@@ -159,6 +167,8 @@ export default class Network {
       self.addNode(node);
     });
     links.forEach(self.addLink);
+
+    self.finalize();
 
     return self;
   }

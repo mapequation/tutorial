@@ -9,11 +9,6 @@ import Rates from "./Rates";
 import CodeBooks from "./CodeBooks";
 
 const network = NetworkModel.parse(modular_w_json);
-network.flowCalculator.calculateFlow();
-network.tree.update();
-network.mapequation.calculateCodelength();
-network.coder.code();
-network.voter.initialize();
 
 // TODO generalize and remove
 network.nodes.forEach((node) => {
