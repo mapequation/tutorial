@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Network as NetworkModel, Rate } from "../model";
 import { modular_w_json } from "../networks";
 import Button from "./Button";
-import { Network, Walker, WalkTrace } from "./Network";
+import { Network, Walker, WalkTrace, EnterExitCodes } from "./Network";
 import Trace from "./Trace";
 import Rates from "./Rates";
 import CodeBooks from "./CodeBooks";
@@ -161,6 +161,7 @@ export default observer(function Main() {
           showLabels
           showModules
         >
+          <EnterExitCodes network={network} x={30} y={700} />
           {walkTrace}
           {walker}
         </Network>

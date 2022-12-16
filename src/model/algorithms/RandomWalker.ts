@@ -1,9 +1,9 @@
-import type Network from "../Network";
-import type Node from "../Node";
-import { Teleportation } from "../enums";
 import { action, computed, makeObservable, observable } from "mobx";
+import { Teleportation } from "../enums";
 import { weightedRandom } from "../helpers";
 import { DEFAULT_TELEPORT_MODEL, DEFAULT_TELEPORT_RATE } from ".";
+import type Network from "../Network";
+import type Node from "../Node";
 
 export default class RandomWalker {
   private network: Network;
@@ -13,6 +13,7 @@ export default class RandomWalker {
 
   totalVisits = 0;
   teleported = false;
+
   trace: number[] = [];
   nodeTrace: Node[] = [];
   private readonly maxVisibleLength = 50;
@@ -68,7 +69,9 @@ export default class RandomWalker {
     this.trace.length = 0;
     this.nodeTrace.length = 0;
 
-    this.network.nodes.forEach((node) => (node.visits = 0));
+    for (const node of this.network.nodes) {
+      node.visits = 0;
+    }
 
     this.setCurrent(null);
   }

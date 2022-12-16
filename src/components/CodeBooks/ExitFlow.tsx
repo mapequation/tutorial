@@ -6,6 +6,7 @@ interface Props {
   width: number;
   height: number;
   dx?: number;
+  pointerInside?: boolean;
 }
 
 export default function ExitFlow({
@@ -14,6 +15,7 @@ export default function ExitFlow({
   width,
   height,
   dx = 10,
+  pointerInside = false,
   ...props
 }: Props & SVGProps<SVGPathElement>) {
   /*
@@ -26,6 +28,10 @@ export default function ExitFlow({
      (x, y)
 
    */
+
+  if (pointerInside) {
+    width -= dx;
+  }
 
   const dy = height / 2;
   const path = `M ${x} ${y} l 0 ${-height} l ${width} 0 l ${dx} ${dy} l ${-dx} ${dy} z`;
