@@ -5,14 +5,13 @@ import { DEFAULT_TELEPORT_RATE } from "./index";
 export default class IterativeVoter {
   private readonly network: Network;
 
-  private readonly teleportRate: number;
+  private readonly teleportRate = DEFAULT_TELEPORT_RATE;
 
   totalVotes = 0;
   error = 0;
 
   constructor(network: Network) {
     this.network = network;
-    this.teleportRate = this.network.directed ? DEFAULT_TELEPORT_RATE : 0;
 
     makeObservable(this, {
       totalVotes: observable,
@@ -28,15 +27,26 @@ export default class IterativeVoter {
     this.totalVotes = 0;
     this.error = 0;
 
-    this.network.nodes.forEach((node) => {
+    for (const node of this.network.nodes) {
       node.voteRate = 1 / numNodes;
       this.error += (node.voteRate - node.flow) ** 2;
-    });
+    }
 
     this.error /= this.network.numNodes;
   }
 
   vote() {
+    return this.network.directed ? this.directedVote() : this.undirectedVote();
+  }
+
+  private undirectedVote() {
+    for (const node of this.network.nodes) {
+      node.voteRate = node.flow;
+    }
+    this.error = 0;
+  }
+
+  private directedVote() {
     const { nodes, danglingNodes, totalLinkWeight } = this.network;
 
     this.totalVotes++;
