@@ -1,8 +1,8 @@
 import { Fragment, SVGProps } from "react";
+import { observer } from "mobx-react";
 import type { Network } from "../../model";
 import { scheme, schemeAlt } from "../scheme";
 import { EnterFlow, ExitFlow } from "../CodeBooks";
-import { observer } from "mobx-react";
 
 type Props = {
   network: Network,
@@ -53,10 +53,13 @@ export default observer(function EnterExitCodes({ network, x = 0, y = 0 }: Props
         const textY = currentY - barHeight * 0.45;
         const enterX = barWidth;
 
+        const prevModule = moduleChanged && module.id === prevModuleId;
+        const currentModule = moduleChanged && module.id === currentModuleId;
+
         return <Fragment key={i}>
           <CodeWord x={-textOffset} y={textY} textAnchor="end">{module.exitCode}</CodeWord>
           <ExitFlow
-            fill={moduleChanged && module.id === prevModuleId ? altColor : mainColor}
+            fill={prevModule ? altColor : mainColor}
             stroke={altColor}
             strokeWidth={2}
             pointerInside
@@ -66,7 +69,7 @@ export default observer(function EnterExitCodes({ network, x = 0, y = 0 }: Props
             y={currentY}
           />
           <EnterFlow
-            fill={moduleChanged && module.id === currentModuleId ? altColor : mainColor}
+            fill={currentModule ? altColor : mainColor}
             stroke={altColor}
             strokeWidth={2}
             width={barWidth}
