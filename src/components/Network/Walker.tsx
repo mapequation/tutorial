@@ -38,9 +38,10 @@ const path = (
 interface Props {
   walker: RandomWalker;
   r?: number;
+  squishy?: boolean;
 }
 
-export default observer(function Walker({ walker, r = 10 }: Props) {
+export default observer(function Walker({ walker, r = 10, squishy = true }: Props) {
   const { current, prev, teleported } = walker;
 
   const x2 = current?.x ?? 0;
@@ -71,6 +72,8 @@ export default observer(function Walker({ walker, r = 10 }: Props) {
   if (!walker.current) return null;
 
   if (!walker.prev) return <circle cx={x2} cy={y2} r={r} fill={defaultFill} />;
+
+  if (!squishy) return <animated.circle cx={x} cy={y} r={r} fill={fill} opacity={opacity} />;
 
   // @ts-ignore
   return (
