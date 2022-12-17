@@ -1,3 +1,5 @@
+import { computed, makeObservable } from "mobx";
+import { scaleLinear } from "d3"
 import Link from "./Link";
 import Node from "./Node";
 import { FlowModel } from "./enums";
@@ -15,7 +17,6 @@ import {
   RandomWalker,
   Tree,
 } from "./algorithms";
-import { computed, makeObservable } from "mobx";
 
 type Id = number;
 
@@ -53,6 +54,29 @@ export default class Network {
     this.mapequation.calculate()
     this.coder.code();
     this.voter.initialize();
+    return this;
+  }
+
+  setNodeExtents(xRange: number[], yRange: number[]) {
+    const xDomain = [Infinity, -Infinity];
+    const yDomain = [Infinity, -Infinity];
+
+    for (const node of this.nodes) {
+      xDomain[0] = Math.min(node.x, xDomain[0]);
+      xDomain[1] = Math.max(node.x, xDomain[1]);
+      yDomain[0] = Math.min(node.y, yDomain[0]);
+      yDomain[1] = Math.max(node.y, yDomain[1]);
+    }
+
+    const xScale = scaleLinear().domain(xDomain).range(xRange);
+    const yScale = scaleLinear().domain(yDomain).range(yRange);
+
+    for (const node of this.nodes) {
+      node.x = xScale(node.x);
+      node.y = yScale(node.y);
+    }
+
+    return this;
   }
 
   get nodes(): Node[] {

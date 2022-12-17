@@ -11,15 +11,12 @@ import Trace from "../components/Trace";
 import { Network as NetworkModel, Rate } from "../model";
 import Button from "../components/Button";
 
-const network = NetworkModel.parse(modular_w_json);
-const interval = 250;
-network.walker.setInterval(interval)
+const network = NetworkModel.parse(modular_w_json)
+  .setNodeExtents([100, 700], [100, 700]);
 
-// TODO generalize and remove
-network.nodes.forEach((node) => {
-  node.x *= 800;
-  node.y *= 800;
-});
+const interval = 250;
+network.walker.setInterval(interval);
+
 
 const Home: NextPage = observer(() => {
   const startRandomWalk = useCallback(() => network.walker.start(), []);

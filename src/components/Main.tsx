@@ -3,19 +3,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Network as NetworkModel, Rate } from "../model";
 import { modular_w_json } from "../networks";
 import Button from "./Button";
-import { Network, Walker, WalkTrace, EnterExitCodes } from "./Network";
+import { EnterExitCodes, Network, Walker, WalkTrace } from "./Network";
 import Trace from "./Trace";
 import Rates from "./Rates";
 import CodeBooks from "./CodeBooks";
 
-const network = NetworkModel.parse(modular_w_json);
-
-// TODO generalize and remove
-network.nodes.forEach((node) => {
-  node.x *= 800;
-  node.y *= 800;
-});
-
+const network = NetworkModel.parse(modular_w_json)
+  .setNodeExtents([50, 750], [50, 700]);
 
 export default observer(function Main() {
   const [rate, setRate] = useState(Rate.Uniform);
@@ -25,7 +19,7 @@ export default observer(function Main() {
   const setWalkerSpeed = (value: number) => {
     setSpeed(value);
     network.walker.setSpeed(value);
-  }
+  };
 
   const startRandomWalk = useCallback(() => network.walker.start(), []);
 
@@ -140,7 +134,8 @@ export default observer(function Main() {
             {rate === Rate.Visits ? "Hide visit rate" : "Show visit rate"}
           </Button>
           <div className="flex flex-col items-center">
-            <input type="range" id="walkerSpeed" min={1} max={10} step={1} value={speed} onChange={(e) => setWalkerSpeed(+e.target.value)} />
+            <input type="range" id="walkerSpeed" min={1} max={10} step={1} value={speed}
+                   onChange={(e) => setWalkerSpeed(+e.target.value)} />
             <label htmlFor="walkerSpeed">{speed} steps per second</label>
           </div>
         </div>
