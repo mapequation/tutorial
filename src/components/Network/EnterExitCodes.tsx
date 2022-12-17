@@ -38,9 +38,13 @@ export default observer(function EnterExitCodes({ network, x = 0, y = 0 }: Props
   const CodeWord = (props: SVGProps<SVGTextElement>) =>
     <text dominantBaseline="middle" fontSize={fontSize}{...props} />;
 
+  const Label = (props: SVGProps<SVGTextElement>) =>
+    <text y={-28} textAnchor="middle" fontSize={fontSize} {...props} />;
+
   return <g transform={`translate(${x}, ${y})`}>
-    <text x={barWidth / 2} y={-28} textAnchor="middle" fontSize={fontSize}>Exit</text>
-    <text x={barWidth * 3 / 2} y={-28} textAnchor="middle" fontSize={fontSize}>Enter</text>
+    <Label x={barWidth / 2}>Exit</Label>
+    <Label x={barWidth * 3 / 2}>Enter</Label>
+
     {modules.map((module, i) => {
         const mainColor = scheme[module.id];
         const altColor = schemeAlt[module.id];
@@ -52,7 +56,7 @@ export default observer(function EnterExitCodes({ network, x = 0, y = 0 }: Props
         return <Fragment key={i}>
           <CodeWord x={-textOffset} y={textY} textAnchor="end">{module.exitCode}</CodeWord>
           <ExitFlow
-            fill={moduleChanged && module.id === currentModuleId ? altColor : mainColor}
+            fill={moduleChanged && module.id === prevModuleId ? altColor : mainColor}
             stroke={altColor}
             strokeWidth={2}
             pointerInside
@@ -62,7 +66,7 @@ export default observer(function EnterExitCodes({ network, x = 0, y = 0 }: Props
             y={currentY}
           />
           <EnterFlow
-            fill={moduleChanged && module.id === prevModuleId ? altColor : mainColor}
+            fill={moduleChanged && module.id === currentModuleId ? altColor : mainColor}
             stroke={altColor}
             strokeWidth={2}
             width={barWidth}
