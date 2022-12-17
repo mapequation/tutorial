@@ -19,7 +19,13 @@ network.nodes.forEach((node) => {
 
 export default observer(function Main() {
   const [rate, setRate] = useState(Rate.Uniform);
+  const [speed, setSpeed] = useState(3);
   const firstNetworkRef = useRef<HTMLDivElement>(null);
+
+  const setWalkerSpeed = (value: number) => {
+    setSpeed(value);
+    network.walker.setSpeed(value);
+  }
 
   const startRandomWalk = useCallback(() => network.walker.start(), []);
 
@@ -133,6 +139,10 @@ export default observer(function Main() {
           >
             {rate === Rate.Visits ? "Hide visit rate" : "Show visit rate"}
           </Button>
+          <div className="flex flex-col items-center">
+            <input type="range" id="walkerSpeed" min={1} max={10} step={1} value={speed} onChange={(e) => setWalkerSpeed(+e.target.value)} />
+            <label htmlFor="walkerSpeed">{speed} steps per second</label>
+          </div>
         </div>
       </div>
 

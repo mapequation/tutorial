@@ -23,7 +23,7 @@ export default class RandomWalker {
 
   private readonly intervalStopped = -1 as const;
   intervalId: number = this.intervalStopped;
-  interval = 350;
+  private interval = 1000 / 3;
 
   constructor(network: Network) {
     this.network = network;
@@ -35,8 +35,11 @@ export default class RandomWalker {
       teleported: observable,
       trace: observable,
       intervalId: observable,
+      setInterval: action,
+      setSpeed: action,
       start: action,
       stop: action,
+      restart: action,
       reset: action,
       step: action,
       isStarted: computed,
@@ -45,6 +48,17 @@ export default class RandomWalker {
 
   get isStarted() {
     return this.intervalId !== this.intervalStopped;
+  }
+
+  setInterval(interval: number) {
+    this.interval = interval;
+    if (!this.isStarted) return;
+    this.restart();
+  }
+
+  setSpeed(stepsPerSecond: number) {
+    // interval is delay between each step in ms
+    this.setInterval(1000 / stepsPerSecond);
   }
 
   isVisiting(node: Node) {
@@ -60,6 +74,11 @@ export default class RandomWalker {
   stop() {
     window.clearInterval(this.intervalId);
     this.intervalId = this.intervalStopped;
+  }
+
+  restart() {
+    this.stop();
+    this.start();
   }
 
   reset() {

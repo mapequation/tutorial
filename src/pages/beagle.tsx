@@ -12,8 +12,8 @@ import { Network as NetworkModel, Rate } from "../model";
 import Button from "../components/Button";
 
 const network = NetworkModel.parse(modular_w_json);
-
-network.walker.interval = 250;
+const interval = 250;
+network.walker.setInterval(interval)
 
 // TODO generalize and remove
 network.nodes.forEach((node) => {
@@ -27,7 +27,7 @@ const Home: NextPage = observer(() => {
   useEffect(() => startRandomWalk(), [startRandomWalk]);
 
   const walkTrace = <WalkTrace walker={network.walker} />;
-  const walker = <Walker walker={network.walker} />;
+  const walker = <Walker walker={network.walker} duration={interval} />;
 
   return (
     <>

@@ -4,10 +4,10 @@ import { RandomWalker } from "../../model/algorithms";
 
 interface Props {
   walker: RandomWalker;
-  r?: number;
+  duration?: number;
 }
 
-export default observer(function Walker({ walker, r = 10 }: Props) {
+export default observer(function Walker({ walker, duration }: Props) {
   const { current, prev } = walker;
 
   const x2 = current?.x ?? 0;
@@ -18,7 +18,7 @@ export default observer(function Walker({ walker, r = 10 }: Props) {
 
   const props = useSpring({
     reset: true,
-    config: { duration: walker.interval },
+    config: { duration },
     from: { x: x1, y: y1 },
     to: { x: x2, y: y2 },
   });
