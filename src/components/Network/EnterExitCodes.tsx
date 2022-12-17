@@ -39,6 +39,8 @@ export default observer(function EnterExitCodes({ network, x = 0, y = 0 }: Props
     <text dominantBaseline="middle" fontSize={fontSize}{...props} />;
 
   return <g transform={`translate(${x}, ${y})`}>
+    <text x={barWidth / 2} y={-28} textAnchor="middle" fontSize={fontSize}>Exit</text>
+    <text x={barWidth * 3 / 2} y={-28} textAnchor="middle" fontSize={fontSize}>Enter</text>
     {modules.map((module, i) => {
         const mainColor = scheme[module.id];
         const altColor = schemeAlt[module.id];
