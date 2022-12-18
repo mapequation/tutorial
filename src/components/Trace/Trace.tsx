@@ -60,7 +60,7 @@ function Trace({ network, showModules = false }: Props) {
           {last && (
             <CodeWord
               node={last}
-              prev={trace[trace.length - 2]}
+              prev={trace[trace.length - 1]}
               showModules={showModules}
             />
           )}
