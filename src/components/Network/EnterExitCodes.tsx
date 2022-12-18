@@ -41,6 +41,8 @@ export default observer(function EnterExitCodes({ network, x = 0, y = 0 }: Props
   const Label = (props: SVGProps<SVGTextElement>) =>
     <text y={-28} textAnchor="middle" fontSize={fontSize} {...props} />;
 
+  const duration = 0.5 * walker.interval / 1000;
+
   return <g transform={`translate(${x}, ${y})`}>
     <Label x={barWidth / 2}>Exit</Label>
     <Label x={barWidth * 3 / 2}>Enter</Label>
@@ -56,10 +58,19 @@ export default observer(function EnterExitCodes({ network, x = 0, y = 0 }: Props
         const prevModule = moduleChanged && module.id === prevModuleId;
         const currentModule = moduleChanged && module.id === currentModuleId;
 
-        return <Fragment key={i}>
+        return <Fragment key={module.id}>
           <CodeWord x={-textOffset} y={textY} textAnchor="end">{module.exitCode}</CodeWord>
           <ExitFlow
-            fill={prevModule ? altColor : mainColor}
+            key={module.exitCode}
+            initial={{
+              fill: mainColor,
+              scale: 1,
+            }}
+            animate={{
+              fill: prevModule ? [null, altColor, mainColor] : mainColor,
+              scale: prevModule ? [null, 1.2, 1] : 1,
+            }}
+            transition={{ duration }}
             stroke={altColor}
             strokeWidth={2}
             pointerInside
@@ -69,7 +80,16 @@ export default observer(function EnterExitCodes({ network, x = 0, y = 0 }: Props
             y={currentY}
           />
           <EnterFlow
-            fill={currentModule ? altColor : mainColor}
+            key={module.enterCode}
+            initial={{
+              fill: mainColor,
+              scale: 1,
+            }}
+            animate={{
+              fill: currentModule ? [null, altColor, mainColor] : mainColor,
+              scale: currentModule ? [null, 1.2, 1] : 1,
+            }}
+            transition={{ duration, delay: 0.5 * duration }}
             stroke={altColor}
             strokeWidth={2}
             width={barWidth}

@@ -1,6 +1,6 @@
-import { SVGProps } from "react";
+import { motion, SVGMotionProps } from "framer-motion";
 
-interface Props {
+interface Props extends SVGMotionProps<SVGPathElement> {
   x: number;
   y: number;
   width: number;
@@ -17,7 +17,7 @@ export default function ExitFlow({
   dx = 10,
   pointerInside = false,
   ...props
-}: Props & SVGProps<SVGPathElement>) {
+}: Props) {
   /*
      Drawn clock-wise from (x, y)
 
@@ -36,5 +36,5 @@ export default function ExitFlow({
   const dy = height / 2;
   const path = `M ${x} ${y} l 0 ${-height} l ${width} 0 l ${dx} ${dy} l ${-dx} ${dy} z`;
 
-  return <path strokeLinejoin="round" {...props} d={path} />;
+  return <motion.path strokeLinejoin="round" {...props} d={path} />;
 }

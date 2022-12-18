@@ -23,7 +23,7 @@ export default class RandomWalker {
 
   private readonly intervalStopped = -1 as const;
   intervalId: number = this.intervalStopped;
-  private interval = 1000 / 3;
+  interval = 1000 / 3;
 
   constructor(network: Network) {
     this.network = network;
@@ -35,6 +35,7 @@ export default class RandomWalker {
       teleported: observable,
       trace: observable,
       intervalId: observable,
+      interval: observable,
       setInterval: action,
       setSpeed: action,
       start: action,
