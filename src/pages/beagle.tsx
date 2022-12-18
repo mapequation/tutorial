@@ -99,7 +99,7 @@ const Home: NextPage = observer(() => {
               showLabels
               showModules
             >
-              <EnterExitCodes network={network} x={30} y={700} />
+              <EnterExitCodes network={network} x={60} y={700} />
               {walkTrace}
               {walker}
             </Network>
