@@ -41,7 +41,7 @@ export default observer(function WalkTrace({
   const path = new Path();
   draw(coords, path);
 
-  const visiblePaths = path.paths.slice(-maxVisiblePaths);
+  const visiblePaths = path.slice(-maxVisiblePaths);
   const head = visiblePaths.pop();
 
   const scale = d3.scaleLinear().domain([0, maxVisiblePaths - 1]).range([0, 1]);
