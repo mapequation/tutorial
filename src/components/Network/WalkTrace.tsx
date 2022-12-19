@@ -1,7 +1,7 @@
 import { observer } from "mobx-react";
-import { animated, useSpring } from "react-spring";
-import { RandomWalker } from "../../model/algorithms";
+import { motion, SVGMotionProps } from "framer-motion";
 import * as d3 from "d3";
+import { RandomWalker } from "../../model/algorithms";
 import Path from "./utils/Path";
 
 interface Props {
@@ -21,16 +21,7 @@ export default observer(function WalkTrace({
     maxVisiblePaths = 20,
     stroke = "#707070",
   }: Props) {
-  const { current, nodeTrace, teleported } = walker;
-
-  const headProps = useSpring({
-    reset: true,
-    config: { duration: 500 },
-    from: {
-      opacity: 0, stroke: teleported ? "#FE3265" : stroke,
-    },
-    to: { opacity, stroke },
-  });
+  const { current, nodeTrace, teleported, interval } = walker;
 
   if (!current) return null;
 
@@ -44,29 +35,43 @@ export default observer(function WalkTrace({
   const visiblePaths = path.slice(-maxVisiblePaths);
   const head = visiblePaths.pop();
 
+  const oldPath = new Path();
+  draw(coords.slice(0, -1), oldPath);
+  const oldVisiblePaths = oldPath.slice(-maxVisiblePaths + 1);
+
   const scale = d3.scaleLinear().domain([0, maxVisiblePaths - 1]).range([0, 1]);
   const strokeWidth = (i: number) => minWidth + (maxWidth - minWidth) * scale(i);
+
+  const duration = interval / 1000;
+  const transition = { duration, type: "spring", bounce: 0 };
 
   return (
     <>
       {visiblePaths.map((d, i) =>
-        <path
-          key={i}
-          d={d}
-          stroke={stroke}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          fill="none"
+        <Segment
+          key={`${i}-${d}`}
+          initial={{ d: oldVisiblePaths[i] }}
+          animate={{ d }}
+          transition={{ duration }}
           strokeWidth={strokeWidth(i)}
           opacity={opacity * scale(i)}
+          stroke={stroke}
         />)}
-      <animated.path
+      <Segment
+        key={head}
         d={head}
-        {...headProps}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
-        strokeWidth={strokeWidth(visiblePaths.length - 1)}
+        initial={{
+          pathLength: 0,
+          opacity: 0.5 * opacity * scale(visiblePaths.length),
+          stroke: teleported ? "#FE3265" : stroke,
+        }}
+        animate={{
+          pathLength: 1,
+          opacity: opacity * scale(visiblePaths.length),
+          stroke,
+        }}
+        transition={transition}
+        strokeWidth={strokeWidth(visiblePaths.length)}
       />
     </>
   );
@@ -81,4 +86,13 @@ function draw(coords: number[][], path: Path) {
     c.point(coord[0], coord[1]);
   }
   c.lineEnd();
+}
+
+function Segment(props: SVGMotionProps<SVGPathElement>) {
+  return <motion.path
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    fill="transparent"
+    {...props}
+  />;
 }
