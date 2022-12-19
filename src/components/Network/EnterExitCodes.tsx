@@ -65,10 +65,12 @@ export default observer(function EnterExitCodes({ network, x = 0, y = 0 }: Props
             initial={{
               fill: mainColor,
               scale: 1,
+              translateX: 0,
             }}
             animate={{
               fill: prevModule ? [null, altColor, mainColor] : mainColor,
               scale: prevModule ? [null, 1.2, 1] : 1,
+              translateX: prevModule ? [null, 5, 0] : 0,
             }}
             transition={{ duration }}
             stroke={altColor}
@@ -84,10 +86,12 @@ export default observer(function EnterExitCodes({ network, x = 0, y = 0 }: Props
             initial={{
               fill: mainColor,
               scale: 1,
+              translateX: 0,
             }}
             animate={{
               fill: currentModule ? [null, altColor, mainColor] : mainColor,
-              scale: currentModule ? [null, 1.2, 1] : 1,
+              scale: currentModule ? [null, 1.2, 0.8, 1] : 1,
+              translateX: currentModule ? [null, 5, 0] : 0,
             }}
             transition={{ duration, delay: 0.5 * duration }}
             stroke={altColor}
