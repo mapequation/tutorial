@@ -118,11 +118,11 @@ export default class Tree {
 
     // 1. Assign nodes to modules
     network.nodes.forEach((node) => {
-      if (!root.has(node.module)) {
-        root.add(node.module);
+      if (!root.has(node.topModule)) {
+        root.add(node.topModule);
       }
 
-      const parent = root.get(node.module)!;
+      const parent = root.get(node.topModule)!;
 
       const child = parent.add(node.id);
       child.flow = node.flow;

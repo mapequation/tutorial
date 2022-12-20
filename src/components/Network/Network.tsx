@@ -36,7 +36,7 @@ function Network({
 
   const nodeRadius = (node: NodeModel): number => nodeScale(getNodeRate(node));
 
-  const schemeIndex = (node: NodeModel) => (showModules ? node.module : 0);
+  const schemeIndex = (node: NodeModel) => (showModules ? node.topModule : 0);
 
   const nodeFill = (node: NodeModel) =>
     network.walker.isVisiting(node)

@@ -43,13 +43,13 @@ function Rates({ network, rate, showModules = true }: Props) {
 
   const barFillStroke = (node: Node) => {
     return {
-      fill: showModules ? scheme[node.module] : scheme[0],
-      stroke: showModules ? schemeAlt[node.module] : schemeAlt[0],
+      fill: showModules ? scheme[node.topModule] : scheme[0],
+      stroke: showModules ? schemeAlt[node.topModule] : schemeAlt[0],
     };
   };
 
   const nodesByFlow = nodes.sort((a: Node, b: Node): number => {
-    if (a.module !== b.module) return b.moduleFlow - a.moduleFlow;
+    if (a.topModule !== b.topModule) return b.moduleFlow - a.moduleFlow;
     return b.flow - a.flow;
   });
 

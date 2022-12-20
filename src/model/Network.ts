@@ -109,7 +109,7 @@ export default class Network {
   }
 
   get haveModules(): boolean {
-    const moduleIds = new Set(this.nodes.map((node) => node.module));
+    const moduleIds = new Set(this.nodes.map((node) => node.topModule));
 
     return moduleIds.size > 1;
   }
@@ -117,8 +117,8 @@ export default class Network {
   moduleFlow(node: Node): number {
     let moduleFlow = 0;
 
-    for (let { module, flow } of this._nodes.values()) {
-      if (module === node.module) {
+    for (let { topModule, flow } of this._nodes.values()) {
+      if (topModule === node.topModule) {
         moduleFlow += flow;
       }
     }

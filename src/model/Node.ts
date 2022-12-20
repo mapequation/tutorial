@@ -15,7 +15,8 @@ interface Params {
 export default class Node implements SimulationNodeDatum {
   id: number;
   name: string;
-  path: string;
+  path: number[];
+  topModule: number;
   outLinks: Link[] = [];
 
   network: Network;
@@ -48,7 +49,8 @@ export default class Node implements SimulationNodeDatum {
     this.x = x;
     this.y = y;
     this.name = name || id.toString();
-    this.path = path;
+    this.path = path.split(":").map(Number);
+    this.topModule = this.path[0];
     this.flow = flow;
   }
 
@@ -68,10 +70,6 @@ export default class Node implements SimulationNodeDatum {
     const { totalVisits } = this.network.walker;
 
     return totalVisits === 0 ? 0 : this.visits / totalVisits;
-  }
-
-  get module(): number {
-    return +this.path;
   }
 
   get degree(): number {
