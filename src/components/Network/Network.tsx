@@ -91,7 +91,7 @@ function Network({
           fill={nodeFill(node)}
           stroke={nodeStroke(node)}
           showLabel={showLabels}
-          getLabel={getLabel}
+          getLabel={showLabels ? getLabel : undefined}
           strokeWidth={2}
         />
       ))}
