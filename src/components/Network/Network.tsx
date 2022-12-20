@@ -74,7 +74,7 @@ function Network({
           key={i}
           link={link}
           stroke="#888"
-          strokeWidth={1.5 + 30 * link.flow}
+          strokeWidth={1 + 100 * link.flow}
           sourceRadius={nodeRadius(link.source)}
           targetRadius={nodeRadius(link.target)}
           markerEnd={markerEnd}
