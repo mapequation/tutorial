@@ -2,6 +2,7 @@ import { observer } from "mobx-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Network as NetworkModel, Rate } from "../model";
 import { modular_w_json } from "../networks";
+import { scheme, schemeAlt } from "./scheme";
 import Button from "./Button";
 import { EnterExitCodes, Network, Walker, WalkTrace } from "./Network";
 import Trace from "./Trace";
@@ -54,7 +55,7 @@ export default observer(function Main() {
         ref={firstNetworkRef}
         className="col-span-2 w-4/5 mx-auto xl:w-full mb-48"
       >
-        <Network network={network}>
+        <Network network={network} scheme={scheme} schemeAlt={schemeAlt}>
           {walker}
         </Network>
       </div>
@@ -106,6 +107,7 @@ export default observer(function Main() {
           walker with a binary message. Huffman coding (Like Morse code,
           more frequently used symbols should be shorter).
         </p>
+
         <div className="flex flex-row justify-center space-x-4 mt-10 mb-10">
           <Button className="button" onClick={() => network.walker.reset()}>
             Reset
@@ -144,6 +146,8 @@ export default observer(function Main() {
       <div className="col-span-2 mb-48">
         <Network
           network={network}
+          scheme={scheme}
+          schemeAlt={schemeAlt}
           rate={rate}
           showLabels
         >
@@ -157,6 +161,8 @@ export default observer(function Main() {
       <div className="col-span-2 mb-48">
         <Network
           network={network}
+          scheme={scheme}
+          schemeAlt={schemeAlt}
           rate={rate}
           showLabels
           showModules

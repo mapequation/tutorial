@@ -3,7 +3,6 @@ import { observer } from "mobx-react";
 import { scaleSqrt } from "d3";
 import type { Network as NetworkModel, Node as NodeModel } from "../../model";
 import { getRate, Rate } from "../../model";
-import { scheme, schemeAlt } from "../scheme";
 import ArrowMarker from "./ArrowMarker";
 import Link from "./Link";
 import Node from "./Node";
@@ -12,18 +11,24 @@ const nodeScale = scaleSqrt().domain([0, 1]).range([10, 100]);
 
 interface Props {
   network: NetworkModel;
+  scheme: string[],
+  schemeAlt: string[],
   rate?: Rate;
   showLabels?: boolean;
   showModules?: boolean;
+  showVisiting?: boolean;
   width?: number,
   height?: number
 }
 
 function Network({
   network,
+  scheme,
+  schemeAlt,
   rate = Rate.Uniform,
   showLabels = false,
   showModules = false,
+  showVisiting = true,
   width = 800,
   height = 800,
   children,
@@ -38,12 +43,17 @@ function Network({
 
   const schemeIndex = (node: NodeModel) => (showModules ? node.topModule : 0);
 
-  const nodeFill = (node: NodeModel) =>
-    network.walker.isVisiting(node)
-      ? schemeAlt[schemeIndex(node)]
-      : scheme[schemeIndex(node)];
+  const nodeFill = (node: NodeModel) => {
+    const i = schemeIndex(node)
+    return showVisiting && network.walker.isVisiting(node)
+      ? schemeAlt[i >= schemeAlt.length ? 0 : i]
+      : scheme[i >= scheme.length ? 0 : i];
+  };
 
-  const nodeStroke = (node: NodeModel) => schemeAlt[schemeIndex(node)];
+  const nodeStroke = (node: NodeModel) => {
+    const i = schemeIndex(node)
+    return schemeAlt[i >= schemeAlt.length ? 0 : i];
+  };
 
   const getLabel = (node: NodeModel) =>
     showModules ? node.code : node.oneLevelCode;
