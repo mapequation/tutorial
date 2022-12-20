@@ -1,13 +1,13 @@
 import { computed, makeObservable } from "mobx";
-import type Network from "../Network";
+import type Tree from "./Tree"
 import type { TreeNode } from "./Tree";
 import { entropy, sum } from "../helpers";
 
 export default class MapEquation {
-  private readonly network: Network;
+  private readonly tree: Tree;
 
-  constructor(network: Network) {
-    this.network = network;
+  constructor(tree: Tree) {
+    this.tree = tree;
 
     makeObservable(this, {
       oneLevelCodelength: computed,
@@ -20,15 +20,14 @@ export default class MapEquation {
   }
 
   calculate() {
-    const { tree } = this.network;
-
-    for (let treeNode of tree.depthFirstModules()) {
+    for (let treeNode of this.tree.depthFirstModules()) {
       if (treeNode.isLeafModule) {
         MapEquation.calculateModuleCodelength(treeNode);
       } else {
         MapEquation.calculateIndexCodelength(treeNode);
       }
     }
+    return this;
   }
 
   private static calculateModuleCodelength(module: TreeNode): number {
@@ -48,7 +47,11 @@ export default class MapEquation {
   }
 
   get oneLevelCodelength(): number {
-    const visitRates = this.network.nodes.map((node) => node.flow);
+    const visitRates = []
+
+    for (let node of this.tree.root.leafNodes()) {
+      visitRates.push(node.flow)
+    }
 
     return entropy(visitRates);
   }
@@ -58,11 +61,9 @@ export default class MapEquation {
   }
 
   get indexCodelengths(): number[] {
-    const { tree } = this.network;
-
     const codelengths = [];
 
-    for (let module_ of tree.depthFirstModules()) {
+    for (let module_ of this.tree.depthFirstModules()) {
       if (!module_.isLeafModule) {
         codelengths.push(module_.codelength);
       }
@@ -76,11 +77,9 @@ export default class MapEquation {
   }
 
   get moduleCodelengths(): number[] {
-    const { tree } = this.network;
-
     const codelengths = [];
 
-    for (let module_ of tree.depthFirstModules()) {
+    for (let module_ of this.tree.depthFirstModules()) {
       if (module_.isLeafModule) {
         codelengths.push(module_.codelength);
       }

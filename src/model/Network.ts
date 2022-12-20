@@ -38,7 +38,7 @@ export default class Network {
 
     this.tree = new Tree(this);
     this.walker = new RandomWalker(this);
-    this.mapequation = new MapEquation(this);
+    this.mapequation = new MapEquation(this.tree);
     this.visitRates = new PageRank(this);
     this.voter = new IterativeVoter(this);
     this.coder = new HuffmanCoder(this);
