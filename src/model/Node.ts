@@ -18,6 +18,7 @@ export default class Node implements SimulationNodeDatum {
   path: number[];
   topModule: number;
   outLinks: Link[] = [];
+  neighbors: Node[] = [];
 
   network: Network;
 
@@ -90,11 +91,23 @@ export default class Node implements SimulationNodeDatum {
 
   addLink(link: Link) {
     this.outLinks.push(link);
+    this.addNeighbor(link.target);
+    link.target.addNeighbor(this)
+  }
+
+  private addNeighbor(node: Node) {
+    const found = this.neighbors.includes(node);
+    if (!found) this.neighbors.push(node)
   }
 
   randomLink(): Link | null {
     const weights = this.outLinks.map((link) => link.weight);
     const i = weightedRandom(weights);
     return this.outLinks[i];
+  }
+
+  randomNeighbor(): Node | null {
+    if (!this.neighbors.length) return null;
+    return this.neighbors[Math.floor(Math.random() * this.neighbors.length)];
   }
 }
