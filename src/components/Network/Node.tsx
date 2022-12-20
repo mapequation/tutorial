@@ -9,7 +9,7 @@ interface Props {
   y: number;
   fill: string;
   showLabel?: boolean;
-  getLabel?: (node: NodeModel) => string;
+  getLabel?: (node: NodeModel) => string | number;
 }
 
 export default function Node({
