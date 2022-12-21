@@ -10,6 +10,7 @@ import Walker from "../components/Network/BeagleWalker";
 import Trace from "../components/Trace";
 import { Network as NetworkModel, Rate } from "../model";
 import Button from "../components/Button";
+import { scheme, schemeAlt } from "../components/scheme";
 
 const network = NetworkModel.parse(modular_w_json)
   .setNodeExtents([100, 700], [100, 700]);
@@ -49,6 +50,8 @@ const Home: NextPage = observer(() => {
             <div className="w-1/2 mx-auto xl:w-full mb-48">
               <Network
                 network={network}
+                scheme={scheme}
+                schemeAlt={schemeAlt}
                 rate={Rate.Uniform}
               >
                 {walkTrace}
@@ -82,6 +85,8 @@ const Home: NextPage = observer(() => {
           <div className="col-span-2 mb-48">
             <Network
               network={network}
+              scheme={scheme}
+              schemeAlt={schemeAlt}
               rate={Rate.Uniform}
               showLabels
             >
@@ -95,6 +100,8 @@ const Home: NextPage = observer(() => {
           <div className="col-span-2 mb-48">
             <Network
               network={network}
+              scheme={scheme}
+              schemeAlt={schemeAlt}
               rate={Rate.Uniform}
               showLabels
               showModules
