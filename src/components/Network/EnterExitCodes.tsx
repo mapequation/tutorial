@@ -61,7 +61,7 @@ export default observer(function EnterExitCodes({ network, x = 0, y = 0 }: Props
         return <Fragment key={module.id}>
           <CodeWord x={-textOffset} y={textY} textAnchor="end">{module.exitCode}</CodeWord>
           <ExitFlow
-            key={module.exitCode}
+            key={`exit-${module.exitCode}`}
             initial={{
               fill: mainColor,
               scale: 1,
@@ -82,7 +82,7 @@ export default observer(function EnterExitCodes({ network, x = 0, y = 0 }: Props
             y={currentY}
           />
           <EnterFlow
-            key={module.enterCode}
+            key={`enter-${module.enterCode}`}
             initial={{
               fill: mainColor,
               scale: 1,
