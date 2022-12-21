@@ -55,8 +55,9 @@ export default observer(function EnterExitCodes({ network, x = 0, y = 0 }: Props
         const textY = currentY - barHeight * 0.45;
         const enterX = barWidth;
 
-        const prevModule = moduleChanged && module.id === prevModuleId;
-        const currentModule = moduleChanged && module.id === currentModuleId;
+        const changedFromModule = moduleChanged && module.id === prevModuleId;
+        const atModule = module.id === currentModuleId;
+        const changedToModule = moduleChanged && atModule;
 
         return <Fragment key={module.id}>
           <CodeWord x={-textOffset} y={textY} textAnchor="end">{module.exitCode}</CodeWord>
@@ -68,9 +69,9 @@ export default observer(function EnterExitCodes({ network, x = 0, y = 0 }: Props
               translateX: 0,
             }}
             animate={{
-              fill: prevModule ? [null, altColor, mainColor] : mainColor,
-              scale: prevModule ? [null, 1.2, 1] : 1,
-              translateX: prevModule ? [null, 5, 0] : 0,
+              fill: changedFromModule ? [null, altColor, mainColor] : mainColor,
+              scale: changedFromModule ? [null, 1.2, 1] : 1,
+              translateX: changedFromModule ? [null, 5, 0] : 0,
             }}
             transition={{ duration }}
             stroke={altColor}
@@ -84,14 +85,14 @@ export default observer(function EnterExitCodes({ network, x = 0, y = 0 }: Props
           <EnterFlow
             key={`enter-${module.enterCode}`}
             initial={{
-              fill: mainColor,
+              fill: atModule ? altColor : mainColor,
               scale: 1,
               translateX: 0,
             }}
             animate={{
-              fill: currentModule ? [null, altColor, mainColor] : mainColor,
-              scale: currentModule ? [null, 1.2, 0.8, 1] : 1,
-              translateX: currentModule ? [null, 5, 0] : 0,
+              fill: atModule ? [null, altColor] : mainColor,
+              scale: changedToModule ? [null, 1.2, 0.8, 1] : 1,
+              translateX: changedToModule ? [null, 5, 0] : 0,
             }}
             transition={{ duration, delay: 0.5 * duration }}
             stroke={altColor}
