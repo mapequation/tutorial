@@ -113,23 +113,31 @@ export default class Tree {
 
   update() {
     this.root = new TreeNode(null);
+    this.addNodesToTree();
+    this.addEnterExitFlowToTree();
+    return this;
+  }
 
-    const { root, network } = this;
+  private addNodesToTree() {
+    const { root } = this;
 
-    // 1. Assign nodes to modules
-    network.nodes.forEach((node) => {
-      if (!root.has(node.topModule)) {
-        root.add(node.topModule);
+    this.network.nodes.forEach((node) => {
+      const module_ = node.topModule;
+
+      if (!root.has(module_)) {
+        root.add(module_);
       }
 
-      const parent = root.get(node.topModule)!;
-
+      const parent = root.get(module_)!;
       const child = parent.add(node.id);
       child.flow = node.flow;
     });
+  }
 
-    // 2. Add enter/exit-flow to modules
-    network.links.forEach(({ source, target, flow }) => {
+  private addEnterExitFlowToTree() {
+    const { root } = this;
+
+    this.network.links.forEach(({ source, target, flow }) => {
       const sourceNode = root.getLeaf(source.id)!;
       const targetNode = root.getLeaf(target.id)!;
 
@@ -139,7 +147,7 @@ export default class Tree {
       // Note: assumes at same level
       // TODO in general, need to equalize levels
       while (sourceParent !== targetParent) {
-        if (network.directed) {
+        if (this.network.directed) {
           sourceParent!.exitFlow += flow;
           targetParent!.enterFlow += flow;
         } else {
