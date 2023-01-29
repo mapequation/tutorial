@@ -15,6 +15,7 @@ export default class RandomWalker {
   teleported = false;
 
   trace: number[] = [];
+  private readonly maxTraceLength = 200;
   nodeTrace: Node[] = [];
   private readonly maxVisibleLength = 50;
 
@@ -156,6 +157,9 @@ export default class RandomWalker {
     this.current.visits++;
     this.totalVisits++;
     this.trace.push(this.current.id);
+    if (this.trace.length > this.maxTraceLength) {
+      this.trace.shift();
+    }
     this.pushCurrent(this.current)
   }
 
