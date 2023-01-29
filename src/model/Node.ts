@@ -1,7 +1,7 @@
 import type { SimulationNodeDatum } from "d3";
 import type Link from "./Link";
 import type Network from "./Network";
-import { computed, makeObservable, observable } from "mobx";
+import { action, computed, makeObservable, observable } from "mobx";
 import { weightedRandom } from "./helpers";
 
 interface Params {
@@ -15,8 +15,9 @@ interface Params {
 export default class Node implements SimulationNodeDatum {
   id: number;
   name: string;
-  path: number[];
-  topModule: number;
+  private readonly path: number[];
+  topModule: number = 0;
+  private readonly initialModule: number;
   outLinks: Link[] = [];
   neighbors: Node[] = [];
 
@@ -42,6 +43,9 @@ export default class Node implements SimulationNodeDatum {
       flow: observable,
       visits: observable,
       voteRate: observable,
+      topModule: observable,
+      setTopModule: action,
+      setInitialModule: action,
       visitRate: computed,
     });
 
@@ -52,7 +56,16 @@ export default class Node implements SimulationNodeDatum {
     this.name = name || id.toString();
     this.path = path.split(":").map(Number);
     this.topModule = this.path[0];
+    this.initialModule = this.topModule;
     this.flow = flow;
+  }
+
+  setTopModule(module: number) {
+    this.topModule = module;
+  }
+
+  setInitialModule() {
+    this.topModule = this.initialModule;
   }
 
   get code(): string {

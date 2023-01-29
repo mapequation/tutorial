@@ -79,6 +79,12 @@ export default class Network {
     return this;
   }
 
+  setInitialModules() {
+    for (let node of this._nodes.values()) {
+      node.setInitialModule()
+    }
+  }
+
   get nodes(): Node[] {
     return Array.from(this._nodes.values());
   }

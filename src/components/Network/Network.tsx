@@ -17,6 +17,7 @@ interface Props {
   showLabels?: boolean;
   showModules?: boolean;
   showVisiting?: boolean;
+  modules?: "topModule",
   width?: number,
   height?: number
 }
@@ -29,6 +30,7 @@ function Network({
   showLabels = false,
   showModules = false,
   showVisiting = true,
+  modules = "topModule",
   width = 800,
   height = 800,
   children,
@@ -41,7 +43,7 @@ function Network({
 
   const nodeRadius = (node: NodeModel): number => nodeScale(getNodeRate(node));
 
-  const schemeIndex = (node: NodeModel) => (showModules ? node.topModule : 0);
+  const schemeIndex = (node: NodeModel) => (showModules ? node[modules] : 0);
 
   const nodeFill = (node: NodeModel) => {
     const i = schemeIndex(node)

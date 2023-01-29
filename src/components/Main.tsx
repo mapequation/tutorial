@@ -5,7 +5,7 @@ import { modular_w_json } from "../networks";
 import { scheme, schemeAlt } from "./scheme";
 import Button from "./Button";
 import { EnterExitCodes, Network, Walker, WalkTrace } from "./Network";
-import Trace from "./Trace";
+import { InlineTrace } from "./Trace";
 import Rates from "./Rates";
 import CodeBooks from "./CodeBooks";
 
@@ -15,6 +15,7 @@ const network = NetworkModel.parse(modular_w_json)
 export default observer(function Main() {
   const [rate, setRate] = useState(Rate.Uniform);
   const [speed, setSpeed] = useState(3);
+  const [showOptimized, setShowOptimized] = useState(true);
   const firstNetworkRef = useRef<HTMLDivElement>(null);
 
   const setWalkerSpeed = (value: number) => {
@@ -45,6 +46,29 @@ export default observer(function Main() {
     return () => observer.disconnect();
   }, [startRandomWalk]);
 
+  const toggleSolution = () => {
+    const wasStarted = network.walker.isStarted;
+    network.walker.reset();
+    if (showOptimized) {
+      network.getNode(2)?.setTopModule(4);
+      network.getNode(4)?.setTopModule(4);
+      network.getNode(8)?.setTopModule(0);
+      network.getNode(9)?.setTopModule(0);
+      network.getNode(11)?.setTopModule(0);
+      network.getNode(13)?.setTopModule(4);
+      network.getNode(14)?.setTopModule(4);
+      network.getNode(17)?.setTopModule(3);
+      network.getNode(20)?.setTopModule(3);
+      network.getNode(21)?.setTopModule(3);
+      network.finalize();
+    } else {
+      network.setInitialModules();
+      network.finalize();
+    }
+    setShowOptimized(!showOptimized);
+    network.walker.step();
+    if (wasStarted) startRandomWalk();
+  };
 
   const walkTrace = <WalkTrace walker={network.walker} />;
   const walker = <Walker walker={network.walker} />;
@@ -104,8 +128,8 @@ export default observer(function Main() {
         <h2>Huffman coding</h2>
         <p>
           To use the machinery of information theory, we describe the random
-          walker with a binary message. Huffman coding (Like Morse code,
-          more frequently used symbols should be shorter).
+          walker with a binary message.
+          Huffman coding (Like Morse code, more frequently used symbols should be shorter).
         </p>
 
         <div className="flex flex-row justify-center space-x-4 mt-10 mb-10">
@@ -135,6 +159,9 @@ export default observer(function Main() {
           >
             {rate === Rate.Visits ? "Hide visit rate" : "Show visit rate"}
           </Button>
+          <Button className="button" onClick={toggleSolution}>
+            {showOptimized ? "Bad solution" : "Optimal solution"}
+          </Button>
           <div className="flex flex-col items-center">
             <input type="range" id="walkerSpeed" min={1} max={10} step={1} value={speed}
                    onChange={(e) => setWalkerSpeed(+e.target.value)} />
@@ -143,7 +170,7 @@ export default observer(function Main() {
         </div>
       </div>
 
-      <div className="col-span-2 mb-48">
+      <div className="col-span-2 mb-10">
         <Network
           network={network}
           scheme={scheme}
@@ -154,11 +181,9 @@ export default observer(function Main() {
           {walkTrace}
           {walker}
         </Network>
-
-        <Trace network={network} />
       </div>
 
-      <div className="col-span-2 mb-48">
+      <div className="col-span-2 mb-10">
         <Network
           network={network}
           scheme={scheme}
@@ -171,8 +196,11 @@ export default observer(function Main() {
           {walkTrace}
           {walker}
         </Network>
+      </div>
 
-        <Trace network={network} showModules />
+      <div className="col-span-4">
+        <InlineTrace network={network} />
+        <InlineTrace network={network} showModules />
       </div>
 
       <div className="col-span-2 mb-48">

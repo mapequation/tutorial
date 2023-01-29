@@ -106,6 +106,7 @@ export default class Tree {
   private network: Network;
 
   root = new TreeNode(null);
+  private readonly module_ = "topModule";
 
   constructor(network: Network) {
     this.network = network;
@@ -122,7 +123,7 @@ export default class Tree {
     const { root } = this;
 
     this.network.nodes.forEach((node) => {
-      const module_ = node.topModule;
+      const module_ = node[this.module_];
 
       if (!root.has(module_)) {
         root.add(module_);
