@@ -113,7 +113,7 @@ export default class RandomWalker {
     }
 
     // degree should always be > 0 here
-    const link = this.current?.randomLink();
+    const link = this.getRandomLink();
 
     if (!link) {
       throw new Error("No link found, but node has out degree > 0");
@@ -122,6 +122,10 @@ export default class RandomWalker {
     this.setCurrent(link.target);
 
     this.recordVisit();
+  }
+
+  protected getRandomLink() {
+    return this.current?.randomLink();
   }
 
   private teleport() {
