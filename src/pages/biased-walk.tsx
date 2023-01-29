@@ -31,8 +31,8 @@ const biasedWalker = new BiasedWalker(biasedNetwork)
 
 biasedNetwork.walker = biasedWalker;
 
-biasedNetwork.getNode(7)?.setTopModule(0);
-biasedNetwork.getNode(8)?.setTopModule(0);
+biasedNetwork.getNode(7)?.setTopModule(4);
+biasedNetwork.getNode(8)?.setTopModule(4);
 biasedNetwork.getNode(16)?.setTopModule(3);
 biasedNetwork.getNode(24)?.setTopModule(3);
 
@@ -148,11 +148,11 @@ const Home: NextPage = observer(() => {
               // showLabels
               showModules
             >
-              <OverlappingNode node={node4} r={r} overlapModule={0}
+              <OverlappingNode node={node4} r={r} overlapModule={4}
                                isVisiting={biasedNetwork.walker.isVisiting(node4)} />
-              <OverlappingNode node={node9} r={r} overlapModule={0}
+              <OverlappingNode node={node9} r={r} overlapModule={4}
                                isVisiting={biasedNetwork.walker.isVisiting(node9)} />
-              <OverlappingNode node={node16} r={r} overlapModule={4}
+              <OverlappingNode node={node16} r={r} overlapModule={0}
                                isVisiting={biasedNetwork.walker.isVisiting(node16)} />
               {/*<EnterExitCodes network={biasedNetwork} x={60} y={700} />*/}
               <WalkTrace walker={biasedNetwork.walker} />
