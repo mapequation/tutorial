@@ -18,7 +18,7 @@ export default class RandomWalker {
   nodeTrace: Node[] = [];
   private readonly maxVisibleLength = 50;
 
-  private readonly teleportRate: number;
+  private teleportRate: number;
   private readonly teleportModel = DEFAULT_TELEPORT_MODEL;
 
   private readonly intervalStopped = -1 as const;
@@ -60,6 +60,12 @@ export default class RandomWalker {
   setSpeed(stepsPerSecond: number) {
     // interval is delay between each step in ms
     this.setInterval(1000 / stepsPerSecond);
+  }
+
+  setTeleportRate(teleportRate: number) {
+    if (teleportRate < 0) throw new Error("teleportRate must be non-negative");
+    this.teleportRate = teleportRate;
+    return this;
   }
 
   isVisiting(node: Node) {

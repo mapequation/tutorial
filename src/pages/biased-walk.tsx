@@ -17,14 +17,18 @@ import { scaleSqrt } from "d3";
 const network = NetworkModel.parse(modular_overlap)
   .setNodeExtents([100, 700], [100, 700]);
 
-network.walker = new BiasedWalker(network).setReturnParam(1);
+network.walker = new BiasedWalker(network)
+  .setReturnParam(1)
+  .setTeleportRate(0);
 
 const biasedNetwork = NetworkModel.parse(modular_overlap)
   .setNodeExtents([100, 700], [100, 700]);
 
 const biasedWalker = new BiasedWalker(biasedNetwork)
   .setReturnParam(10)
-  .setInOutParam(10);
+  .setInOutParam(10)
+  .setTeleportRate(0);
+
 biasedNetwork.walker = biasedWalker;
 
 biasedNetwork.getNode(7)?.setTopModule(0);
@@ -156,7 +160,8 @@ const Home: NextPage = observer(() => {
             </Network>
             {/*<Trace network={biasedNetwork} showModules />*/}
             <div className="flex flex-col items-center">
-              <label htmlFor="returnParam">return parameter: {returnParam < 10 ? returnParam / 10 : returnParam - 9}</label>
+              <label htmlFor="returnParam">return
+                parameter: {returnParam < 10 ? returnParam / 10 : returnParam - 9}</label>
               <input type="range" id="returnParam" min={1} max={19} step={1} value={returnParam}
                      onChange={(e) => setBiasReturnParam(+e.target.value)} />
               <label htmlFor="inOutParam">in-out parameter: {inOutParam < 10 ? inOutParam / 10 : inOutParam - 9}</label>
