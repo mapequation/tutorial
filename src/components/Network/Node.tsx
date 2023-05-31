@@ -9,6 +9,7 @@ interface Props {
   y: number;
   fill: string;
   showLabel?: boolean;
+  labelPosition?: "top" | "bottom" | "middle";
   getLabel?: (node: NodeModel) => string | number;
 }
 
@@ -19,10 +20,16 @@ export default function Node({
   y,
   fill,
   showLabel,
+  labelPosition = "top",
   getLabel = (node: NodeModel) => node.oneLevelCode,
   ...props
 }: Props & SVGProps<SVGCircleElement>) {
   const animatedProps = useSpring({ r, fill });
+
+  let labelOffset = 0;
+  if (showLabel && labelPosition !== "middle") {
+    labelOffset = labelPosition === "top" ? -r - 5 : r + 5;
+  }
 
   return (
     <>
@@ -37,7 +44,7 @@ export default function Node({
       {showLabel && (
         <text
           x={x}
-          y={y}
+          y={y + labelOffset}
           fontFamily="Helvetica, sans-serif"
           fontSize={16}
           fontWeight={800}
