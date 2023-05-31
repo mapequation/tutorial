@@ -38,10 +38,22 @@ const path = (
 interface Props {
   walker: RandomWalker;
   r?: number;
+  fill?: string;
+  teleportFill?: string;
+  stroke?: string;
+  strokeWidth?: number;
   squishy?: boolean;
 }
 
-export default observer(function Walker({ walker, r = 10, squishy = true }: Props) {
+function Walker({
+  walker,
+  r = 10,
+  fill = "#393939",
+  teleportFill = "#fe3265",
+  stroke = "none",
+  strokeWidth = 0,
+  squishy = true,
+}: Props) {
   const { current, prev, teleported } = walker;
 
   const x2 = current?.x ?? 0;
@@ -50,17 +62,15 @@ export default observer(function Walker({ walker, r = 10, squishy = true }: Prop
   const x1 = prev ? prev.x : x2;
   const y1 = prev ? prev.y : y2;
 
-  const defaultFill = "#393939";
-
-  const { x, y, length, fill, opacity } = useSpring({
+  const { x, y, length, fill: animatedFill, opacity } = useSpring({
     reset: true,
-    from: { x: x1, y: y1, length: 0, fill: defaultFill, opacity: 1 },
+    from: { x: x1, y: y1, length: 0, fill, opacity: 1 },
     to: [
       {
         x: x2,
         y: y2,
         length: Math.PI,
-        fill: teleported ? "#FE3265" : defaultFill,
+        fill: teleported ? teleportFill : fill,
         opacity: 1,
       },
       {
@@ -71,16 +81,20 @@ export default observer(function Walker({ walker, r = 10, squishy = true }: Prop
 
   if (!walker.current) return null;
 
-  if (!walker.prev) return <circle cx={x2} cy={y2} r={r} fill={defaultFill} />;
+  if (!walker.prev) return <circle cx={x2} cy={y2} r={r} fill={fill} stroke={stroke} strokeWidth={strokeWidth} />;
 
-  if (!squishy) return <animated.circle cx={x} cy={y} r={r} fill={fill} opacity={opacity} />;
+  if (!squishy) return <animated.circle cx={x} cy={y} r={r} fill={animatedFill} stroke={stroke} strokeWidth={strokeWidth} opacity={opacity} />;
 
   // @ts-ignore
   return (
     <animated.path
       d={to([x, y, length], (x, y, length) => path(x1, y1, x, y, r, length))}
-      fill={fill}
+      fill={animatedFill}
+      stroke={stroke}
+      strokeWidth={strokeWidth}
       opacity={opacity}
     />
   );
-});
+}
+
+export default observer(Walker);

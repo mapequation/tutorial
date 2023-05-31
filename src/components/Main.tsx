@@ -71,7 +71,7 @@ export default observer(function Main() {
   };
 
   const walkTrace = <WalkTrace walker={network.walker} />;
-  const walker = <Walker walker={network.walker} />;
+  const walker = <Walker walker={network.walker} stroke="#fff" strokeWidth={2} />;
 
   return (
     <>

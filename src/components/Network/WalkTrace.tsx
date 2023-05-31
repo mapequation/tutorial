@@ -17,7 +17,7 @@ export default observer(function WalkTrace({
     walker,
     opacity = 0.7,
     minWidth = 1,
-    maxWidth = 8,
+    maxWidth = 14,
     maxVisiblePaths = 20,
     stroke = "#707070",
   }: Props) {
