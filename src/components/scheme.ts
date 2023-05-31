@@ -1,8 +1,3 @@
-import { schemePastel2, schemeSet2 } from "d3";
-
-const scheme = schemePastel2 as string[];
-const schemeAlt = schemeSet2 as string[];
-
 export function schemeFromInterpolator(n: number, interpolator: (t: number) => string): string[] {
   const result = [];
   for (let i = 0; i < n; i++) {
@@ -10,5 +5,19 @@ export function schemeFromInterpolator(n: number, interpolator: (t: number) => s
   }
   return result;
 }
+
+const scheme = [
+  "#EBC384",
+  "#DFDDA2",
+  "#B4CCDF",
+  "#E68C6C",
+]
+
+const schemeAlt = [
+  "#ECA770",
+  "#ADB580",
+  "#82A3C9",
+  "#C2554A",
+]
 
 export { scheme, schemeAlt };
