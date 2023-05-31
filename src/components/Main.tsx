@@ -79,7 +79,7 @@ export default observer(function Main() {
         ref={firstNetworkRef}
         className="col-span-2 w-4/5 mx-auto xl:w-full mb-48"
       >
-        <Network network={network} scheme={scheme} schemeAlt={schemeAlt}>
+        <Network network={network}>
           {walker}
         </Network>
       </div>
@@ -173,8 +173,6 @@ export default observer(function Main() {
       <div className="col-span-2 mb-10">
         <Network
           network={network}
-          scheme={scheme}
-          schemeAlt={schemeAlt}
           rate={rate}
           showLabels
         >

@@ -11,8 +11,8 @@ const nodeScale = scaleSqrt().domain([0, 1]).range([10, 100]);
 
 interface Props {
   network: NetworkModel;
-  scheme: string[],
-  schemeAlt: string[],
+  scheme?: string[],
+  schemeAlt?: string[],
   rate?: Rate;
   showLabels?: boolean;
   showModules?: boolean;
@@ -24,8 +24,8 @@ interface Props {
 
 function Network({
   network,
-  scheme,
-  schemeAlt,
+  scheme = ["#ddd"],
+  schemeAlt = ["#aaa"],
   rate = Rate.Uniform,
   showLabels = false,
   showModules = false,
