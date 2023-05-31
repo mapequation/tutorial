@@ -28,7 +28,7 @@ export default class RandomWalker {
 
   constructor(network: Network) {
     this.network = network;
-    this.teleportRate = this.network.directed ? DEFAULT_TELEPORT_RATE : 0.02;
+    this.teleportRate = this.network.directed ? DEFAULT_TELEPORT_RATE : 0;
 
     makeObservable(this, {
       totalVisits: observable,
