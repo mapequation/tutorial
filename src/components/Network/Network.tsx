@@ -52,11 +52,6 @@ function Network({
       : scheme[i >= scheme.length ? 0 : i];
   };
 
-  const nodeStroke = (node: NodeModel) => {
-    const i = schemeIndex(node)
-    return schemeAlt[i >= schemeAlt.length ? 0 : i];
-  };
-
   const getLabel = (node: NodeModel) =>
     showModules ? node.code : node.oneLevelCode;
 
@@ -91,10 +86,10 @@ function Network({
           x={node.x}
           y={node.y}
           fill={nodeFill(node)}
-          stroke={nodeStroke(node)}
+          stroke="#fff"
+          strokeWidth={4}
           showLabel={showLabels}
           getLabel={showLabels ? getLabel : undefined}
-          strokeWidth={2}
         />
       ))}
 
