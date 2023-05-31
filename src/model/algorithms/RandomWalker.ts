@@ -131,14 +131,21 @@ export default class RandomWalker {
     this.recordVisit();
   }
 
-  protected getRandomLink() {
-    return this.current?.randomLink();
+  protected getRandomLink(selfAvoidBias = 2) {
+    if (selfAvoidBias < 1) throw new Error("selfAvoidBias must be >= 1");
+    if (!this.current) return;
+    if (!this.prev || selfAvoidBias === 1) return this.current?.randomLink();
+
+    const weights = this.current.outLinks.map((link) =>
+      link.target == this.prev ? link.weight / selfAvoidBias : link.weight);
+    const i = weightedRandom(weights);
+    return this.current.outLinks[i];
   }
 
   private teleport() {
     const degrees = this.network.nodes.map((node) =>
       // set teleport-weight of current to 0 to avoid self-teleportation
-      node.id === this.current?.id ? 0 : node.degree
+      node.id === this.current?.id ? 0 : node.degree,
     );
 
     const index = weightedRandom(degrees);
@@ -160,7 +167,7 @@ export default class RandomWalker {
     if (this.trace.length > this.maxTraceLength) {
       this.trace.shift();
     }
-    this.pushCurrent(this.current)
+    this.pushCurrent(this.current);
   }
 
   private pushCurrent(node: Node) {
