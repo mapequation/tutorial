@@ -26,6 +26,7 @@ export default observer(function EnterExitCodes({ network, x = 0, y = 0 }: Props
 
   const moduleY = barHeight + 4;
 
+  const fontFamily = "Helvetica, sans-serif";
   const fontSize = 14;
   const textOffset = 5;
 
@@ -36,10 +37,10 @@ export default observer(function EnterExitCodes({ network, x = 0, y = 0 }: Props
   const moduleChanged = currentModuleId !== prevModuleId;
 
   const CodeWord = (props: SVGProps<SVGTextElement>) =>
-    <text dominantBaseline="middle" fontSize={fontSize}{...props} />;
+    <text dominantBaseline="middle" fontSize={fontSize} fontFamily={fontFamily} {...props} />;
 
   const Label = (props: SVGProps<SVGTextElement>) =>
-    <text y={-28} textAnchor="middle" fontSize={fontSize} {...props} />;
+    <text y={-28} textAnchor="middle" fontSize={fontSize} fontFamily={fontFamily} {...props} />;
 
   const duration = 0.5 * walker.interval / 1000;
 

@@ -38,6 +38,7 @@ export default function Node({
         <text
           x={x}
           y={y}
+          fontFamily="Helvetica, sans-serif"
           fontSize={16}
           fontWeight={800}
           textAnchor="middle"

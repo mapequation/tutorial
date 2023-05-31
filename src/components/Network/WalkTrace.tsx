@@ -53,6 +53,7 @@ export default observer(function WalkTrace({
           initial={{ d: oldVisiblePaths[i] }}
           animate={{ d }}
           transition={{ duration }}
+          fill="none"
           strokeWidth={strokeWidth(i)}
           opacity={opacity * scale(i)}
           stroke={stroke}

@@ -108,6 +108,7 @@ export default function CodeBooks({ barWidth = 200, network }: Props) {
                   x={node.x + barWidth + 40}
                   y={node.y - node.height / 2}
                   dominantBaseline="middle"
+                  fontFamily="Helvetica, sans-serif"
                   fontSize={fontSize(node.height)}
                 >
                   {node.exitCode}
@@ -120,6 +121,7 @@ export default function CodeBooks({ barWidth = 200, network }: Props) {
                   x={node.x + barWidth + 40}
                   y={node.y - node.height / 2}
                   dominantBaseline="middle"
+                  fontFamily="Helvetica, sans-serif"
                   fontSize={fontSize(node.height)}
                 >
                   {node.code}
