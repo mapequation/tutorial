@@ -10,7 +10,7 @@ import Rates from "./Rates";
 import CodeBooks from "./CodeBooks";
 
 const network = NetworkModel.parse(modular_w_json)
-  .setNodeExtents([50, 750], [50, 700]);
+  .setNodeExtents([50, 650], [50, 700]);
 
 export default observer(function Main() {
   const [rate, setRate] = useState(Rate.Uniform);
