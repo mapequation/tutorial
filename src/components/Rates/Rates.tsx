@@ -9,11 +9,12 @@ interface Props {
   network: Network;
   rate: Rate;
   showModules?: boolean;
+  duration?: number;
   width?: number | string;
   height?: number | string;
 }
 
-function Rates({ network, rate, showModules = true }: Props) {
+function Rates({ network, rate, showModules = true, duration = 100 }: Props) {
   const { nodes, maxNodeFlow } = network;
 
   const getNodeRate = getRate(rate);
@@ -80,6 +81,7 @@ function Rates({ network, rate, showModules = true }: Props) {
           <Bar
             key={i}
             animate
+            duration={duration}
             opacity={0.6}
             {...barFillStroke(node)}
             {...barProps(i, getNodeRate(node))}

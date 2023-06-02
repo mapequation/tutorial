@@ -202,7 +202,7 @@ export default observer(function Main() {
       </div>
 
       <div className="col-span-2 mb-48">
-        <Rates network={network} rate={Rate.Visits} showModules />
+        <Rates network={network} rate={Rate.Visits} showModules duration={network.walker.interval} />
       </div>
 
       <div className="col-span-2 mb-48">

@@ -1,5 +1,4 @@
-import { SVGProps } from "react";
-import { animated, useSpring } from "react-spring";
+import { motion, SVGMotionProps } from "framer-motion";
 
 interface Props {
   y: number;
@@ -14,9 +13,7 @@ export default function Bar({
   duration = 100,
   animate = false,
   ...props
-}: Props & SVGProps<SVGRectElement>) {
-  const animatedProps = useSpring({ y, height, config: { duration } });
-
+}: Props & SVGMotionProps<SVGRectElement>) {
   const defaultProps = {
     width: 10,
     rx: 2,
@@ -25,10 +22,15 @@ export default function Bar({
   return (
     <>
       {animate && (
-        /* @ts-ignore */
-        <animated.rect {...animatedProps} {...defaultProps} {...props} />
+        <motion.rect
+          initial={false}
+          animate={{ attrY: y, height }}
+          transition={{ duration: duration / 1000 }}
+          {...defaultProps}
+          {...props}
+        />
       )}
-      {!animate && <rect y={y} height={height} {...defaultProps} {...props} />}
+      {!animate && <motion.rect y={y} height={height} {...defaultProps} {...props} />}
     </>
   );
 }
