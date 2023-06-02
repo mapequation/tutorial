@@ -50,12 +50,10 @@ export default observer(function WalkTrace({
       {visiblePaths.map((d, i) =>
         <Segment
           key={`${i}-${d}`}
-          initial={{ d: oldVisiblePaths[i] }}
-          animate={{ d }}
+          initial={{ d: oldVisiblePaths[i], strokeWidth: strokeWidth(i + 1), opacity: opacity * scale(i + 1) }}
+          animate={{ d, strokeWidth: strokeWidth(i), opacity: opacity * scale(i) }}
           transition={{ duration }}
           fill="none"
-          strokeWidth={strokeWidth(i)}
-          opacity={opacity * scale(i)}
           stroke={stroke}
         />)}
       <Segment
@@ -92,8 +90,7 @@ function draw(coords: number[][], path: Path) {
 function Segment(props: SVGMotionProps<SVGPathElement>) {
   return <motion.path
     strokeLinecap="round"
-    strokeLinejoin="round"
-    fill="transparent"
+    fill="none"
     {...props}
   />;
 }
