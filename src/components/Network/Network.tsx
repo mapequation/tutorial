@@ -88,6 +88,7 @@ function Network({
           fill={nodeFill(node)}
           stroke="#fff"
           strokeWidth={4}
+          duration={network.walker.interval}
           showLabel={showLabels}
           getLabel={showLabels ? getLabel : undefined}
         />

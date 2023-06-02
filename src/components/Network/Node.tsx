@@ -1,6 +1,5 @@
-import { SVGProps } from "react";
 import { Node as NodeModel } from "../../model";
-import { animated, useSpring } from "react-spring";
+import { motion, SVGMotionProps } from "framer-motion";
 
 interface Props {
   node: NodeModel;
@@ -8,6 +7,7 @@ interface Props {
   x: number;
   y: number;
   fill: string;
+  duration?: number;
   showLabel?: boolean;
   labelPosition?: "top" | "bottom" | "middle";
   getLabel?: (node: NodeModel) => string | number;
@@ -19,13 +19,12 @@ export default function Node({
   x,
   y,
   fill,
+  duration = 100,
   showLabel,
   labelPosition = "top",
   getLabel = (node: NodeModel) => node.oneLevelCode,
   ...props
-}: Props & SVGProps<SVGCircleElement>) {
-  const animatedProps = useSpring({ r, fill });
-
+}: Props & SVGMotionProps<SVGCircleElement>) {
   let labelOffset = 0;
   if (showLabel && labelPosition !== "middle") {
     labelOffset = labelPosition === "top" ? -r - 5 : r + 5;
@@ -34,17 +33,21 @@ export default function Node({
   return (
     <>
       {/* @ts-ignore */}
-      <animated.circle
-        {...animatedProps}
+      <motion.circle
+        initial={false}
+        animate={{ r, fill }}
+        transition={{ duration: duration / 1000 }}
         className="node"
         cx={x}
         cy={y}
         {...props}
       />
       {showLabel && (
-        <text
+        <motion.text
+          initial={false}
+          animate={{ attrY: y + labelOffset }}
+          transition={{ duration: duration / 1000 }}
           x={x}
-          y={y + labelOffset}
           fontFamily="Helvetica, sans-serif"
           fontSize={16}
           fontWeight={800}
@@ -58,7 +61,7 @@ export default function Node({
           paintOrder="stroke"
         >
           {getLabel(node)}
-        </text>
+        </motion.text>
       )}
     </>
   );
