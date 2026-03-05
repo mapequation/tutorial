@@ -1,27 +1,48 @@
+/**
+ * RandomWalker performs random walk simulation on a network.
+ * 
+ * Simulates a walker that moves through the network by randomly selecting
+ * neighbors weighted by link strength. Supports teleportation (jumping to random
+ * nodes) based on the teleport rate. Tracks the path taken and supports both
+ * continuous (interval-based) and manual stepping modes.
+ * 
+ * Key capabilities:
+ * - Random neighbor selection weighted by link strengths
+ * - Teleportation with configurable rate and model (recorded/unrecorded)
+ * - Continuous animation via setInterval or manual stepping
+ * - Full trace history up to 200 steps; visible trace limited to 50 steps
+ * - Observable state (MobX) for reactive UI updates
+ */
 import { action, computed, makeObservable, observable } from "mobx";
 import { Teleportation } from "../enums";
 import { weightedRandom } from "../helpers";
 import { DEFAULT_TELEPORT_MODEL, DEFAULT_TELEPORT_RATE } from ".";
+import { performanceMonitor } from "../../utils/performance";
 import type Network from "../Network";
 import type Node from "../Node";
 
 export default class RandomWalker {
   private network: Network;
 
+  // Current location and previous location in the walk
   current: Node | null = null;
   prev: Node | null = null;
 
+  // Statistics tracking
   totalVisits = 0;
   teleported = false;
 
+  // Full trace history (up to 200 steps) and visible trace for UI (up to 50 steps)
   trace: number[] = [];
   private readonly maxTraceLength = 200;
   nodeTrace: Node[] = [];
   private readonly maxVisibleLength = 50;
 
+  // Teleportation settings for simulating real-world behavior
   private teleportRate: number;
   private readonly teleportModel = DEFAULT_TELEPORT_MODEL;
 
+  // Continuous animation control via setInterval
   private readonly intervalStopped = -1 as const;
   intervalId: number = this.intervalStopped;
   interval = 1000 / 3;
@@ -104,11 +125,14 @@ export default class RandomWalker {
   }
 
   step(stop = true) {
+    performanceMonitor.mark('walker-step');
+
     if (stop && this.isStarted) this.stop();
 
     if (!this.current) {
       this.setCurrent(this.network.nodes[0]);
       this.recordVisit();
+      performanceMonitor.measure('walker-step');
       return;
     }
 
@@ -116,7 +140,9 @@ export default class RandomWalker {
       Math.random() < this.teleportRate || this.current?.degree === 0;
 
     if (this.teleported) {
-      return this.teleport();
+      const result = this.teleport();
+      performanceMonitor.measure('walker-step');
+      return result;
     }
 
     // degree should always be > 0 here
@@ -129,6 +155,7 @@ export default class RandomWalker {
     this.setCurrent(link.target);
 
     this.recordVisit();
+    performanceMonitor.measure('walker-step');
   }
 
   protected getRandomLink(selfAvoidBias = 2) {

@@ -14,16 +14,21 @@ import { scheme, schemeAlt } from "../components/scheme";
 import BiasedWalker from "../model/algorithms/BiasedWalker";
 import { scaleSqrt } from "d3";
 
+// Two network instances are created to compare unbiased and biased walkers
+// on the same base topology. Coordinates are mapped into screen extents.
 const network = NetworkModel.parse(modular_overlap)
   .setNodeExtents([100, 700], [100, 700]);
 
+// Assign a BiasedWalker for the default network and configure parameters.
 network.walker = new BiasedWalker(network)
   .setReturnParam(1)
   .setTeleportRate(0);
 
+// A second network instance used to demonstrate stronger biasing behavior.
 const biasedNetwork = NetworkModel.parse(modular_overlap)
   .setNodeExtents([100, 700], [100, 700]);
 
+// Configure a biased walker with tuned parameters for experimental behavior.
 const biasedWalker = new BiasedWalker(biasedNetwork)
   .setReturnParam(10)
   .setInOutParam(10)
@@ -31,11 +36,15 @@ const biasedWalker = new BiasedWalker(biasedNetwork)
 
 biasedNetwork.walker = biasedWalker;
 
+// Manually mark a few nodes as belonging to specific top-level modules to
+// illustrate overlapping or merged module behavior in the demo.
 biasedNetwork.getNode(7)?.setTopModule(4);
 biasedNetwork.getNode(8)?.setTopModule(4);
 biasedNetwork.getNode(16)?.setTopModule(3);
 biasedNetwork.getNode(24)?.setTopModule(3);
 
+// Select a few nodes for the overlapping-node visual example and compute a
+// radius scale for node glyphs based on network size.
 const node4 = network.getNode(4)!;
 const node9 = network.getNode(9)!;
 const node16 = network.getNode(16)!;
@@ -43,22 +52,35 @@ const node16 = network.getNode(16)!;
 const nodeScale = scaleSqrt().domain([0, 1]).range([10, 100]);
 const r = nodeScale(1 / network.numNodes);
 
+
+/**
+ * `biased-walk` demo page.
+ *
+ * Demonstrates the effect of biasing parameters on walker behavior by
+ * rendering two side-by-side visualizations: one with light bias and one
+ * with stronger return/in-out bias. The UI exposes sliders to tune the
+ * biased walker parameters in real time.
+ */
 const Home: NextPage = observer(() => {
   const [speed, setSpeed] = useState(3);
   const [returnParam, setReturnParam] = useState(19);
   const [inOutParam, setInOutParam] = useState(19);
 
+  // Start both walkers when requested.
   const startRandomWalk = useCallback(() => {
     network.walker.start();
     biasedNetwork.walker.start();
   }, []);
 
+  // Update both walker speeds when the speed control changes.
   const setWalkerSpeed = (value: number) => {
     setSpeed(value);
     network.walker.setSpeed(value);
     biasedNetwork.walker.setSpeed(value);
   };
 
+  // Convert slider values to the internal parameter scale and update the
+  // biased walker instance accordingly.
   const setBiasReturnParam = (value: number) => {
     setReturnParam(value);
     biasedWalker.setReturnParam(value < 10 ? value / 10 : value - 9);
@@ -123,6 +145,7 @@ const Home: NextPage = observer(() => {
           </div>
 
 
+          {/* Left visualization: baseline network with modules shown. */}
           <div className="col-span-2 mb-48">
             <Network
               network={network}
@@ -139,6 +162,7 @@ const Home: NextPage = observer(() => {
             {/*<Trace network={network} showModules />*/}
           </div>
 
+          {/* Right visualization: strongly biased walker with overlapping nodes */}
           <div className="col-span-2 mb-48">
             <Network
               network={biasedNetwork}
@@ -179,6 +203,11 @@ const Home: NextPage = observer(() => {
 
 export default Home;
 
+/**
+ * `OverlappingNode` is a small helper that renders a clipped node glyph to
+ * visually demonstrate nodes that overlap module boundaries. It uses an SVG
+ * `clipPath` so the node appears cut-off to suggest overlap.
+ */
 function OverlappingNode({ node, r, overlapModule, isVisiting = false }: {
   node: NodeModel,
   r: number,

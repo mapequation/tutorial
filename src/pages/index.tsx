@@ -4,8 +4,18 @@ import dynamic from "next/dynamic";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 
+// Dynamically import the `Main` component and disable server-side rendering
+// because it depends on browser-only APIs (e.g. animation, window, or canvas).
+// This keeps the initial server render lightweight and avoids SSR errors.
 const Main = dynamic(() => import("../components/Main"), { ssr: false });
 
+/**
+ * Home page for the demo site.
+ *
+ * This Next.js page presents an overview of the Map Equation concept and
+ * contains illustrative images and the interactive `Main` component which
+ * renders the network visualization and controls client-side.
+ */
 const Home: NextPage = () => {
   return (
     <>
@@ -22,9 +32,12 @@ const Home: NextPage = () => {
       </Head>
 
       <div className="container max-w-screen-xl mx-auto px-5">
+        {/* Site header with navigation and title */}
         <Header />
 
+        {/* Main content grid: left column for hero image, right for intro text, then galleries and explanations */}
         <main className="xl:grid xl:grid-cols-4 xl:gap-x-20">
+          {/* Hero image that visually represents a complex network (a "hairball"). */}
           <div className="col-span-1 xl:mt-12 mb-20">
             <img
               className="rounded-full w-1/2 mx-auto xl:w-full"
@@ -33,6 +46,7 @@ const Home: NextPage = () => {
             />
           </div>
 
+          {/* Introductory headline and short explanatory paragraph about motivation. */}
           <div className="col-span-3 mb-48">
             <h1>A network is not enough</h1>
             <p>
@@ -43,6 +57,7 @@ const Home: NextPage = () => {
             </p>
           </div>
 
+          {/* Section describing the analogy with geographic maps. */}
           <div className="col-span-4 mb-20">
             <h2>Maps of networks</h2>
             <p>
@@ -52,6 +67,7 @@ const Home: NextPage = () => {
             </p>
           </div>
 
+          {/* Small gallery showing various map images as visual examples. */}
           <div className="col-span-4 grid grid-cols-4 gap-x-5 md:gap-x-10 lg:gap-x-20 mb-48">
             <div>
               <img
@@ -83,6 +99,7 @@ const Home: NextPage = () => {
             </div>
           </div>
 
+          {/* Explanation of network flows and why modules matter; lists concrete examples. */}
           <div className="col-span-2 xl:mb-48">
             <h2>Network flows</h2>
             <p>
@@ -107,9 +124,11 @@ const Home: NextPage = () => {
             </p>
           </div>
 
+          {/* Interactive main visualization and controls (client-side only). */}
           <Main />
         </main>
 
+        {/* Site footer with attribution and extra links. */}
         <Footer />
       </div>
     </>

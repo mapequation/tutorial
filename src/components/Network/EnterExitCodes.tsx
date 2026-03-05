@@ -10,8 +10,15 @@ type Props = {
   y?: number
 }
 
+/**
+ * EnterExitCodes visualizes the enter and exit codes for each module,
+ * showing how the walker transitions between modules. Displays animated
+ * bars that highlight when the walker enters or exits a module.
+ */
 export default observer(function EnterExitCodes({ network, x = 0, y = 0 }: Props) {
   const { tree, walker } = network;
+  // Access treeUpdateCounter to ensure component re-renders when tree updates
+  const treeVersion = network.treeUpdateCounter;
 
   const modules = tree.root.sort((a, b) => {
     const enterCodelengthDiff = b.enterCode.length - a.enterCode.length;
@@ -61,9 +68,9 @@ export default observer(function EnterExitCodes({ network, x = 0, y = 0 }: Props
         const changedToModule = moduleChanged && atModule;
 
         return <Fragment key={module.id}>
-          <CodeWord x={-textOffset} y={textY} textAnchor="end">{module.exitCode}</CodeWord>
+          <CodeWord x={-textOffset} y={textY} textAnchor="end" fontSize={12}>{module.exitCode}</CodeWord>
           <ExitFlow
-            key={`exit-${module.exitCode}`}
+            key={`exit-${module.id}`}
             initial={{
               fill: mainColor,
               scale: 1,
@@ -84,7 +91,7 @@ export default observer(function EnterExitCodes({ network, x = 0, y = 0 }: Props
             y={currentY}
           />
           <EnterFlow
-            key={`enter-${module.enterCode}`}
+            key={`enter-${module.id}`}
             initial={{
               fill: atModule ? altColor : mainColor,
               scale: 1,
@@ -103,7 +110,7 @@ export default observer(function EnterExitCodes({ network, x = 0, y = 0 }: Props
             x={enterX}
             y={currentY}
           />
-          <CodeWord x={enterX + barWidth + textOffset} y={textY}>{module.enterCode}</CodeWord>
+          <CodeWord x={enterX + barWidth + textOffset} y={textY} fontSize={12}>{module.enterCode}</CodeWord>
         </Fragment>;
       },
     )}

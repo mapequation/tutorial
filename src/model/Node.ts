@@ -12,6 +12,15 @@ interface Params {
   flow?: number;
 }
 
+/**
+ * Model for a single network node.
+ *
+ * Stores layout coordinates, connectivity (outgoing links and neighbors),
+ * module assignment (`topModule`), and runtime statistics used by the
+ * visualization (visit counts, flow). Many fields are observable (MobX)
+ * so UI components can react to updates from walkers and iterative
+ * algorithms.
+ */
 export default class Node implements SimulationNodeDatum {
   id: number;
   name: string;
@@ -113,6 +122,10 @@ export default class Node implements SimulationNodeDatum {
     if (!found) this.neighbors.push(node)
   }
 
+  /**
+   * Choose an outgoing link using the link weights as probabilities.
+   * Returns `null` if there are no outgoing links.
+   */
   randomLink(): Link | null {
     const weights = this.outLinks.map((link) => link.weight);
     const i = weightedRandom(weights);

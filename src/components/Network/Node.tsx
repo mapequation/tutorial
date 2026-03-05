@@ -1,5 +1,7 @@
 import { Node as NodeModel } from "../../model";
+import { memo } from "react";
 import { motion, SVGMotionProps } from "framer-motion";
+import { observer } from "mobx-react";
 
 interface Props {
   node: NodeModel;
@@ -11,9 +13,23 @@ interface Props {
   showLabel?: boolean;
   labelPosition?: "top" | "bottom" | "middle";
   getLabel?: (node: NodeModel) => string | number;
+  showNodeId?: boolean;
+  isSelected?: boolean;
 }
 
-export default function Node({
+/**
+ * Visual node glyph used inside the `Network` SVG.
+ *
+ * Uses `framer-motion` to animate radius and fill transitions so node size
+ * and color changes smoothly when visit rates or module assignments
+ * change. Labels are optional and can be positioned above, below or in the
+ * middle of the node.
+ * 
+ * Wrapped with `observer` to react to MobX changes in node properties like
+ * codes, which are computed values. This ensures labels update correctly
+ * when module assignments change and codes are recalculated.
+ */
+const Node = memo(observer(function Node({
   node,
   r,
   x,
@@ -23,6 +39,8 @@ export default function Node({
   showLabel,
   labelPosition = "top",
   getLabel = (node: NodeModel) => node.oneLevelCode,
+  showNodeId = false,
+  isSelected = false,
   ...props
 }: Props & SVGMotionProps<SVGCircleElement>) {
   let labelOffset = 0;
@@ -32,6 +50,7 @@ export default function Node({
 
   return (
     <>
+      {/* Animate the circle's radius and fill for smooth visual updates. */}
       {/* @ts-ignore */}
       <motion.circle
         initial={false}
@@ -42,6 +61,17 @@ export default function Node({
         cy={y}
         {...props}
       />
+      {/* Darker overlay when node is selected */}
+      {isSelected && (
+        <circle
+          cx={x}
+          cy={y}
+          r={r}
+          fill="#000"
+          opacity={0.25}
+          pointerEvents="none"
+        />
+      )}
       {showLabel && (
         <motion.text
           initial={false}
@@ -63,6 +93,23 @@ export default function Node({
           {getLabel(node)}
         </motion.text>
       )}
+      {showNodeId && (
+        <motion.text
+          initial={false}
+          animate={{ attrY: y }}
+          transition={{ duration: duration / 1000 }}
+          x={x}
+          fontFamily="Helvetica, sans-serif"
+          fontSize={12}
+          fontWeight={600}
+          textAnchor="middle"
+          dominantBaseline="middle"
+          fill="#393939"
+        >
+          {node.id}
+        </motion.text>
+      )}
     </>
   );
-}
+}));
+export default Node;

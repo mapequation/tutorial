@@ -7,6 +7,10 @@ interface Props {
   duration?: number;
 }
 
+/**
+ * BeagleWalker renders the HMS Beagle image as an animated walker on the network.
+ * Uses `react-spring` to smoothly animate the image between node positions.
+ */
 export default observer(function Walker({ walker, duration }: Props) {
   const { current, prev } = walker;
 

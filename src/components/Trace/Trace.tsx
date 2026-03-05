@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useMemo } from "react";
 import { observer } from "mobx-react";
 import { Network } from "../../model";
 import CodeWord from "./CodeWord";
@@ -8,19 +8,32 @@ interface Props {
   showModules?: boolean;
 }
 
+/**
+ * `Trace` shows the recent sequence of codewords emitted by the random
+ * walker. It is useful to inspect the symbolic stream corresponding to the
+ * walker's visits and to compute average codelength statistics for the demo.
+ */
 function Trace({ network, showModules = false }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const lastRef = useRef<HTMLElement>(null);
 
   const { walker } = network;
-  const trace = walker.trace.map((id) => network.tree.root.getLeaf(id)!);
-  const last = trace.pop();
+  // Convert walker trace ids to tree leaf nodes for rendering codewords.
+  const traceData = useMemo(() => {
+    const trace = walker.trace.map((id) => network.tree.root.getLeaf(id)!);
+    const last = trace.pop();
+    return { trace, last };
+  }, [walker.trace, network.tree]);
 
+  const { trace, last } = traceData;
+
+  // Auto-scroll the trace container so the most recent codeword is visible.
   useEffect(() => {
     containerRef.current!.scrollTop = lastRef.current?.offsetTop ?? 0;
   }, [last]);
 
-  const avgCodelength = (() => {
+  // Memoize average codelength calculation
+  const avgCodelength = useMemo(() => {
     if (trace.length === 0) return 0;
 
     if (!showModules) {
@@ -40,7 +53,7 @@ function Trace({ network, showModules = false }: Props) {
       .join("").length;
 
     return codes / trace.length;
-  })();
+  }, [trace, showModules]);
 
   return (
     <>

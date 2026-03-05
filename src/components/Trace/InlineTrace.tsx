@@ -9,6 +9,11 @@ interface Props {
   showModules?: boolean;
 }
 
+/**
+ * InlineTrace shows a short, animated sequence of most recent codewords. It
+ * is a compact alternative to the full `Trace` component for inline
+ * sections and uses `framer-motion` for a simple entrance animation.
+ */
 function InlineTrace({ network, showModules = false }: Props) {
   const { walker } = network;
 
@@ -55,6 +60,9 @@ function InlineTrace({ network, showModules = false }: Props) {
 
 export default observer(InlineTrace);
 
+// Helper for rendering a single codeword. When `showModules` is true this
+// helper also renders enter/exit codes colored by module, otherwise it
+// renders the compact one-level code.
 type CodeProps = {
   node: TreeNode;
   prev?: TreeNode;
@@ -71,7 +79,7 @@ function CodeWord({ node, prev, showModules = false, firstEnter = true }: CodePr
   if (!prev)
     return (
       <span style={{ color: schemeAlt[currentModuleId] }}>
-        {firstEnter && currentModule?.enterCode} {node.code}{" "}
+        {firstEnter && currentModule?.enterCode} {node.code} {" "}
       </span>
     );
 
@@ -81,17 +89,17 @@ function CodeWord({ node, prev, showModules = false, firstEnter = true }: CodePr
   if (prevModuleId === currentModuleId)
     return (
       <span style={{ color: schemeAlt[currentModuleId] }}>
-        {node.code}{" "}
+        {node.code} {" "}
       </span>
     );
 
   return (
     <>
       <span style={{ color: schemeAlt[prevModuleId] }}>
-        {prevModule?.exitCode}{" "}
+        {prevModule?.exitCode} {" "}
       </span>
       <span style={{ color: schemeAlt[currentModuleId] }}>
-        {currentModule?.enterCode} {node.code}{" "}
+        {currentModule?.enterCode} {node.code} {" "}
       </span>
     </>
   );

@@ -1,3 +1,7 @@
+/**
+ * Interfaces describing the minimal JSON/netlist format expected by the
+ * `Network.parse` and the simple `.net`-style parser in `NetworkReader`.
+ */
 export interface SerializedNode {
   id: number;
   name?: string;

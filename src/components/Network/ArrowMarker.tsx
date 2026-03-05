@@ -1,5 +1,9 @@
 import { SVGProps } from "react";
 
+/**
+ * ArrowMarker defines an SVG marker used as an arrowhead for directed links.
+ * This marker is referenced by link elements when the network is directed.
+ */
 export default function ArrowMarker({
   id,
   fill,

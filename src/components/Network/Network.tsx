@@ -1,13 +1,17 @@
 import { SVGProps } from "react";
 import { observer } from "mobx-react";
+import { useMemo, useCallback } from "react";
 import { scaleSqrt } from "d3";
 import type { Network as NetworkModel, Node as NodeModel } from "../../model";
 import { getRate, Rate } from "../../model";
+import { performanceMonitor } from "../../utils/performance";
 import ArrowMarker from "./ArrowMarker";
 import Link from "./Link";
 import Node from "./Node";
 
-const nodeScale = scaleSqrt().domain([0, 1]).range([10, 100]);
+// A scale used to map a node's visit-rate to a visual radius. The domain
+// and range are tuned for the demo but can be configured if networks grow.
+const defaultNodeScale = scaleSqrt().domain([0, 1]).range([10, 100]);
 
 interface Props {
   network: NetworkModel;
@@ -16,12 +20,26 @@ interface Props {
   rate?: Rate;
   showLabels?: boolean;
   showModules?: boolean;
+  showNodeId?: boolean;
   showVisiting?: boolean;
   modules?: "topModule",
   width?: number,
-  height?: number
+  height?: number,
+  getLabel?: (node: NodeModel) => string | number;
+  labelPosition?: "top" | "bottom" | "middle";
+  selectedNodeIds?: Set<number>;
+  nodeScale?: (value: number) => number;
 }
 
+/**
+ * `Network` SVG component.
+ *
+ * Renders the network model as an SVG using `Link` and `Node` subcomponents.
+ * It accepts visual options like color schemes, whether to reveal module
+ * labels, and how to compute node radii (via `rate`). Children passed into
+ * this component are rendered inside the SVG, enabling overlays such as the
+ * walker glyph or visit trace.
+ */
 function Network({
   network,
   scheme = ["#ddd"],
@@ -29,43 +47,66 @@ function Network({
   rate = Rate.Uniform,
   showLabels = false,
   showModules = false,
+  showNodeId = true,
   showVisiting = true,
   modules = "topModule",
   width = 800,
   height = 800,
+  getLabel: customGetLabel,
+  labelPosition = "top",
+  selectedNodeIds,
+  nodeScale = defaultNodeScale,
   children,
   ...props
 }: Props & SVGProps<SVGSVGElement>) {
+  // Mark render start
+  performanceMonitor.mark('network-render');
+
   const arrowId = "arrow";
   const markerEnd = network.directed ? `url(#${arrowId})` : undefined;
 
-  const getNodeRate = getRate(rate);
+  const getNodeRate = useMemo(() => getRate(rate), [rate]);
 
-  const nodeRadius = (node: NodeModel): number => nodeScale(getNodeRate(node));
+  // Memoize the nodeRadius function
+  const nodeRadius = useCallback(
+    (node: NodeModel): number => nodeScale(getNodeRate(node)),
+    [getNodeRate, nodeScale]
+  );
 
-  const schemeIndex = (node: NodeModel) => (showModules ? node[modules] : 0);
+  const schemeIndex = useCallback(
+    (node: NodeModel) => (showModules ? node[modules] : 0),
+    [showModules, modules]
+  );
 
-  const nodeFill = (node: NodeModel) => {
-    const i = schemeIndex(node)
-    return showVisiting && network.walker.isVisiting(node)
-      ? schemeAlt[i >= schemeAlt.length ? 0 : i]
-      : scheme[i >= scheme.length ? 0 : i];
-  };
+  const nodeFill = useCallback(
+    (node: NodeModel) => {
+      const i = schemeIndex(node);
+      return showVisiting && network.walker.isVisiting(node)
+        ? schemeAlt[i >= schemeAlt.length ? 0 : i]
+        : scheme[i >= scheme.length ? 0 : i];
+    },
+    [showVisiting, scheme, schemeAlt, schemeIndex, network.walker]
+  );
 
-  const getLabel = (node: NodeModel) =>
-    showModules ? node.code : node.oneLevelCode;
+  const getLabel = useCallback(
+    (node: NodeModel) => customGetLabel ? customGetLabel(node) : (showModules ? node.code : node.oneLevelCode),
+    [showModules, customGetLabel, network.treeUpdateCounter]
+  );
 
-  return (
+  const svgElement = (
     <svg
       xmlns="http://www.w3.org/2000/svg"
       className="network"
       viewBox={`0 0 ${width} ${height}`}
+      onLoad={() => performanceMonitor.measure('network-render')}
       {...props}
     >
       <defs>
         <ArrowMarker id={arrowId} fill="#888" />
       </defs>
 
+      {/* Render links first so nodes appear above them. Stroke widths reflect
+          the link flow value for better visual emphasis. */}
       {network.links.map((link, i) => (
         <Link
           key={i}
@@ -78,6 +119,8 @@ function Network({
         />
       ))}
 
+      {/* Render nodes on top of links. Pass animation duration from the
+          network walker so node transitions sync with the walker updates. */}
       {network.nodes.map((node, i) => (
         <Node
           node={node}
@@ -91,12 +134,21 @@ function Network({
           duration={network.walker.interval}
           showLabel={showLabels}
           getLabel={showLabels ? getLabel : undefined}
+          labelPosition={labelPosition}
+          showNodeId={showNodeId}
+          isSelected={selectedNodeIds?.has(node.id)}
         />
       ))}
 
+      {/* Render children overlays (walkers, traces, annotations) */}
       {children}
     </svg>
   );
+
+  // Measure performance after render
+  performanceMonitor.measure('network-render');
+  
+  return svgElement;
 }
 
 export default observer(Network);

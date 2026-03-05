@@ -1,3 +1,4 @@
+/** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [
     './src/pages/**/*.{js,ts,jsx,tsx}',
@@ -18,21 +19,12 @@ module.exports = {
       colors: {
         brand: '#b22222',
       },
-      backgroundImage: (theme) => ({
+      backgroundImage: {
         noise: 'url("/demo/images/noise-100-90-5.png")',
-      }),
+      },
       backgroundSize: {
-        // prettier-ignore
         '50': '50px 50px',
       },
-    },
-  },
-  variants: {
-    extend: {
-      backgroundColor: ['active'],
-      textColor: ['active'],
-      borderColor: ['active'],
-      transform: ['hover', 'focus'],
     },
   },
   plugins: [],

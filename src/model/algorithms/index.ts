@@ -1,3 +1,5 @@
+// Default configuration for random walkers. These constants are used by
+// walker implementations to set teleportation rates and recording behavior.
 import { Teleportation } from "../enums";
 export { default as Tree } from "./Tree";
 export { default as MapEquation } from "./MapEquation";

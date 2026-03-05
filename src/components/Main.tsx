@@ -6,9 +6,10 @@ import { InlineTrace } from "./Trace";
 import Rates from "./Rates";
 import CodeBooks from "./CodeBooks";
 import HuffmanTreeView from "./HuffmanTreeView";
-import NetworkWithWalker, { NetworkWithRate, InteractiveNetworkWithWalker } from "./NetworkWithWalker";
+import InteractiveNetwork from "./InteractiveNetwork";
 import WalkerControls from "./WalkerControls";
 import PerformanceDashboard from "./PerformanceDashboard";
+import RegularizedInfomap from "./RegularizedInfomap";
 import { performanceMonitor } from "../utils/performance";
 
 // Create a shared `Network` model instance for the main demo. The
@@ -62,6 +63,11 @@ export default function Main() {
   const toggleSolution = () => {
     const wasStarted = network.walker.isStarted;
     network.walker.reset();
+    
+    // Always reset to initial optimal solution first
+    network.setInitialModules();
+    
+    // If currently showing optimal, apply bad solution
     if (showOptimized) {
       // Apply a hand-crafted (suboptimal) module assignment to demonstrate
       // differences between an optimized and a non-optimized partition.
@@ -75,11 +81,10 @@ export default function Main() {
       network.getNode(17)?.setTopModule(3);
       network.getNode(20)?.setTopModule(3);
       network.getNode(21)?.setTopModule(3);
-      network.finalize();
-    } else {
-      network.setInitialModules();
-      network.finalize();
     }
+    // If currently showing bad solution, we've already reset to initial (optimal) above
+    
+    network.finalize();
     setShowOptimized(!showOptimized);
     network.walker.step();
     if (wasStarted) startRandomWalk();
@@ -94,11 +99,14 @@ export default function Main() {
         ref={firstNetworkRef}
         className="col-span-2 w-4/5 mx-auto xl:w-full mb-48"
       >
-        <h2 className="text-2xl font-bold mb-4">Network Visualization (with Node IDs)</h2>
-        <NetworkWithWalker 
-          network={network} 
-          showLabels={true} 
-          getLabel={(node: NodeModel) => node.id.toString()} 
+        <h2 className="text-2xl font-bold mb-4">Network Visualization</h2>
+        <InteractiveNetwork
+          network={network}
+          numCommunities={8}
+          scheme={scheme}
+          schemeAlt={schemeAlt}
+          showLabels={true}
+          showModules={true}
         />
       </div>
 
@@ -163,17 +171,13 @@ export default function Main() {
       </div>
 
       <div className="col-span-2 mb-10">
-        <NetworkWithRate network={network} rate={rate} />
-      </div>
-
-      <div className="col-span-2 mb-10">
         <h3 className="text-lg font-bold mb-4">Reassign Nodes to Communities</h3>
-        <InteractiveNetworkWithWalker
+        <InteractiveNetwork
           network={network}
           numCommunities={8}
           scheme={scheme}
           schemeAlt={schemeAlt}
-          rate={rate}
+          showModules={true}
         />
       </div>
 
@@ -252,6 +256,11 @@ export default function Main() {
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Regularized Infomap Section */}
+      <div className="col-span-4 mb-48">
+        <RegularizedInfomap width={700} height={300} />
       </div>
 
       {/* Performance Dashboard */}

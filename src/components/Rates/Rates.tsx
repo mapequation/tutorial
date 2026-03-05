@@ -1,4 +1,5 @@
 import { observer } from "mobx-react";
+import { useMemo } from "react";
 import type { Network, Node } from "../../model";
 import { getRate, Rate } from "../../model";
 import Bar from "./Bar";
@@ -49,10 +50,15 @@ function Rates({ network, rate, showModules = true, duration = 100 }: Props) {
     };
   };
 
-  const nodesByFlow = nodes.sort((a: Node, b: Node): number => {
-    if (a.topModule !== b.topModule) return b.moduleFlow - a.moduleFlow;
-    return b.flow - a.flow;
-  });
+  // Memoize sorted nodes to avoid re-sorting on every render
+  const nodesByFlow = useMemo(
+    () =>
+      [...nodes].sort((a: Node, b: Node): number => {
+        if (a.topModule !== b.topModule) return b.moduleFlow - a.moduleFlow;
+        return b.flow - a.flow;
+      }),
+    [nodes]
+  );
 
   return (
     <svg
