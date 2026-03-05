@@ -1,18 +1,28 @@
-import { observer } from "mobx-react";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Network as NetworkModel, Rate } from "../model";
+import { useCallback, useEffect, useRef, useState, useMemo } from "react";
+import { Network as NetworkModel, Node as NodeModel, Rate } from "../model";
 import { modular_w_json } from "../networks";
 import { scheme, schemeAlt } from "./scheme";
-import Button from "./Button";
-import { EnterExitCodes, Network, Walker, WalkTrace } from "./Network";
 import { InlineTrace } from "./Trace";
 import Rates from "./Rates";
 import CodeBooks from "./CodeBooks";
+import HuffmanTreeView from "./HuffmanTreeView";
+import NetworkWithWalker, { NetworkWithRate, InteractiveNetworkWithWalker } from "./NetworkWithWalker";
+import WalkerControls from "./WalkerControls";
+import PerformanceDashboard from "./PerformanceDashboard";
+import { performanceMonitor } from "../utils/performance";
 
+// Create a shared `Network` model instance for the main demo. The
+// `setNodeExtents` call maps logical node coordinates to the SVG viewbox
+// coordinate system used by the visualization.
 const network = NetworkModel.parse(modular_w_json)
   .setNodeExtents([50, 650], [50, 700]);
 
-export default observer(function Main() {
+/**
+ * Main demo component embedding the interactive visualizations and
+ * explanatory text. This component is NOT observed to prevent re-rendering
+ * on every walker step. Walker-dependent components are isolated.
+ */
+export default function Main() {
   const [rate, setRate] = useState(Rate.Uniform);
   const [speed, setSpeed] = useState(3);
   const [showOptimized, setShowOptimized] = useState(true);
@@ -29,6 +39,9 @@ export default observer(function Main() {
     const currentRef = firstNetworkRef.current;
     if (!currentRef) return;
 
+    // Start the random walk when the first network element becomes fully
+    // visible in the viewport. This improves perceived performance by
+    // deferring animation until the user scrolls to the demo area.
     const observer = new IntersectionObserver(
       (entries, observer) =>
         entries.forEach((entry) => {
@@ -50,6 +63,8 @@ export default observer(function Main() {
     const wasStarted = network.walker.isStarted;
     network.walker.reset();
     if (showOptimized) {
+      // Apply a hand-crafted (suboptimal) module assignment to demonstrate
+      // differences between an optimized and a non-optimized partition.
       network.getNode(2)?.setTopModule(4);
       network.getNode(4)?.setTopModule(4);
       network.getNode(8)?.setTopModule(0);
@@ -70,18 +85,21 @@ export default observer(function Main() {
     if (wasStarted) startRandomWalk();
   };
 
-  const walkTrace = <WalkTrace walker={network.walker} />;
-  const walker = <Walker walker={network.walker} stroke="#fff" strokeWidth={2} />;
-
   return (
     <>
+      {/* Primary visualization area. Children like `Walker` will be injected
+          into the `Network` SVG so they can render overlays such as the
+          moving walker glyph or visit trace. */}
       <div
         ref={firstNetworkRef}
         className="col-span-2 w-4/5 mx-auto xl:w-full mb-48"
       >
-        <Network network={network}>
-          {walker}
-        </Network>
+        <h2 className="text-2xl font-bold mb-4">Network Visualization (with Node IDs)</h2>
+        <NetworkWithWalker 
+          network={network} 
+          showLabels={true} 
+          getLabel={(node: NodeModel) => node.id.toString()} 
+        />
       </div>
 
       <div className="col-span-2 mb-20 xl:mb-48">
@@ -132,68 +150,31 @@ export default observer(function Main() {
           Huffman coding (Like Morse code, more frequently used symbols should be shorter).
         </p>
 
-        <div className="flex flex-row justify-center space-x-4 mt-10 mb-10">
-          <Button className="button" onClick={() => network.walker.reset()}>
-            Reset
-          </Button>
-          <Button className="button" onClick={() => network.walker.step()}>
-            Step
-          </Button>
-          <Button
-            className={`button ${
-              !network.walker.isStarted ? "button--primary" : ""
-            }`}
-            onClick={() => network.walker.isStarted ? network.walker.stop() : startRandomWalk()}
-          >
-            {network.walker.isStarted
-              ? "Stop Random Walk"
-              : "Start Random Walk"}
-          </Button>
-          <Button
-            className={`button ${
-              rate === Rate.Visits ? "button--primary" : ""
-            }`}
-            onClick={() =>
-              setRate(rate === Rate.Visits ? Rate.Uniform : Rate.Visits)
-            }
-          >
-            {rate === Rate.Visits ? "Hide visit rate" : "Show visit rate"}
-          </Button>
-          <Button className="button" onClick={toggleSolution}>
-            {showOptimized ? "Bad solution" : "Optimal solution"}
-          </Button>
-          <div className="flex flex-col items-center">
-            <input type="range" id="walkerSpeed" min={1} max={10} step={1} value={speed}
-                   onChange={(e) => setWalkerSpeed(+e.target.value)} />
-            <label htmlFor="walkerSpeed">{speed} steps per second</label>
-          </div>
-        </div>
-      </div>
-
-      <div className="col-span-2 mb-10">
-        <Network
+        <WalkerControls
           network={network}
           rate={rate}
-          showLabels
-        >
-          {walkTrace}
-          {walker}
-        </Network>
+          showOptimized={showOptimized}
+          onStartWalk={startRandomWalk}
+          onToggleRate={() => setRate(rate === Rate.Visits ? Rate.Uniform : Rate.Visits)}
+          onToggleSolution={toggleSolution}
+          speed={speed}
+          onSpeedChange={setWalkerSpeed}
+        />
       </div>
 
       <div className="col-span-2 mb-10">
-        <Network
+        <NetworkWithRate network={network} rate={rate} />
+      </div>
+
+      <div className="col-span-2 mb-10">
+        <h3 className="text-lg font-bold mb-4">Reassign Nodes to Communities</h3>
+        <InteractiveNetworkWithWalker
           network={network}
+          numCommunities={8}
           scheme={scheme}
           schemeAlt={schemeAlt}
           rate={rate}
-          showLabels
-          showModules
-        >
-          <EnterExitCodes network={network} x={60} y={700} />
-          {walkTrace}
-          {walker}
-        </Network>
+        />
       </div>
 
       <div className="col-span-4">
@@ -219,6 +200,62 @@ export default observer(function Main() {
         <br />
         {"Codelength"} {network.mapequation.codelength.toFixed(3)} {"bits"}
       </div>
+
+      {/* Huffman Index Tree - updates when modules change */}
+      <div className="col-span-2 mb-48">
+        <h3 className="text-xl font-bold mb-4">Module Enter Codes (Index Tree)</h3>
+        <HuffmanTreeView 
+          treeNode={network.tree.root} 
+          treeType="index" 
+          network={network}
+          width={1400} 
+          height={500} 
+        />
+      </div>
+
+      {/* Huffman One-Level Tree */}
+      <div className="col-span-2 mb-48">
+        <h3 className="text-xl font-bold mb-4">One-Level Huffman Tree</h3>
+        <p className="mb-4 text-gray-600">
+          Flat Huffman tree for all nodes, ignoring module structure.
+        </p>
+        <HuffmanTreeView 
+          treeNode={network.tree.root} 
+          treeType="oneLevel" 
+          network={network}
+          width={1400} 
+          height={600} 
+        />
+      </div>
+
+      {/* Module Huffman Trees */}
+      <div className="col-span-2 mb-48">
+        <h3 className="text-xl font-bold mb-4">Module Huffman Trees</h3>
+        <p className="mb-4 text-gray-600">
+          Individual Huffman trees for each module, showing codes for module exits and node visits.
+        </p>
+        <div className="space-y-8">
+          {Array.from(network.tree.root.children.values()).map((moduleNode) => (
+            <div key={moduleNode.id} className="border rounded-lg p-4 w-full">
+              <h4 className="text-lg font-semibold mb-4">Module {moduleNode.id}</h4>
+              {moduleNode.isLeafModule ? (
+                <HuffmanTreeView
+                  treeNode={moduleNode}
+                  treeType="module"
+                  network={network}
+                  width={1400}
+                  height={450}
+                />
+              ) : (
+                <p className="text-gray-500">Not a leaf module</p>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Performance Dashboard */}
+      <PerformanceDashboard />
     </>
   );
-});
+}
