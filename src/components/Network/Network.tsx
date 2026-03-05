@@ -21,7 +21,11 @@ interface Props {
   showLabels?: boolean;
   showModules?: boolean;
   showNodeId?: boolean;
+  nodeIdPosition?: "top" | "middle";
+  nodeIdFontSize?: number;
   showVisiting?: boolean;
+  nodeStroke?: string;
+  nodeStrokeWidth?: number;
   modules?: "topModule",
   width?: number,
   height?: number,
@@ -48,7 +52,11 @@ function Network({
   showLabels = false,
   showModules = false,
   showNodeId = true,
+  nodeIdPosition = "middle",
+  nodeIdFontSize = 12,
   showVisiting = true,
+  nodeStroke = "#fff",
+  nodeStrokeWidth = 4,
   modules = "topModule",
   width = 800,
   height = 800,
@@ -129,13 +137,15 @@ function Network({
           x={node.x}
           y={node.y}
           fill={nodeFill(node)}
-          stroke="#fff"
-          strokeWidth={4}
+          stroke={nodeStroke}
+          strokeWidth={nodeStrokeWidth}
           duration={network.walker.interval}
           showLabel={showLabels}
           getLabel={showLabels ? getLabel : undefined}
           labelPosition={labelPosition}
           showNodeId={showNodeId}
+          nodeIdPosition={nodeIdPosition}
+          nodeIdFontSize={nodeIdFontSize}
           isSelected={selectedNodeIds?.has(node.id)}
         />
       ))}

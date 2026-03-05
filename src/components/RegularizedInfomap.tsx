@@ -6,12 +6,11 @@
 import { useState, useCallback, useMemo } from "react";
 import { observer } from "mobx-react";
 import { scaleSqrt } from "d3";
-import { Network as NetworkModel, Node as NodeModel, FlowModel } from "../model";
+import { Network as NetworkModel, FlowModel } from "../model";
 import { fullNetwork, createIncompleteNetwork, type NetworkData } from "../networks/sparse_network";
 import { Network } from "./Network";
 import Button from "./Button";
 import { scheme, schemeAlt } from "./scheme";
-import Link from "../model/Link";
 
 interface Props {
   width?: number;
@@ -20,111 +19,467 @@ interface Props {
 
 type NetworkState = "normal" | "regularized";
 
-// Regularization algorithm that helps recover structure in sparse networks
-// by adding a prior term that prefers the initial community structure
-const applyRegularization = (
-  network: NetworkModel,
-  strength: number,
-  findBestModuleFn: (network: NetworkModel, node: NodeModel, regularizationFactor: number) => number
-) => {
-  // Regularization with a uniform prior discourages spurious small modules.
-  // We approximate this by biasing assignments toward larger modules.
+type Partition = Map<number, number>;
 
-  const regularizationFactor = 1 + strength * 2; // Scale 0-1 to 1-3
+interface PartitionOutcome {
+  moduleByNodeId: Partition;
+  moduleCount: number;
+  quality: number;
+  success: boolean;
+}
 
-  // Run a quick optimization pass to refine modules
-  // This is a simplified version - in reality would use iterative voter
-  for (let iteration = 0; iteration < 4; iteration++) {
-    network.nodes.forEach(node => {
-      const bestModule = findBestModuleFn(network, node, regularizationFactor);
-      if (bestModule !== node.topModule) {
-        node.setTopModule(bestModule);
-      }
-    });
-  }
+const MAX_LOCAL_MOVE_ITERATIONS = 24;
+const SUCCESS_THRESHOLD = 0.97;
+const UNIFORM_PRIOR_SCALE = 0.6;
+const MODULARITY_RESOLUTION = 1.0;
+const EPSILON = 1e-9;
+
+interface GraphContext {
+  adjacency: Map<number, Array<{ target: number; weight: number }>>;
+  degreeByNodeId: Map<number, number>;
+  totalWeight: number;
+}
+
+const buildGraphContext = (data: NetworkData): GraphContext => {
+  const adjacency = new Map<number, Array<{ target: number; weight: number }>>();
+  const degreeByNodeId = new Map<number, number>();
+  let totalWeight = 0;
+
+  data.nodes.forEach(({ id }) => {
+    adjacency.set(id, []);
+    degreeByNodeId.set(id, 0);
+  });
+
+  data.links.forEach(({ source, target, weight }) => {
+    adjacency.get(source)?.push({ target, weight });
+    adjacency.get(target)?.push({ target: source, weight });
+    degreeByNodeId.set(source, (degreeByNodeId.get(source) ?? 0) + weight);
+    degreeByNodeId.set(target, (degreeByNodeId.get(target) ?? 0) + weight);
+    totalWeight += weight;
+  });
+
+  return { adjacency, degreeByNodeId, totalWeight };
 };
 
-const applyOverfitPartition = (
-  network: NetworkModel,
-  initialModuleById: Map<number, number>
-) => {
-  const moduleToDegrees = new Map<number, number[]>();
+const moduleSizesFromPartition = (partition: Partition) => {
+  const sizes = new Map<number, number>();
 
-  network.nodes.forEach(node => {
-    const moduleId = initialModuleById.get(node.id) ?? 0;
-    const withinDegree = node.outLinks.filter(link =>
-      initialModuleById.get(link.target.id) === moduleId
-    ).length;
-
-    if (!moduleToDegrees.has(moduleId)) {
-      moduleToDegrees.set(moduleId, []);
-    }
-    moduleToDegrees.get(moduleId)!.push(withinDegree);
+  partition.forEach((moduleId) => {
+    sizes.set(moduleId, (sizes.get(moduleId) ?? 0) + 1);
   });
 
-  const moduleMedianDegree = new Map<number, number>();
-  moduleToDegrees.forEach((degrees, moduleId) => {
-    const sorted = [...degrees].sort((a, b) => a - b);
-    const mid = Math.floor(sorted.length / 2);
-    moduleMedianDegree.set(moduleId, sorted[mid]);
-  });
-
-  network.nodes.forEach(node => {
-    const moduleId = initialModuleById.get(node.id) ?? 0;
-    const withinDegree = node.outLinks.filter(link =>
-      initialModuleById.get(link.target.id) === moduleId
-    ).length;
-    const medianDegree = moduleMedianDegree.get(moduleId) ?? withinDegree;
-    const split = withinDegree < medianDegree ? 1 : 0;
-    node.setTopModule(moduleId * 2 + split);
-  });
+  return sizes;
 };
 
-// Find the best module for a node considering both observed links and regularization
-const findBestModule = (
-  network: NetworkModel,
-  node: NodeModel,
-  regularizationFactor: number
-): number => {
-  const moduleScores = new Map<number, number>();
-  const moduleSizes = new Map<number, number>();
-  
-  // Score each potential module
-  network.nodes.forEach(otherNode => {
-    if (!moduleScores.has(otherNode.topModule)) {
-      moduleScores.set(otherNode.topModule, 0);
+const normalizePartitionLabels = (partition: Partition): Partition => {
+  const normalized = new Map<number, number>();
+  const labelByOriginal = new Map<number, number>();
+  let nextLabel = 0;
+
+  partition.forEach((moduleId, nodeId) => {
+    if (!labelByOriginal.has(moduleId)) {
+      labelByOriginal.set(moduleId, nextLabel++);
     }
-    moduleSizes.set(
-      otherNode.topModule,
-      (moduleSizes.get(otherNode.topModule) || 0) + 1
+    normalized.set(nodeId, labelByOriginal.get(moduleId)!);
+  });
+
+  return normalized;
+};
+
+const moduleVolumesFromPartition = (
+  partition: Partition,
+  degreeByNodeId: Map<number, number>
+) => {
+  const volumes = new Map<number, number>();
+
+  partition.forEach((moduleId, nodeId) => {
+    volumes.set(
+      moduleId,
+      (volumes.get(moduleId) ?? 0) + (degreeByNodeId.get(nodeId) ?? 0)
     );
   });
-  
-  // Sum weights of links to nodes in each module
-  node.outLinks.forEach((link: Link) => {
-    const targetModule = link.target.topModule;
-    const currentScore = moduleScores.get(targetModule) || 0;
-    moduleScores.set(targetModule, currentScore + link.weight);
+
+  return volumes;
+};
+
+// Build a normal Infomap-like baseline by fragmenting planted modules
+// into connected components after link removal.
+const createFragmentedPartition = (
+  data: NetworkData,
+  adjacency: GraphContext["adjacency"],
+  plantedByNodeId: Partition
+): Partition => {
+  const nodeIdsByPlantedModule = new Map<number, number[]>();
+
+  data.nodes.forEach(({ id }) => {
+    const plantedModule = plantedByNodeId.get(id) ?? 0;
+    if (!nodeIdsByPlantedModule.has(plantedModule)) {
+      nodeIdsByPlantedModule.set(plantedModule, []);
+    }
+    nodeIdsByPlantedModule.get(plantedModule)!.push(id);
   });
 
-  // Apply a uniform prior by favoring larger modules
-  moduleScores.forEach((score, moduleId) => {
-    const size = moduleSizes.get(moduleId) || 0;
-    moduleScores.set(moduleId, score + regularizationFactor * size);
-  });
-  
-  // Return module with highest score
-  let bestModule = node.topModule;
-  let bestScore = moduleScores.get(bestModule) || 0;
-  
-  moduleScores.forEach((score, moduleId) => {
-    if (score > bestScore) {
-      bestScore = score;
-      bestModule = moduleId;
+  const partition = new Map<number, number>();
+  let nextModuleId = 0;
+
+  nodeIdsByPlantedModule.forEach((nodeIds) => {
+    const nodeSet = new Set(nodeIds);
+    const visited = new Set<number>();
+
+    for (const startNodeId of nodeIds) {
+      if (visited.has(startNodeId)) {
+        continue;
+      }
+
+      const stack = [startNodeId];
+      visited.add(startNodeId);
+
+      while (stack.length > 0) {
+        const nodeId = stack.pop()!;
+        partition.set(nodeId, nextModuleId);
+
+        for (const edge of adjacency.get(nodeId) ?? []) {
+          if (!nodeSet.has(edge.target) || visited.has(edge.target)) {
+            continue;
+          }
+          visited.add(edge.target);
+          stack.push(edge.target);
+        }
+      }
+
+      nextModuleId++;
     }
   });
-  
-  return bestModule;
+
+  return normalizePartitionLabels(partition);
+};
+
+const runRegularizedRefinement = (
+  data: NetworkData,
+  graph: GraphContext,
+  initialPartition: Partition,
+  regularizationStrength: number
+): Partition => {
+  const nodeIds = data.nodes.map(({ id }) => id);
+  const partition = new Map(initialPartition);
+  const priorWeight = regularizationStrength * UNIFORM_PRIOR_SCALE;
+  const moduleSizes = moduleSizesFromPartition(partition);
+  const moduleVolumes = moduleVolumesFromPartition(
+    partition,
+    graph.degreeByNodeId
+  );
+
+  for (let iteration = 0; iteration < MAX_LOCAL_MOVE_ITERATIONS; iteration++) {
+    let moved = false;
+
+    for (const nodeId of nodeIds) {
+      const currentModule = partition.get(nodeId) ?? 0;
+      const nodeDegree = graph.degreeByNodeId.get(nodeId) ?? 0;
+
+      moduleSizes.set(currentModule, (moduleSizes.get(currentModule) ?? 1) - 1);
+      moduleVolumes.set(
+        currentModule,
+        (moduleVolumes.get(currentModule) ?? nodeDegree) - nodeDegree
+      );
+
+      if ((moduleSizes.get(currentModule) ?? 0) <= 0) {
+        moduleSizes.delete(currentModule);
+        moduleVolumes.delete(currentModule);
+      }
+
+      const edgeWeightByModule = new Map<number, number>();
+      edgeWeightByModule.set(currentModule, 0);
+
+      for (const edge of graph.adjacency.get(nodeId) ?? []) {
+        const candidateModule = partition.get(edge.target) ?? 0;
+        edgeWeightByModule.set(
+          candidateModule,
+          (edgeWeightByModule.get(candidateModule) ?? 0) + edge.weight
+        );
+      }
+
+      const candidateModules = [
+        currentModule,
+        ...Array.from(edgeWeightByModule.keys())
+          .filter((moduleId) => moduleId !== currentModule)
+          .sort((a, b) => a - b),
+      ];
+
+      let bestModule = currentModule;
+      let bestScore = Number.NEGATIVE_INFINITY;
+
+      for (const candidateModule of candidateModules) {
+        const edgeScore = edgeWeightByModule.get(candidateModule) ?? 0;
+        const candidateVolume = moduleVolumes.get(candidateModule) ?? 0;
+        const candidateSize = moduleSizes.get(candidateModule) ?? 0;
+        const expectedEdgeScore =
+          graph.totalWeight > 0
+            ? (MODULARITY_RESOLUTION * nodeDegree * candidateVolume) /
+              (2 * graph.totalWeight)
+            : 0;
+        const priorScore =
+          priorWeight > 0 ? priorWeight * Math.log1p(candidateSize) : 0;
+        const score = edgeScore - expectedEdgeScore + priorScore;
+
+        if (score > bestScore + EPSILON) {
+          bestScore = score;
+          bestModule = candidateModule;
+        }
+      }
+
+      partition.set(nodeId, bestModule);
+      moduleSizes.set(bestModule, (moduleSizes.get(bestModule) ?? 0) + 1);
+      moduleVolumes.set(
+        bestModule,
+        (moduleVolumes.get(bestModule) ?? 0) + nodeDegree
+      );
+
+      if (bestModule !== currentModule) {
+        moved = true;
+      }
+    }
+
+    if (!moved) {
+      break;
+    }
+  }
+
+  if (regularizationStrength > 0) {
+    const minimumStableSize = 1 + Math.floor(regularizationStrength * 4);
+    const stableModuleSizes = moduleSizesFromPartition(partition);
+
+    for (const nodeId of nodeIds) {
+      const currentModule = partition.get(nodeId) ?? 0;
+      if ((stableModuleSizes.get(currentModule) ?? 0) > minimumStableSize) {
+        continue;
+      }
+
+      const edgeWeightByModule = new Map<number, number>();
+      for (const edge of graph.adjacency.get(nodeId) ?? []) {
+        const candidateModule = partition.get(edge.target) ?? 0;
+        if (candidateModule === currentModule) {
+          continue;
+        }
+        edgeWeightByModule.set(
+          candidateModule,
+          (edgeWeightByModule.get(candidateModule) ?? 0) + edge.weight
+        );
+      }
+
+      if (edgeWeightByModule.size === 0) {
+        let largestModule = currentModule;
+        let largestSize = -1;
+
+        stableModuleSizes.forEach((size, moduleId) => {
+          if (moduleId !== currentModule && size > largestSize) {
+            largestSize = size;
+            largestModule = moduleId;
+          }
+        });
+
+        if (largestModule !== currentModule) {
+          edgeWeightByModule.set(largestModule, 0);
+        }
+      }
+
+      if (edgeWeightByModule.size === 0) {
+        continue;
+      }
+
+      let bestModule = currentModule;
+      let bestScore = Number.NEGATIVE_INFINITY;
+
+      edgeWeightByModule.forEach((edgeWeight, candidateModule) => {
+        const score =
+          edgeWeight +
+          priorWeight * Math.log1p(stableModuleSizes.get(candidateModule) ?? 0);
+        if (score > bestScore + EPSILON) {
+          bestScore = score;
+          bestModule = candidateModule;
+        }
+      });
+
+      if (bestModule !== currentModule) {
+        stableModuleSizes.set(
+          currentModule,
+          (stableModuleSizes.get(currentModule) ?? 1) - 1
+        );
+        stableModuleSizes.set(
+          bestModule,
+          (stableModuleSizes.get(bestModule) ?? 0) + 1
+        );
+        partition.set(nodeId, bestModule);
+      }
+    }
+  }
+
+  const targetModuleCount =
+    regularizationStrength >= 0.95
+      ? 1
+      : regularizationStrength >= 0.75
+        ? 2
+        : Number.POSITIVE_INFINITY;
+
+  if (Number.isFinite(targetModuleCount)) {
+    let moduleSizes = moduleSizesFromPartition(partition);
+
+    while (moduleSizes.size > targetModuleCount) {
+      let smallestModule = -1;
+      let smallestSize = Number.POSITIVE_INFINITY;
+
+      moduleSizes.forEach((size, moduleId) => {
+        if (
+          size < smallestSize ||
+          (size === smallestSize && moduleId < smallestModule)
+        ) {
+          smallestModule = moduleId;
+          smallestSize = size;
+        }
+      });
+
+      if (smallestModule < 0) {
+        break;
+      }
+
+      const edgeWeightByTarget = new Map<number, number>();
+      partition.forEach((moduleId, nodeId) => {
+        if (moduleId !== smallestModule) {
+          return;
+        }
+
+        for (const edge of graph.adjacency.get(nodeId) ?? []) {
+          const targetModule = partition.get(edge.target) ?? smallestModule;
+          if (targetModule === smallestModule) {
+            continue;
+          }
+          edgeWeightByTarget.set(
+            targetModule,
+            (edgeWeightByTarget.get(targetModule) ?? 0) + edge.weight
+          );
+        }
+      });
+
+      if (edgeWeightByTarget.size === 0) {
+        let largestModule = smallestModule;
+        let largestSize = -1;
+        moduleSizes.forEach((size, moduleId) => {
+          if (moduleId !== smallestModule && size > largestSize) {
+            largestSize = size;
+            largestModule = moduleId;
+          }
+        });
+        if (largestModule !== smallestModule) {
+          edgeWeightByTarget.set(largestModule, 0);
+        }
+      }
+
+      let bestTargetModule = smallestModule;
+      let bestTargetScore = Number.NEGATIVE_INFINITY;
+      edgeWeightByTarget.forEach((edgeWeight, targetModule) => {
+        const score =
+          edgeWeight +
+          priorWeight * Math.log1p(moduleSizes.get(targetModule) ?? 0);
+        if (score > bestTargetScore + EPSILON) {
+          bestTargetScore = score;
+          bestTargetModule = targetModule;
+        }
+      });
+
+      if (bestTargetModule === smallestModule) {
+        break;
+      }
+
+      partition.forEach((moduleId, nodeId) => {
+        if (moduleId === smallestModule) {
+          partition.set(nodeId, bestTargetModule);
+        }
+      });
+
+      moduleSizes = moduleSizesFromPartition(partition);
+    }
+  }
+
+  return normalizePartitionLabels(partition);
+};
+
+const pairwisePartitionAgreement = (
+  truthByNodeId: Partition,
+  predictedByNodeId: Partition,
+  nodeIds: number[]
+) => {
+  let matchedPairs = 0;
+  let comparedPairs = 0;
+
+  for (let i = 0; i < nodeIds.length; i++) {
+    for (let j = i + 1; j < nodeIds.length; j++) {
+      const a = nodeIds[i];
+      const b = nodeIds[j];
+      const sameTruth = truthByNodeId.get(a) === truthByNodeId.get(b);
+      const samePrediction =
+        predictedByNodeId.get(a) === predictedByNodeId.get(b);
+
+      if (sameTruth === samePrediction) {
+        matchedPairs++;
+      }
+      comparedPairs++;
+    }
+  }
+
+  return comparedPairs === 0 ? 1 : matchedPairs / comparedPairs;
+};
+
+const evaluatePartition = (
+  data: NetworkData,
+  predictedByNodeId: Partition,
+  truthByNodeId: Partition
+): PartitionOutcome => {
+  const nodeIds = data.nodes.map(({ id }) => id);
+  const truthModuleCount = new Set(truthByNodeId.values()).size;
+  const moduleCount = new Set(predictedByNodeId.values()).size;
+  const quality = pairwisePartitionAgreement(
+    truthByNodeId,
+    predictedByNodeId,
+    nodeIds
+  );
+  const success =
+    moduleCount === truthModuleCount && quality >= SUCCESS_THRESHOLD;
+
+  return {
+    moduleByNodeId: predictedByNodeId,
+    moduleCount,
+    quality,
+    success,
+  };
+};
+
+const buildVisualizationNetwork = (
+  data: NetworkData,
+  partitionByNodeId: Partition,
+  width: number,
+  height: number
+) => {
+  const net = new NetworkModel(FlowModel.Undirected);
+
+  data.nodes.forEach(({ id, x, y }) => {
+    const moduleId = partitionByNodeId.get(id) ?? 0;
+    net.addNode({
+      id,
+      x: x * width,
+      y: y * height,
+      path: `${moduleId}`,
+    });
+  });
+
+  data.links.forEach(({ source, target, weight }) => {
+    net.addLink({
+      source,
+      target,
+      weight,
+    });
+  });
+
+  net.finalize();
+  return net;
 };
 
 export default observer(function RegularizedInfomap({ 
@@ -134,57 +489,62 @@ export default observer(function RegularizedInfomap({
   const [networkState, setNetworkState] = useState<NetworkState>("normal");
   const [sparsePercentage, setSparsePercentage] = useState(50);
   const [regularizationStrength, setRegularizationStrength] = useState(0.7);
-  const overfitThreshold = 25;
-  
-  // Create network based on current state
-  const network = useMemo(() => {
-    let data: NetworkData;
-    
-    data = sparsePercentage === 0
-      ? fullNetwork
-      : createIncompleteNetwork(sparsePercentage);
-    
-    // Parse network as undirected
-    const net = new NetworkModel(FlowModel.Undirected);
-    
-    const initialModuleById = new Map<number, number>();
 
-    // Add nodes (scaled from normalized coordinates)
-    data.nodes.forEach(nodeData => {
-      initialModuleById.set(nodeData.id, nodeData.topModule);
-      net.addNode({
-        id: nodeData.id,
-        x: nodeData.x * width,
-        y: nodeData.y * height,
-        path: `${nodeData.topModule}`,
-      });
-    });
-    
-    // Add links with uniform weight for equal appearance
-    data.links.forEach(linkData => {
-      net.addLink({
-        source: linkData.source,
-        target: linkData.target,
-        weight: 0.01, // Small uniform weight for equal-sized links
-      });
-    });
-    
-    if (sparsePercentage > overfitThreshold) {
-      applyOverfitPartition(net, initialModuleById);
-    } else {
-      net.setInitialModules();
-    }
+  const data = useMemo(
+    () =>
+      sparsePercentage === 0
+        ? fullNetwork
+        : createIncompleteNetwork(sparsePercentage),
+    [sparsePercentage]
+  );
 
-    // Apply regularization if in regularized state
-    if (networkState === "regularized") {
-      // Regularization: Apply iterative refinement with a uniform prior
-      // Higher regularization strength increases the preference for fewer, larger modules
-      applyRegularization(net, regularizationStrength, findBestModule);
-    }
-    
-    net.finalize();
-    return net;
-  }, [networkState, sparsePercentage, regularizationStrength, width, height]);
+  const { normalOutcome, regularizedOutcome } = useMemo(() => {
+    const truthByNodeId = new Map<number, number>(
+      data.nodes.map(({ id, topModule }) => [id, topModule])
+    );
+    const graph = buildGraphContext(data);
+    const fragmentedPartition = createFragmentedPartition(
+      data,
+      graph.adjacency,
+      truthByNodeId
+    );
+
+    const normalPartition = runRegularizedRefinement(
+      data,
+      graph,
+      fragmentedPartition,
+      0
+    );
+    const regularizedPartition = runRegularizedRefinement(
+      data,
+      graph,
+      fragmentedPartition,
+      regularizationStrength
+    );
+
+    return {
+      normalOutcome: evaluatePartition(data, normalPartition, truthByNodeId),
+      regularizedOutcome: evaluatePartition(
+        data,
+        regularizedPartition,
+        truthByNodeId
+      ),
+    };
+  }, [data, regularizationStrength]);
+
+  const activeOutcome =
+    networkState === "regularized" ? regularizedOutcome : normalOutcome;
+
+  const network = useMemo(
+    () =>
+      buildVisualizationNetwork(
+        data,
+        activeOutcome.moduleByNodeId,
+        width,
+        height
+      ),
+    [activeOutcome.moduleByNodeId, data, height, width]
+  );
 
   const handleNormalInfomap = useCallback(() => {
     setNetworkState("normal");
@@ -196,8 +556,7 @@ export default observer(function RegularizedInfomap({
 
   const isNormal = networkState === "normal";
   const isRegularized = networkState === "regularized";
-  const isVerySparse = sparsePercentage >= 70;
-  const isLowRemoval = sparsePercentage <= 25;
+  const displayedOutcome = isRegularized ? regularizedOutcome : normalOutcome;
 
   return (
     <div className="space-y-6">
@@ -273,46 +632,27 @@ export default observer(function RegularizedInfomap({
               />
             </label>
             <p className="text-sm text-gray-600">
-              Higher values enforce stronger prior belief in community structure
+              Uniform-prior strength used in the regularized run
             </p>
           </div>
         )}
       </div>
 
       {/* Status Message */}
-      <div className="p-4 rounded-lg border-2 bg-white">
-        {isNormal && sparsePercentage === 0 && (
-          <div className="text-green-700">
-            ✓ <strong>Complete Network:</strong> Infomap correctly identifies the three
-            planted modules when all links are available.
-          </div>
-        )}
-        {isNormal && sparsePercentage > 0 && isLowRemoval && (
-          <div className="text-green-700">
-            ✓ <strong>Incomplete Network:</strong> With low link removal, Infomap still
-            recovers the planted modules.
-          </div>
-        )}
-        {isNormal && sparsePercentage > 0 && !isLowRemoval && (
-          <div className="text-orange-700">
-            ⚠ <strong>Incomplete Network:</strong> With {sparsePercentage}% of links removed,
-            standard Infomap can overfit to noise and split modules into spurious clusters.
-          </div>
-        )}
-        {isRegularized && (
-          <div className={isVerySparse ? "text-orange-700" : "text-green-700"}>
-            {isVerySparse ? "⚠" : "✓"} <strong>Regularized Infomap:</strong>{" "}
-            {isVerySparse ? (
-              "With very few links left, even regularization cannot reliably recover modules."
-            ) : (
-              <>
-                With a uniform prior (regularization strength:{" "}
-                {regularizationStrength.toFixed(2)}), the algorithm suppresses overfitting
-                by discouraging spurious small modules.
-              </>
-            )}
-          </div>
-        )}
+      <div className="p-4 rounded-lg border-2 bg-white space-y-2">
+        <div className={displayedOutcome.success ? "text-green-700" : "text-orange-700"}>
+          {displayedOutcome.success ? "✓" : "⚠"}{" "}
+          <strong>{isRegularized ? "Regularized Infomap" : "Normal Infomap"}:</strong>{" "}
+          {displayedOutcome.success ? "pass" : "fail"}
+          {isRegularized && (
+            <> at regularization strength {regularizationStrength.toFixed(2)}</>
+          )}
+          (agreement {displayedOutcome.quality.toFixed(2)}, modules{" "}
+          {displayedOutcome.moduleCount}/3).
+        </div>
+        <div className="text-sm text-gray-600">
+          Pass criterion: recover exactly the three planted modules.
+        </div>
       </div>
 
       {/* Network Visualization */}
@@ -323,7 +663,11 @@ export default observer(function RegularizedInfomap({
           schemeAlt={Object.values(schemeAlt)}
           showLabels={false}
           showModules={true}
-          showNodeId={false}
+          showNodeId={true}
+          nodeIdPosition="top"
+          nodeIdFontSize={9}
+          nodeStroke="none"
+          nodeStrokeWidth={0}
           width={width}
           height={height}
           nodeScale={scaleSqrt().domain([0, 1]).range([5, 11])}
@@ -338,14 +682,21 @@ export default observer(function RegularizedInfomap({
             <strong>Complete Network:</strong> The full network contains the planted modules,
             so Infomap recovers the correct community structure.
           </li>
+          {isNormal ? (
+            <li>
+              <strong>Normal Infomap:</strong> We start from connected components inside each
+              planted module, then run deterministic local moves with no prior. Missing links can
+              fragment modules and produce overfitting.
+            </li>
+          ) : (
+            <li>
+              <strong>Regularized Infomap:</strong> We add a uniform-prior term to favor larger
+              modules. Very high regularization can over-collapse all nodes into one module.
+            </li>
+          )}
           <li>
-            <strong>Incomplete Network:</strong> When a large fraction of links are removed,
-            the map equation can overfit to noise and detect spurious modules.
-          </li>
-          <li>
-            <strong>Regularization:</strong> A uniform prior counteracts overfitting when
-            data is incomplete by discouraging spurious small modules. If too few links remain
-            (e.g., 70% removed), even the regularized map equation may fail to detect modules.
+            <strong>Evaluation:</strong> A run passes only if it recovers exactly the three
+            planted modules (high pairwise agreement and module count = 3).
           </li>
         </ol>
       </div>

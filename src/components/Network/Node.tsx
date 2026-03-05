@@ -14,6 +14,8 @@ interface Props {
   labelPosition?: "top" | "bottom" | "middle";
   getLabel?: (node: NodeModel) => string | number;
   showNodeId?: boolean;
+  nodeIdPosition?: "top" | "middle";
+  nodeIdFontSize?: number;
   isSelected?: boolean;
 }
 
@@ -40,6 +42,8 @@ const Node = memo(observer(function Node({
   labelPosition = "top",
   getLabel = (node: NodeModel) => node.oneLevelCode,
   showNodeId = false,
+  nodeIdPosition = "middle",
+  nodeIdFontSize = 12,
   isSelected = false,
   ...props
 }: Props & SVGMotionProps<SVGCircleElement>) {
@@ -47,6 +51,7 @@ const Node = memo(observer(function Node({
   if (showLabel && labelPosition !== "middle") {
     labelOffset = labelPosition === "top" ? -r - 5 : r + 5;
   }
+  const nodeIdY = nodeIdPosition === "top" ? y - r - 4 : y;
 
   return (
     <>
@@ -96,11 +101,11 @@ const Node = memo(observer(function Node({
       {showNodeId && (
         <motion.text
           initial={false}
-          animate={{ attrY: y }}
+          animate={{ attrY: nodeIdY }}
           transition={{ duration: duration / 1000 }}
           x={x}
           fontFamily="Helvetica, sans-serif"
-          fontSize={12}
+          fontSize={nodeIdFontSize}
           fontWeight={600}
           textAnchor="middle"
           dominantBaseline="middle"
