@@ -18,6 +18,7 @@ interface Props {
   schemeAlt?: Record<number, string>;
   showLabels?: boolean;
   showModules?: boolean;
+  showVisiting?: boolean;
   rate?: any;
   width?: number;
   height?: number;
@@ -39,6 +40,7 @@ export default observer(function InteractiveNetwork({
   schemeAlt,
   showLabels = false,
   showModules = false,
+  showVisiting = true,
   rate,
   width = 800,
   height = 800,
@@ -347,6 +349,7 @@ export default observer(function InteractiveNetwork({
             rate={rate}
             showLabels={showLabels}
             showModules={showModules}
+            showVisiting={showVisiting}
             width={width}
             height={height}
             getLabel={getLabel}

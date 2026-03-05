@@ -6,10 +6,14 @@ import { InlineTrace } from "./Trace";
 import Rates from "./Rates";
 import CodeBooks from "./CodeBooks";
 import HuffmanTreeView from "./HuffmanTreeView";
+import Network from "./Network/Network";
 import InteractiveNetwork from "./InteractiveNetwork";
 import WalkerControls from "./WalkerControls";
 import PerformanceDashboard from "./PerformanceDashboard";
 import RegularizedInfomap from "./RegularizedInfomap";
+import Walker from "./Network/Walker";
+import WalkTrace from "./Network/WalkTrace";
+import EnterExitCodes from "./Network/EnterExitCodes";
 import { performanceMonitor } from "../utils/performance";
 
 // Create a shared `Network` model instance for the main demo. The
@@ -27,6 +31,7 @@ export default function Main() {
   const [rate, setRate] = useState(Rate.Uniform);
   const [speed, setSpeed] = useState(3);
   const [showOptimized, setShowOptimized] = useState(true);
+  const [showVisitRates, setShowVisitRates] = useState(true);
   const firstNetworkRef = useRef<HTMLDivElement>(null);
 
   const setWalkerSpeed = (value: number) => {
@@ -160,14 +165,33 @@ export default function Main() {
 
         <WalkerControls
           network={network}
-          rate={rate}
+          rate={showVisitRates ? Rate.Visits : Rate.Uniform}
           showOptimized={showOptimized}
           onStartWalk={startRandomWalk}
-          onToggleRate={() => setRate(rate === Rate.Visits ? Rate.Uniform : Rate.Visits)}
+          onToggleRate={() => setShowVisitRates(!showVisitRates)}
           onToggleSolution={toggleSolution}
           speed={speed}
           onSpeedChange={setWalkerSpeed}
         />
+      </div>
+
+      <div className="col-span-2 mb-10">
+        <h3 className="text-lg font-bold mb-4">One-Level Partition</h3>
+        <Network
+          network={network}
+          scheme={["#ddd"]}
+          schemeAlt={["#aaa"]}
+          rate={showVisitRates ? Rate.Visits : Rate.Uniform}
+          showLabels={true}
+          showModules={false}
+          showNodeId={true}
+          showVisiting={showVisitRates}
+          width={800}
+          height={830}
+        >
+          <WalkTrace walker={network.walker} stroke="#999" opacity={0.4} />
+          <Walker walker={network.walker} r={12} fill="#666" />
+        </Network>
       </div>
 
       <div className="col-span-2 mb-10">
@@ -177,8 +201,17 @@ export default function Main() {
           numCommunities={8}
           scheme={scheme}
           schemeAlt={schemeAlt}
+          showLabels={true}
           showModules={true}
-        />
+          rate={showVisitRates ? Rate.Visits : Rate.Uniform}
+          showVisiting={showVisitRates}
+          width={800}
+          height={830}
+        >
+          <WalkTrace walker={network.walker} stroke="#888" opacity={0.5} />
+          <Walker walker={network.walker} r={12} fill="#393939" />
+          <EnterExitCodes network={network} x={200} y={660} />
+        </InteractiveNetwork>
       </div>
 
       <div className="col-span-4">
