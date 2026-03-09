@@ -489,6 +489,7 @@ export default observer(function RegularizedInfomap({
   const [networkState, setNetworkState] = useState<NetworkState>("normal");
   const [sparsePercentage, setSparsePercentage] = useState(50);
   const [regularizationStrength, setRegularizationStrength] = useState(0.7);
+  const [copyStatus, setCopyStatus] = useState("");
 
   const data = useMemo(
     () =>
@@ -546,6 +547,27 @@ export default observer(function RegularizedInfomap({
     [activeOutcome.moduleByNodeId, data, height, width]
   );
 
+  const formattedLinks = useMemo(
+    () =>
+      [...network.nodes]
+        .sort((a, b) => a.id - b.id)
+        .flatMap((node) => {
+          const outgoing = [...node.outLinks].sort(
+            (a, b) => a.target.id - b.target.id || a.weight - b.weight
+          );
+
+          if (outgoing.length === 0) {
+            return [`${node.id} ${node.id}`];
+          }
+
+          return outgoing.map(
+            (link) => `${node.id} ${link.target.id} ${link.weight.toFixed(2)}`
+          );
+        }),
+    [network]
+  );
+  const allLinksText = useMemo(() => formattedLinks.join("\n"), [formattedLinks]);
+
   const handleNormalInfomap = useCallback(() => {
     setNetworkState("normal");
   }, []);
@@ -553,6 +575,17 @@ export default observer(function RegularizedInfomap({
   const handleRegularize = useCallback(() => {
     setNetworkState("regularized");
   }, []);
+
+  const handleCopyLinks = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(allLinksText);
+      setCopyStatus("Copied");
+    } catch {
+      setCopyStatus("Copy failed");
+    }
+
+    setTimeout(() => setCopyStatus(""), 1500);
+  }, [allLinksText]);
 
   const isNormal = networkState === "normal";
   const isRegularized = networkState === "regularized";
@@ -663,6 +696,7 @@ export default observer(function RegularizedInfomap({
           schemeAlt={Object.values(schemeAlt)}
           showLabels={false}
           showModules={true}
+          colorIntraModuleLinks={true}
           showNodeId={true}
           nodeIdPosition="top"
           nodeIdFontSize={9}
@@ -672,6 +706,42 @@ export default observer(function RegularizedInfomap({
           height={height}
           nodeScale={scaleSqrt().domain([0, 1]).range([5, 11])}
         />
+      </div>
+
+      {/* Diagnostics */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="border rounded-lg p-4 bg-white">
+          <h4 className="font-semibold mb-2">Codelength</h4>
+          <div className="font-mono text-lg">
+            {network.mapequation.codelength.toFixed(4)} bits
+          </div>
+        </div>
+
+        <div className="border rounded-lg p-4 bg-white">
+          <div className="flex items-center justify-between mb-2 gap-2">
+            <h4 className="font-semibold">
+              Current Links (source target strength; isolated nodes shown as id id)
+            </h4>
+            <button
+              type="button"
+              className="button text-xs py-1 px-2"
+              onClick={handleCopyLinks}
+            >
+              Copy all
+            </button>
+          </div>
+          <textarea
+            readOnly
+            spellCheck={false}
+            value={allLinksText}
+            className="font-mono text-xs text-gray-700 h-56 w-full border rounded p-2 resize-none"
+            onFocus={(e) => e.currentTarget.select()}
+          />
+          <div className="text-xs text-gray-500 mt-2">
+            Click in the box, then press Cmd+A and Cmd+C to copy all links.
+            {copyStatus ? ` ${copyStatus}.` : ""}
+          </div>
+        </div>
       </div>
 
       {/* Explanation */}

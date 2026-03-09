@@ -2,7 +2,11 @@ import { SVGProps } from "react";
 import { observer } from "mobx-react";
 import { useMemo, useCallback } from "react";
 import { scaleSqrt } from "d3";
-import type { Network as NetworkModel, Node as NodeModel } from "../../model";
+import type {
+  Network as NetworkModel,
+  Node as NodeModel,
+  Link as LinkModel,
+} from "../../model";
 import { getRate, Rate } from "../../model";
 import { performanceMonitor } from "../../utils/performance";
 import ArrowMarker from "./ArrowMarker";
@@ -24,6 +28,8 @@ interface Props {
   nodeIdPosition?: "top" | "middle";
   nodeIdFontSize?: number;
   showVisiting?: boolean;
+  colorIntraModuleLinks?: boolean;
+  interModuleLinkColor?: string;
   nodeStroke?: string;
   nodeStrokeWidth?: number;
   modules?: "topModule",
@@ -55,6 +61,8 @@ function Network({
   nodeIdPosition = "middle",
   nodeIdFontSize = 12,
   showVisiting = true,
+  colorIntraModuleLinks = false,
+  interModuleLinkColor = "#888",
   nodeStroke = "#fff",
   nodeStrokeWidth = 4,
   modules = "topModule",
@@ -96,6 +104,25 @@ function Network({
     [showVisiting, scheme, schemeAlt, schemeIndex, network.walker]
   );
 
+  const linkStroke = useCallback(
+    (link: LinkModel) => {
+      if (!colorIntraModuleLinks || !showModules) {
+        return interModuleLinkColor;
+      }
+
+      const sourceModule = link.source[modules];
+      const targetModule = link.target[modules];
+
+      if (sourceModule === targetModule) {
+        const i = sourceModule >= scheme.length ? 0 : sourceModule;
+        return scheme[i];
+      }
+
+      return interModuleLinkColor;
+    },
+    [colorIntraModuleLinks, showModules, interModuleLinkColor, modules, scheme]
+  );
+
   const getLabel = useCallback(
     (node: NodeModel) => customGetLabel ? customGetLabel(node) : (showModules ? node.code : node.oneLevelCode),
     [showModules, customGetLabel, network.treeUpdateCounter]
@@ -119,7 +146,7 @@ function Network({
         <Link
           key={i}
           link={link}
-          stroke="#888"
+          stroke={linkStroke(link)}
           strokeWidth={1 + 100 * link.flow}
           sourceRadius={nodeRadius(link.source)}
           targetRadius={nodeRadius(link.target)}

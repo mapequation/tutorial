@@ -349,6 +349,7 @@ export default observer(function InteractiveNetwork({
             rate={rate}
             showLabels={showLabels}
             showModules={showModules}
+            colorIntraModuleLinks={true}
             showVisiting={showVisiting}
             width={width}
             height={height}
