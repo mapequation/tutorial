@@ -22,6 +22,7 @@ interface Props {
   rate?: any;
   width?: number;
   height?: number;
+  scaleLinksByWeight?: boolean;
   children?: React.ReactNode;
 }
 
@@ -44,6 +45,7 @@ export default observer(function InteractiveNetwork({
   rate,
   width = 800,
   height = 800,
+  scaleLinksByWeight = false,
   children,
 }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
@@ -353,6 +355,7 @@ export default observer(function InteractiveNetwork({
             showVisiting={showVisiting}
             width={width}
             height={height}
+            scaleLinksByWeight={scaleLinksByWeight}
             getLabel={getLabel}
             selectedNodeIds={isDrawing ? selectedNodes : undefined}
           >
@@ -386,7 +389,7 @@ export default observer(function InteractiveNetwork({
       {/* Instructions */}
       <div style={{ color: "#666", fontSize: "0.8rem" }}>
         Click and drag to draw a free-hand lasso around nodes. Release to complete the selection
-        and assign selected nodes to the active community (number shown on colored buttons).
+        and assign selected nodes to the active community.
       </div>
     </div>
   );

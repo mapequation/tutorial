@@ -39,6 +39,8 @@ interface Props {
   labelPosition?: "top" | "bottom" | "middle";
   selectedNodeIds?: Set<number>;
   nodeScale?: (value: number) => number;
+  scaleLinksByWeight?: boolean;
+  baseLinkStrokeWidth?: number;
 }
 
 /**
@@ -72,6 +74,8 @@ function Network({
   labelPosition = "top",
   selectedNodeIds,
   nodeScale = defaultNodeScale,
+  scaleLinksByWeight = false,
+  baseLinkStrokeWidth = 3,
   children,
   ...props
 }: Props & SVGProps<SVGSVGElement>) {
@@ -123,6 +127,20 @@ function Network({
     [colorIntraModuleLinks, showModules, interModuleLinkColor, modules, scheme]
   );
 
+  const maxLinkWeight = network.links.reduce(
+    (maxWeight, link) => Math.max(maxWeight, link.weight),
+    1,
+  );
+
+  const linkStrokeWidth = useCallback(
+    (link: LinkModel) => {
+      if (!scaleLinksByWeight) return baseLinkStrokeWidth;
+
+      return 1.5 + (12 * link.weight) / maxLinkWeight;
+    },
+    [baseLinkStrokeWidth, maxLinkWeight, scaleLinksByWeight]
+  );
+
   const getLabel = useCallback(
     (node: NodeModel) => customGetLabel ? customGetLabel(node) : (showModules ? node.code : node.oneLevelCode),
     [showModules, customGetLabel, network.treeUpdateCounter]
@@ -140,14 +158,14 @@ function Network({
         <ArrowMarker id={arrowId} fill="#888" />
       </defs>
 
-      {/* Render links first so nodes appear above them. Stroke widths reflect
-          the link flow value for better visual emphasis. */}
+      {/* Render links first so nodes appear above them. Optionally scale
+          thickness by link weight; otherwise keep a uniform width. */}
       {network.links.map((link, i) => (
         <Link
           key={i}
           link={link}
           stroke={linkStroke(link)}
-          strokeWidth={1 + 100 * link.flow}
+          strokeWidth={linkStrokeWidth(link)}
           sourceRadius={nodeRadius(link.source)}
           targetRadius={nodeRadius(link.target)}
           markerEnd={markerEnd}

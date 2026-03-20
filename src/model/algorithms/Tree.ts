@@ -8,7 +8,7 @@
  */
 import type Network from "../Network";
 import type { HuffmanNode } from "./HuffmanCoder";
-import { makeObservable, observable } from "mobx";
+import { action, makeObservable, observable } from "mobx";
 
 /**
  * TreeNode represents a module or network node in the hierarchical tree structure.
@@ -201,6 +201,11 @@ export default class Tree {
 
   constructor(network: Network) {
     this.network = network;
+
+    makeObservable(this, {
+      root: observable.ref,
+      update: action,
+    });
   }
 
   /**

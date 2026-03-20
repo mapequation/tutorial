@@ -1,11 +1,11 @@
 /**
  * RandomWalker performs random walk simulation on a network.
- * 
+ *
  * Simulates a walker that moves through the network by randomly selecting
  * neighbors weighted by link strength. Supports teleportation (jumping to random
  * nodes) based on the teleport rate. Tracks the path taken and supports both
  * continuous (interval-based) and manual stepping modes.
- * 
+ *
  * Key capabilities:
  * - Random neighbor selection weighted by link strengths
  * - Teleportation with configurable rate and model (recorded/unrecorded)
@@ -21,6 +21,12 @@ import { performanceMonitor } from "../../utils/performance";
 import type Network from "../Network";
 import type Node from "../Node";
 
+export interface CodelengthHistoryPoint {
+  step: number;
+  oneLevelBits: number;
+  twoLevelBits: number;
+}
+
 export default class RandomWalker {
   private network: Network;
 
@@ -31,6 +37,10 @@ export default class RandomWalker {
   // Statistics tracking
   totalVisits = 0;
   teleported = false;
+  cumulativeOneLevelBits = 0;
+  cumulativeTwoLevelBits = 0;
+  codelengthHistory: CodelengthHistoryPoint[] = [];
+  private readonly maxCodelengthHistoryLength = 400;
 
   // Full trace history (up to 200 steps) and visible trace for UI (up to 50 steps)
   trace: number[] = [];
@@ -55,6 +65,9 @@ export default class RandomWalker {
       totalVisits: observable,
       current: observable,
       teleported: observable,
+      cumulativeOneLevelBits: observable,
+      cumulativeTwoLevelBits: observable,
+      codelengthHistory: observable,
       trace: observable,
       intervalId: observable,
       interval: observable,
@@ -114,6 +127,9 @@ export default class RandomWalker {
     if (this.isStarted) this.stop();
 
     this.totalVisits = 0;
+    this.cumulativeOneLevelBits = 0;
+    this.cumulativeTwoLevelBits = 0;
+    this.codelengthHistory.length = 0;
     this.trace.length = 0;
     this.nodeTrace.length = 0;
 
@@ -125,14 +141,14 @@ export default class RandomWalker {
   }
 
   step(stop = true) {
-    performanceMonitor.mark('walker-step');
+    performanceMonitor.mark("walker-step");
 
     if (stop && this.isStarted) this.stop();
 
     if (!this.current) {
       this.setCurrent(this.network.nodes[0]);
       this.recordVisit();
-      performanceMonitor.measure('walker-step');
+      performanceMonitor.measure("walker-step");
       return;
     }
 
@@ -141,7 +157,7 @@ export default class RandomWalker {
 
     if (this.teleported) {
       const result = this.teleport();
-      performanceMonitor.measure('walker-step');
+      performanceMonitor.measure("walker-step");
       return result;
     }
 
@@ -155,7 +171,7 @@ export default class RandomWalker {
     this.setCurrent(link.target);
 
     this.recordVisit();
-    performanceMonitor.measure('walker-step');
+    performanceMonitor.measure("walker-step");
   }
 
   protected getRandomLink(selfAvoidBias = 2) {
@@ -164,7 +180,8 @@ export default class RandomWalker {
     if (!this.prev || selfAvoidBias === 1) return this.current?.randomLink();
 
     const weights = this.current.outLinks.map((link) =>
-      link.target == this.prev ? link.weight / selfAvoidBias : link.weight);
+      link.target == this.prev ? link.weight / selfAvoidBias : link.weight,
+    );
     const i = weightedRandom(weights);
     return this.current.outLinks[i];
   }
@@ -194,7 +211,45 @@ export default class RandomWalker {
     if (this.trace.length > this.maxTraceLength) {
       this.trace.shift();
     }
+    this.updateCodelengthHistory();
     this.pushCurrent(this.current);
+  }
+
+  private updateCodelengthHistory() {
+    if (!this.current) return;
+
+    const currentTreeNode = this.network.tree.root.getLeaf(this.current.id);
+
+    if (!currentTreeNode) return;
+
+    this.cumulativeOneLevelBits += currentTreeNode.oneLevelCode.length;
+
+    const previousTreeNode = this.prev
+      ? this.network.tree.root.getLeaf(this.prev.id)
+      : null;
+    const enteredNewModule =
+      previousTreeNode?.parent?.id !== currentTreeNode.parent?.id;
+    const twoLevelIncrement = previousTreeNode
+      ? (enteredNewModule
+          ? (previousTreeNode.parent?.exitCode.length ?? 0)
+          : 0) +
+        (enteredNewModule
+          ? (currentTreeNode.parent?.enterCode.length ?? 0)
+          : 0) +
+        currentTreeNode.code.length
+      : (currentTreeNode.parent?.enterCode.length ?? 0) +
+        currentTreeNode.code.length;
+
+    this.cumulativeTwoLevelBits += twoLevelIncrement;
+    this.codelengthHistory.push({
+      step: this.totalVisits,
+      oneLevelBits: this.cumulativeOneLevelBits,
+      twoLevelBits: this.cumulativeTwoLevelBits,
+    });
+
+    if (this.codelengthHistory.length > this.maxCodelengthHistoryLength) {
+      this.codelengthHistory.shift();
+    }
   }
 
   private pushCurrent(node: Node) {

@@ -6,8 +6,10 @@ interface Props {
   network: NetworkModel;
   rate: Rate;
   showOptimized: boolean;
+  showLinkWeights: boolean;
   onStartWalk: () => void;
   onToggleRate: () => void;
+  onToggleLinkWeights: () => void;
   onToggleSolution: () => void;
   speed: number;
   onSpeedChange: (speed: number) => void;
@@ -21,8 +23,10 @@ const WalkerControls = observer(function WalkerControls({
   network,
   rate,
   showOptimized,
+  showLinkWeights,
   onStartWalk,
   onToggleRate,
+  onToggleLinkWeights,
   onToggleSolution,
   speed,
   onSpeedChange,
@@ -49,6 +53,12 @@ const WalkerControls = observer(function WalkerControls({
           onClick={onToggleRate}
         >
           {rate === Rate.Visits ? "Hide visit rate" : "Show visit rate"}
+        </Button>
+        <Button
+          className={`button ${showLinkWeights ? "button--primary" : ""}`}
+          onClick={onToggleLinkWeights}
+        >
+          {showLinkWeights ? "Link size uniform" : "Link size show flow"}
         </Button>
         <Button className="button" onClick={onToggleSolution}>
           {showOptimized ? "Bad solution" : "Optimal solution"}

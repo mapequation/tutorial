@@ -100,7 +100,11 @@ function createHuffmanTree<T>(
   items: T[],
   compareFn: CompareFn<T>,
   addFn: AddFn<T>
-): HuffmanTree<T> {
+): HuffmanTree<T> | null {
+  if (items.length === 0) {
+    return null;
+  }
+
   const nodeCompareFn = (a: HuffmanNode<T>, b: HuffmanNode<T>) =>
     compareFn(a.data, b.data);
 
@@ -137,8 +141,6 @@ function createHuffmanTree<T>(
       }
     }
   }
-  // If items.length === 0, root will be an empty node which is an edge case
-
   return root;
 }
 
@@ -188,7 +190,7 @@ export default class HuffmanCoder {
   /**
    * Create a Huffman tree from a list of items with flow values.
    */
-  private createTree(items: Item[]): HuffmanTree<Item> {
+  private createTree(items: Item[]): HuffmanTree<Item> | null {
     return createHuffmanTree(items, this.compareFn, this.addFn);
   }
 
@@ -200,9 +202,13 @@ export default class HuffmanCoder {
     const { network } = this;
 
     const root = this.createTree(network.nodes);
-    
+
     // Store the Huffman tree for visualization
     node.huffmanOneLevelTree = root;
+
+    if (!root) {
+      return;
+    }
 
     for (let treeNode of root.depthFirst()) {
       if (treeNode.isLeaf) {
@@ -219,9 +225,13 @@ export default class HuffmanCoder {
     const items = node.map(({ id, enterFlow }) => ({ id, flow: enterFlow }));
 
     const root = this.createTree(items);
-    
+
     // Store the Huffman tree for visualization
     node.huffmanIndexTree = root;
+
+    if (!root) {
+      return;
+    }
 
     for (let treeNode of root.depthFirst()) {
       if (treeNode.isLeaf) {
@@ -250,9 +260,13 @@ export default class HuffmanCoder {
     const items = [exit, ...nodes];
 
     const root = this.createTree(items);
-    
+
     // Store the Huffman tree for visualization
     node.huffmanModuleTree = root;
+
+    if (!root) {
+      return null;
+    }
 
     // Assign codes from tree
     for (let treeNode of root.depthFirst()) {

@@ -16,23 +16,31 @@ interface Props {
 }
 
 function Rates({ network, rate, showModules = true, duration = 100 }: Props) {
-  const { nodes, maxNodeFlow } = network;
+  const { nodes } = network;
 
   const getNodeRate = getRate(rate);
 
   const [viewBoxWidth, viewBoxHeight] = [1000, 800];
   const viewBox = `0 0 ${viewBoxWidth} ${viewBoxHeight}`;
 
-  const barWidth = viewBoxWidth / nodes.length;
+  const leftPadding = 90;
+  const rightPadding = 20;
+  const topPadding = 30;
+  const bottomPadding = 96;
+  const chartWidth = viewBoxWidth - leftPadding - rightPadding;
+  const chartHeight = viewBoxHeight - topPadding - bottomPadding;
+  const barWidth = chartWidth / nodes.length;
+  const maxScaleValue = 0.1;
 
-  const x = (i: number): number => barWidth * i;
+  const x = (i: number): number => leftPadding + barWidth * i;
 
   const minHeight = 1;
-  const maxHeight = viewBoxHeight / 2;
+  const maxHeight = chartHeight;
 
   const barHeight = (scale: number): number =>
-    minHeight + (maxHeight * scale) / maxNodeFlow;
-  const y = (scale: number): number => viewBoxHeight - barHeight(scale);
+    minHeight + ((maxHeight - minHeight) * scale) / maxScaleValue;
+  const y = (scale: number): number =>
+    viewBoxHeight - bottomPadding - barHeight(scale);
 
   const barProps = (i: number, scale: number) => ({
     x: x(i),
@@ -57,8 +65,17 @@ function Rates({ network, rate, showModules = true, duration = 100 }: Props) {
         if (a.topModule !== b.topModule) return b.moduleFlow - a.moduleFlow;
         return b.flow - a.flow;
       }),
-    [nodes]
+    [nodes],
   );
+
+  const axisTicks = [0, 0.02, 0.04, 0.06, 0.08, 0.1].map((value) => ({
+    label: value.toFixed(2),
+    y: viewBoxHeight - bottomPadding - (value / maxScaleValue) * maxHeight,
+  }));
+  const axisX = leftPadding - 20;
+  const axisCenterY = topPadding + chartHeight / 2;
+  const xAxisY = viewBoxHeight - bottomPadding;
+  const xAxisLabelY = viewBoxHeight - 18;
 
   return (
     <svg
@@ -71,9 +88,43 @@ function Rates({ network, rate, showModules = true, duration = 100 }: Props) {
           id="bar-overflow"
           numPoints={3 * nodes.length}
           width={viewBoxWidth}
-          height={200} // NOTE this is the height from the top of the viewBox
+          height={topPadding} // Jagged clip line at the top of the fixed rate scale
         />
       </defs>
+      <g id="rate-axis" stroke="#9ca3af" fill="#6b7280">
+        <line
+          x1={axisX}
+          x2={axisX}
+          y1={topPadding}
+          y2={viewBoxHeight - bottomPadding}
+        />
+        {axisTicks.map((tick) => (
+          <g key={`${tick.label}-${tick.y}`}>
+            <line x1={axisX} x2={axisX + 8} y1={tick.y} y2={tick.y} />
+            <text
+              x={axisX - 6}
+              y={tick.y}
+              textAnchor="end"
+              dominantBaseline="middle"
+              fontSize={12}
+              fill="#6b7280"
+            >
+              {tick.label}
+            </text>
+          </g>
+        ))}
+        <text
+          x={20}
+          y={axisCenterY}
+          textAnchor="middle"
+          fontSize={22}
+          fontWeight={600}
+          fill="#4b5563"
+          transform={`rotate(-90 20 ${axisCenterY})`}
+        >
+          Node visit rate
+        </text>
+      </g>
       {nodesByFlow.map((node, i) => (
         <Bar
           key={i}
@@ -93,6 +144,42 @@ function Rates({ network, rate, showModules = true, duration = 100 }: Props) {
             {...barProps(i, getNodeRate(node))}
           />
         ))}
+      <g id="node-axis" stroke="#9ca3af" fill="#6b7280">
+        <line
+          x1={leftPadding}
+          x2={viewBoxWidth - rightPadding}
+          y1={xAxisY}
+          y2={xAxisY}
+        />
+        {nodesByFlow.map((node, i) => {
+          const tickX = x(i) + barWidth / 2;
+          return (
+            <g key={`node-axis-${node.id}`}>
+              <line x1={tickX} x2={tickX} y1={xAxisY} y2={xAxisY + 8} />
+              <text
+                x={tickX}
+                y={xAxisY + 14}
+                textAnchor="middle"
+                dominantBaseline="hanging"
+                fontSize={11}
+                fill="#6b7280"
+              >
+                {node.id}
+              </text>
+            </g>
+          );
+        })}
+        <text
+          x={(leftPadding + viewBoxWidth - rightPadding) / 2}
+          y={xAxisLabelY}
+          textAnchor="middle"
+          fontSize={16}
+          fontWeight={600}
+          fill="#4b5563"
+        >
+          Node ID
+        </text>
+      </g>
     </svg>
   );
 }

@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState, useMemo } from "react";
+import { observer } from "mobx-react";
 import { Network as NetworkModel, Node as NodeModel, Rate } from "../model";
 import { modular_w_json } from "../networks";
 import { scheme, schemeAlt } from "./scheme";
-import { InlineTrace } from "./Trace";
+import { CodelengthChart, InlineTrace } from "./Trace";
 import Rates from "./Rates";
 import CodeBooks from "./CodeBooks";
-import HuffmanTreeView from "./HuffmanTreeView";
+import CodeBookLegend from "./CodeBooks/CodeBookLegend";
 import Network from "./Network/Network";
 import InteractiveNetwork from "./InteractiveNetwork";
 import WalkerControls from "./WalkerControls";
@@ -19,8 +20,40 @@ import { performanceMonitor } from "../utils/performance";
 // Create a shared `Network` model instance for the main demo. The
 // `setNodeExtents` call maps logical node coordinates to the SVG viewbox
 // coordinate system used by the visualization.
-const network = NetworkModel.parse(modular_w_json)
-  .setNodeExtents([50, 650], [50, 700]);
+const network = NetworkModel.parse(modular_w_json).setNodeExtents(
+  [50, 650],
+  [50, 700],
+);
+
+const CodelengthSummary = observer(function CodelengthSummary({
+  network,
+}: {
+  network: NetworkModel;
+}) {
+  // Read the update counter so this summary refreshes after partition edits
+  // trigger `network.finalize()`, even though `Main` itself is not observed.
+  network.treeUpdateCounter;
+
+  return (
+    <div className="mt-4 space-y-1 text-sm">
+      <div>
+        {"One-level codelength "}
+        {network.mapequation.oneLevelCodelength.toFixed(3)} {"bits"}
+      </div>
+      <div>
+        {"Index codelength "}
+        {network.mapequation.indexCodelength.toFixed(3)} {"bits"}
+      </div>
+      <div>
+        {"Module codelength "}
+        {network.mapequation.moduleCodelength.toFixed(3)} {"bits"}
+      </div>
+      <div>
+        {"Codelength"} {network.mapequation.codelength.toFixed(3)} {"bits"}
+      </div>
+    </div>
+  );
+});
 
 /**
  * Main demo component embedding the interactive visualizations and
@@ -31,7 +64,8 @@ export default function Main() {
   const [rate, setRate] = useState(Rate.Uniform);
   const [speed, setSpeed] = useState(3);
   const [showOptimized, setShowOptimized] = useState(true);
-  const [showVisitRates, setShowVisitRates] = useState(true);
+  const [showVisitRates, setShowVisitRates] = useState(false);
+  const [showLinkWeights, setShowLinkWeights] = useState(false);
   const firstNetworkRef = useRef<HTMLDivElement>(null);
 
   const setWalkerSpeed = (value: number) => {
@@ -68,10 +102,10 @@ export default function Main() {
   const toggleSolution = () => {
     const wasStarted = network.walker.isStarted;
     network.walker.reset();
-    
+
     // Always reset to initial optimal solution first
     network.setInitialModules();
-    
+
     // If currently showing optimal, apply bad solution
     if (showOptimized) {
       // Apply a hand-crafted (suboptimal) module assignment to demonstrate
@@ -88,7 +122,7 @@ export default function Main() {
       network.getNode(21)?.setTopModule(3);
     }
     // If currently showing bad solution, we've already reset to initial (optimal) above
-    
+
     network.finalize();
     setShowOptimized(!showOptimized);
     network.walker.step();
@@ -104,24 +138,31 @@ export default function Main() {
         ref={firstNetworkRef}
         className="col-span-2 w-4/5 mx-auto xl:w-full mb-48"
       >
-        <h2 className="text-2xl font-bold mb-4">Network Visualization</h2>
-        <InteractiveNetwork
+        <Network
           network={network}
-          numCommunities={8}
-          scheme={scheme}
-          schemeAlt={schemeAlt}
-          showLabels={true}
-          showModules={true}
-        />
+          scheme={["#d7d7d7"]}
+          schemeAlt={["#a8a8a8"]}
+          rate={showVisitRates ? Rate.Visits : Rate.Uniform}
+          showLabels={false}
+          showModules={false}
+          showNodeId={false}
+          showVisiting={showVisitRates}
+          scaleLinksByWeight={showLinkWeights}
+          width={800}
+          height={830}
+        >
+          <WalkTrace walker={network.walker} stroke="#a3a3a3" opacity={0.28} />
+          <Walker walker={network.walker} r={12} fill="#4a4a4a" />
+        </Network>
       </div>
 
       <div className="col-span-2 mb-20 xl:mb-48">
         <h1>The duality between compression and finding regularities</h1>
         <p>
           Compression algorithms use regularities to compress data. The more
-          regularities they find, the better they can compress. In this
-          image, the top half is easier to compress than the bottom part
-          because of the repeated pattern in the clear blue sky.
+          regularities they find, the better they can compress. In this image,
+          the top half is easier to compress than the bottom part because of the
+          repeated pattern in the clear blue sky.
         </p>
       </div>
 
@@ -150,8 +191,8 @@ export default function Main() {
 
       <div className="col-span-4 mb-48">
         <h2 className="font-light mx-auto text-center lg:w-3/5 mb-48 leading-relaxed">
-          By searching for <strong>optimal compression</strong> we will find
-          the <strong>regularities</strong> that simplifies the data.
+          By searching for <strong>optimal compression</strong> we will find the{" "}
+          <strong>regularities</strong> that simplifies the data.
         </h2>
       </div>
 
@@ -159,16 +200,18 @@ export default function Main() {
         <h2>Huffman coding</h2>
         <p>
           To use the machinery of information theory, we describe the random
-          walker with a binary message.
-          Huffman coding (Like Morse code, more frequently used symbols should be shorter).
+          walker with a binary message. Huffman coding (Like Morse code, more
+          frequently used symbols should be shorter).
         </p>
 
         <WalkerControls
           network={network}
           rate={showVisitRates ? Rate.Visits : Rate.Uniform}
           showOptimized={showOptimized}
+          showLinkWeights={showLinkWeights}
           onStartWalk={startRandomWalk}
           onToggleRate={() => setShowVisitRates(!showVisitRates)}
+          onToggleLinkWeights={() => setShowLinkWeights(!showLinkWeights)}
           onToggleSolution={toggleSolution}
           speed={speed}
           onSpeedChange={setWalkerSpeed}
@@ -186,16 +229,18 @@ export default function Main() {
           showModules={false}
           showNodeId={true}
           showVisiting={showVisitRates}
+          scaleLinksByWeight={showLinkWeights}
           width={800}
           height={830}
         >
           <WalkTrace walker={network.walker} stroke="#999" opacity={0.4} />
           <Walker walker={network.walker} r={12} fill="#666" />
         </Network>
+        <CodelengthSummary network={network} />
       </div>
 
       <div className="col-span-2 mb-10">
-        <h3 className="text-lg font-bold mb-4">Reassign Nodes to Communities</h3>
+        <h3 className="text-lg font-bold mb-4">Two-Level Partition</h3>
         <InteractiveNetwork
           network={network}
           numCommunities={8}
@@ -205,6 +250,7 @@ export default function Main() {
           showModules={true}
           rate={showVisitRates ? Rate.Visits : Rate.Uniform}
           showVisiting={showVisitRates}
+          scaleLinksByWeight={showLinkWeights}
           width={800}
           height={830}
         >
@@ -214,81 +260,38 @@ export default function Main() {
         </InteractiveNetwork>
       </div>
 
-      <div className="col-span-4">
-        <InlineTrace network={network} />
-        <InlineTrace network={network} showModules />
+      <div className="col-span-4 mb-12">
+        <h3 className="text-lg font-bold mb-4">Running code printer</h3>
+        <p className="mb-4">
+          This trace prints the codewords emitted by the random walker in real
+          time. The first line shows the one-level code, where every node uses a
+          single shared codebook. The second line shows the two-level code: when
+          the walker crosses a community boundary it prints an exit code, then
+          an enter code, and then the node code inside the new community.
+        </p>
+        <div className="space-y-2">
+          <div>
+            <InlineTrace network={network} />
+          </div>
+          <div>
+            <InlineTrace network={network} showModules />
+          </div>
+        </div>
+        <CodelengthChart network={network} />
       </div>
 
       <div className="col-span-2 mb-48">
-        <Rates network={network} rate={Rate.Visits} showModules duration={network.walker.interval} />
+        <Rates
+          network={network}
+          rate={Rate.Visits}
+          showModules
+          duration={network.walker.interval}
+        />
       </div>
 
       <div className="col-span-2 mb-48">
         <CodeBooks network={network} />
-        <br />
-        {"One-level codelength "}
-        {network.mapequation.oneLevelCodelength.toFixed(3)} {"bits"}
-        <br />
-        {"Index codelength "}
-        {network.mapequation.indexCodelength.toFixed(3)} {"bits"}
-        <br />
-        {"Module codelength "}
-        {network.mapequation.moduleCodelength.toFixed(3)} {"bits"}
-        <br />
-        {"Codelength"} {network.mapequation.codelength.toFixed(3)} {"bits"}
-      </div>
-
-      {/* Huffman Index Tree - updates when modules change */}
-      <div className="col-span-2 mb-48">
-        <h3 className="text-xl font-bold mb-4">Module Enter Codes (Index Tree)</h3>
-        <HuffmanTreeView 
-          treeNode={network.tree.root} 
-          treeType="index" 
-          network={network}
-          width={1400} 
-          height={500} 
-        />
-      </div>
-
-      {/* Huffman One-Level Tree */}
-      <div className="col-span-2 mb-48">
-        <h3 className="text-xl font-bold mb-4">One-Level Huffman Tree</h3>
-        <p className="mb-4 text-gray-600">
-          Flat Huffman tree for all nodes, ignoring module structure.
-        </p>
-        <HuffmanTreeView 
-          treeNode={network.tree.root} 
-          treeType="oneLevel" 
-          network={network}
-          width={1400} 
-          height={600} 
-        />
-      </div>
-
-      {/* Module Huffman Trees */}
-      <div className="col-span-2 mb-48">
-        <h3 className="text-xl font-bold mb-4">Module Huffman Trees</h3>
-        <p className="mb-4 text-gray-600">
-          Individual Huffman trees for each module, showing codes for module exits and node visits.
-        </p>
-        <div className="space-y-8">
-          {Array.from(network.tree.root.children.values()).map((moduleNode) => (
-            <div key={moduleNode.id} className="border rounded-lg p-4 w-full">
-              <h4 className="text-lg font-semibold mb-4">Module {moduleNode.id}</h4>
-              {moduleNode.isLeafModule ? (
-                <HuffmanTreeView
-                  treeNode={moduleNode}
-                  treeType="module"
-                  network={network}
-                  width={1400}
-                  height={450}
-                />
-              ) : (
-                <p className="text-gray-500">Not a leaf module</p>
-              )}
-            </div>
-          ))}
-        </div>
+        <CodeBookLegend />
       </div>
 
       {/* Regularized Infomap Section */}

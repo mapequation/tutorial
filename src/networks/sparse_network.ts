@@ -36,6 +36,7 @@ class SeededRandom {
 const MODULE_SIZES = [17, 17, 16];
 const TOTAL_NODES = MODULE_SIZES.reduce((sum, n) => sum + n, 0);
 const BASE_SEED = 42;
+export const DEFAULT_SPARSE_NETWORK_SEED = BASE_SEED;
 
 // Probabilities tuned to give average degree ~8
 const P_IN = 0.45;
@@ -55,7 +56,7 @@ const clamp01 = (value: number) => Math.max(0.05, Math.min(0.95, value));
 const generateNodes = (seed = BASE_SEED) => {
   const nodes: Array<{ id: number; x: number; y: number; topModule: number }> = [];
   const rng = new SeededRandom(seed);
-  let nodeId = 0;
+  let nodeId = 1;
 
   for (let module = 0; module < MODULE_SIZES.length; module++) {
     const [cx, cy] = CLUSTER_CENTERS[module];
@@ -97,8 +98,8 @@ const generateAllLinks = (seed = BASE_SEED): LinkData[] => {
       }
 
       links.push({
-        source: i,
-        target: j,
+        source: nodes[i].id,
+        target: nodes[j].id,
         weight: 1.0,
         isCrossCommunity,
       });

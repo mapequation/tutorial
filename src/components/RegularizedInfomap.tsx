@@ -3,72 +3,206 @@
  * when network data is sparse or incomplete.
  */
 
-import { useState, useCallback, useMemo } from "react";
+import {
+  useState,
+  useCallback,
+  useMemo,
+  useEffect,
+  type ReactNode,
+} from "react";
 import { observer } from "mobx-react";
 import { scaleSqrt } from "d3";
 import { Network as NetworkModel, FlowModel } from "../model";
-import { fullNetwork, createIncompleteNetwork, type NetworkData } from "../networks/sparse_network";
+import {
+  buildRegularizedNetworkData,
+  createRegularizedIncompleteNetwork,
+  parseRegularizedNetworkDat,
+  type NetworkData,
+  type RegularizedBaseNetwork,
+} from "../networks/regularized_infomap_network";
 import { Network } from "./Network";
 import Button from "./Button";
-import { scheme, schemeAlt } from "./scheme";
 
 interface Props {
   width?: number;
   height?: number;
 }
 
-type NetworkState = "normal" | "regularized";
+interface CollapsiblePanelProps {
+  title: string;
+  children: ReactNode;
+  defaultOpen?: boolean;
+}
 
+type NetworkState = "normal" | "regularized";
 type Partition = Map<number, number>;
 
 interface PartitionOutcome {
   moduleByNodeId: Partition;
   moduleCount: number;
+  truthModuleCount: number;
+  rawModuleCount: number;
+  isolatedOnlyModuleCount: number;
   quality: number;
   success: boolean;
 }
 
-const MAX_LOCAL_MOVE_ITERATIONS = 24;
-const SUCCESS_THRESHOLD = 0.97;
-const UNIFORM_PRIOR_SCALE = 0.6;
-const MODULARITY_RESOLUTION = 1.0;
-const EPSILON = 1e-9;
-
-interface GraphContext {
-  adjacency: Map<number, Array<{ target: number; weight: number }>>;
-  degreeByNodeId: Map<number, number>;
-  totalWeight: number;
+interface OutcomeAssessment {
+  label: "pass" | "half-pass" | "fail";
+  toneClassName: string;
+  description: string;
 }
 
-const buildGraphContext = (data: NetworkData): GraphContext => {
-  const adjacency = new Map<number, Array<{ target: number; weight: number }>>();
-  const degreeByNodeId = new Map<number, number>();
-  let totalWeight = 0;
+interface TreeRow {
+  nodeId: number;
+  path: number[];
+  flow: number;
+  name: string;
+}
 
-  data.nodes.forEach(({ id }) => {
-    adjacency.set(id, []);
-    degreeByNodeId.set(id, 0);
-  });
+interface InfomapRun {
+  outcome: PartitionOutcome;
+  treeText: string;
+  apiCodelength: number;
+  trials: number;
+}
 
-  data.links.forEach(({ source, target, weight }) => {
-    adjacency.get(source)?.push({ target, weight });
-    adjacency.get(target)?.push({ target: source, weight });
-    degreeByNodeId.set(source, (degreeByNodeId.get(source) ?? 0) + weight);
-    degreeByNodeId.set(target, (degreeByNodeId.get(target) ?? 0) + weight);
-    totalWeight += weight;
-  });
+interface TriedRegularizationRun {
+  sparsePercentage: number;
+  strength: number;
+  run: InfomapRun;
+}
 
-  return { adjacency, degreeByNodeId, totalWeight };
-};
+type RunState =
+  | { status: "loading" }
+  | { status: "ready"; run: InfomapRun }
+  | { status: "error"; message: string };
 
-const moduleSizesFromPartition = (partition: Partition) => {
-  const sizes = new Map<number, number>();
+type DatasetState =
+  | { status: "loading" }
+  | {
+      status: "ready";
+      completeData: NetworkData;
+      referencePartition: Partition;
+    }
+  | { status: "error"; message: string };
 
-  partition.forEach((moduleId) => {
-    sizes.set(moduleId, (sizes.get(moduleId) ?? 0) + 1);
-  });
+interface InfomapRunner {
+  runAsync(input: {
+    network: {
+      nodes: Array<{ id: number; name: string }>;
+      links: Array<{ source: number; target: number; weight: number }>;
+    };
+    filename?: string;
+    args?: Record<string, unknown>;
+  }): Promise<unknown>;
+}
 
-  return sizes;
+type InfomapConstructor = new () => InfomapRunner;
+
+interface InfomapTreeNodeLike {
+  id: number;
+  path?: number[];
+  flow?: number;
+  name?: string;
+}
+
+interface InfomapJsonLike {
+  codelength?: number;
+  nodes?: InfomapTreeNodeLike[];
+}
+
+interface InfomapResultLike {
+  tree?: string;
+  json?: InfomapJsonLike;
+}
+
+const NUM_TRIALS = 10;
+const SUCCESS_EPSILON = 1e-9;
+const NOTICEABLE_IMPROVEMENT = 0.01;
+const COLLISION_PADDING = 2;
+const NODE_LENGTH_GAP_MULTIPLIER = 2;
+const LAYOUT_EXPANSION_FACTOR = 1.2;
+const MODULE_GROUP_CENTER_PULL = 0.18;
+const VIEWPORT_MARGIN = 18;
+const ISOLATED_CLUSTER_EDGE_OFFSET = 34;
+const ISOLATED_CLUSTER_COLUMN_SIZE = 3;
+const ISOLATED_NODE_SPACING_MULTIPLIER = 2.75;
+const MAX_COLLISION_RELAX_ITERATIONS = 160;
+const EPSILON = 1e-9;
+const REGULARIZED_NETWORK_URL = "/demo/data/VII_network_complete.dat";
+const regularizedNodeScale = scaleSqrt().domain([0, 1]).range([7, 14]);
+const treeLinePattern =
+  /^([0-9:]+)\s+([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)\s+"((?:[^"\\]|\\.)*)"\s+(\d+)\s*$/;
+const ISOLATED_MODULE_COLOR = "#9CA3AF";
+const COLORBLIND_FRIENDLY_POOL = [
+  "#0072B2",
+  "#E69F00",
+  "#009E73",
+  "#CC79A7",
+  "#D55E00",
+  "#56B4E9",
+  "#F0E442",
+  "#7B70D6",
+  "#117733",
+  "#44AA99",
+  "#88CCEE",
+  "#DDCC77",
+  "#CC6677",
+  "#AA4499",
+  "#882255",
+  "#661100",
+  "#6699CC",
+  "#AA4466",
+  "#4477AA",
+  "#228833",
+] as const;
+
+let infomapConstructorPromise: Promise<InfomapConstructor> | null = null;
+
+function CollapsiblePanel({
+  title,
+  children,
+  defaultOpen = false,
+}: CollapsiblePanelProps) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+
+  return (
+    <div className="space-y-2">
+      <button
+        type="button"
+        className="flex w-full items-center justify-between gap-4 py-2 text-left"
+        onClick={() => setIsOpen((open) => !open)}
+        aria-expanded={isOpen}
+      >
+        <h4 className="font-semibold">{title}</h4>
+        <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+          {isOpen ? "Hide" : "Show"}
+        </span>
+      </button>
+      {isOpen && <div>{children}</div>}
+    </div>
+  );
+}
+
+const loadInfomapConstructor = async (): Promise<InfomapConstructor> => {
+  if (!infomapConstructorPromise) {
+    infomapConstructorPromise = import("@mapequation/infomap").then(
+      (module) => {
+        const constructor = (module.default ?? module.Infomap) as
+          | InfomapConstructor
+          | undefined;
+        if (!constructor) {
+          throw new Error(
+            "Infomap constructor was not found in @mapequation/infomap.",
+          );
+        }
+        return constructor;
+      },
+    );
+  }
+
+  return infomapConstructorPromise;
 };
 
 const normalizePartitionLabels = (partition: Partition): Partition => {
@@ -86,326 +220,134 @@ const normalizePartitionLabels = (partition: Partition): Partition => {
   return normalized;
 };
 
-const moduleVolumesFromPartition = (
-  partition: Partition,
-  degreeByNodeId: Map<number, number>
-) => {
-  const volumes = new Map<number, number>();
+const darkenHex = (hexColor: string, factor = 0.78) => {
+  const hex = hexColor.replace("#", "");
+  if (!/^[0-9a-fA-F]{6}$/.test(hex)) {
+    return hexColor;
+  }
 
-  partition.forEach((moduleId, nodeId) => {
-    volumes.set(
-      moduleId,
-      (volumes.get(moduleId) ?? 0) + (degreeByNodeId.get(nodeId) ?? 0)
-    );
-  });
-
-  return volumes;
-};
-
-// Build a normal Infomap-like baseline by fragmenting planted modules
-// into connected components after link removal.
-const createFragmentedPartition = (
-  data: NetworkData,
-  adjacency: GraphContext["adjacency"],
-  plantedByNodeId: Partition
-): Partition => {
-  const nodeIdsByPlantedModule = new Map<number, number[]>();
-
-  data.nodes.forEach(({ id }) => {
-    const plantedModule = plantedByNodeId.get(id) ?? 0;
-    if (!nodeIdsByPlantedModule.has(plantedModule)) {
-      nodeIdsByPlantedModule.set(plantedModule, []);
-    }
-    nodeIdsByPlantedModule.get(plantedModule)!.push(id);
-  });
-
-  const partition = new Map<number, number>();
-  let nextModuleId = 0;
-
-  nodeIdsByPlantedModule.forEach((nodeIds) => {
-    const nodeSet = new Set(nodeIds);
-    const visited = new Set<number>();
-
-    for (const startNodeId of nodeIds) {
-      if (visited.has(startNodeId)) {
-        continue;
-      }
-
-      const stack = [startNodeId];
-      visited.add(startNodeId);
-
-      while (stack.length > 0) {
-        const nodeId = stack.pop()!;
-        partition.set(nodeId, nextModuleId);
-
-        for (const edge of adjacency.get(nodeId) ?? []) {
-          if (!nodeSet.has(edge.target) || visited.has(edge.target)) {
-            continue;
-          }
-          visited.add(edge.target);
-          stack.push(edge.target);
-        }
-      }
-
-      nextModuleId++;
-    }
-  });
-
-  return normalizePartitionLabels(partition);
-};
-
-const runRegularizedRefinement = (
-  data: NetworkData,
-  graph: GraphContext,
-  initialPartition: Partition,
-  regularizationStrength: number
-): Partition => {
-  const nodeIds = data.nodes.map(({ id }) => id);
-  const partition = new Map(initialPartition);
-  const priorWeight = regularizationStrength * UNIFORM_PRIOR_SCALE;
-  const moduleSizes = moduleSizesFromPartition(partition);
-  const moduleVolumes = moduleVolumesFromPartition(
-    partition,
-    graph.degreeByNodeId
+  const r = Math.max(
+    0,
+    Math.min(255, Math.round(parseInt(hex.slice(0, 2), 16) * factor)),
+  );
+  const g = Math.max(
+    0,
+    Math.min(255, Math.round(parseInt(hex.slice(2, 4), 16) * factor)),
+  );
+  const b = Math.max(
+    0,
+    Math.min(255, Math.round(parseInt(hex.slice(4, 6), 16) * factor)),
   );
 
-  for (let iteration = 0; iteration < MAX_LOCAL_MOVE_ITERATIONS; iteration++) {
-    let moved = false;
+  return `#${r.toString(16).padStart(2, "0")}${g
+    .toString(16)
+    .padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
+};
 
-    for (const nodeId of nodeIds) {
-      const currentModule = partition.get(nodeId) ?? 0;
-      const nodeDegree = graph.degreeByNodeId.get(nodeId) ?? 0;
+const generatedModuleColor = (index: number) => {
+  const hue = (index * 137.50776405003785) % 360;
+  const saturation = 72;
+  const lightness = index % 2 === 0 ? 45 : 58;
+  return `hsl(${hue.toFixed(2)} ${saturation}% ${lightness}%)`;
+};
 
-      moduleSizes.set(currentModule, (moduleSizes.get(currentModule) ?? 1) - 1);
-      moduleVolumes.set(
-        currentModule,
-        (moduleVolumes.get(currentModule) ?? nodeDegree) - nodeDegree
-      );
+const getIsolatedNodeIds = (data: NetworkData) => {
+  const degreeByNodeId = new Map<number, number>();
+  data.nodes.forEach(({ id }) => degreeByNodeId.set(id, 0));
 
-      if ((moduleSizes.get(currentModule) ?? 0) <= 0) {
-        moduleSizes.delete(currentModule);
-        moduleVolumes.delete(currentModule);
-      }
+  data.links.forEach(({ source, target }) => {
+    degreeByNodeId.set(source, (degreeByNodeId.get(source) ?? 0) + 1);
+    degreeByNodeId.set(target, (degreeByNodeId.get(target) ?? 0) + 1);
+  });
 
-      const edgeWeightByModule = new Map<number, number>();
-      edgeWeightByModule.set(currentModule, 0);
+  return new Set(
+    [...degreeByNodeId.entries()]
+      .filter(([, degree]) => degree === 0)
+      .map(([nodeId]) => nodeId),
+  );
+};
 
-      for (const edge of graph.adjacency.get(nodeId) ?? []) {
-        const candidateModule = partition.get(edge.target) ?? 0;
-        edgeWeightByModule.set(
-          candidateModule,
-          (edgeWeightByModule.get(candidateModule) ?? 0) + edge.weight
-        );
-      }
+const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`;
 
-      const candidateModules = [
-        currentModule,
-        ...Array.from(edgeWeightByModule.keys())
-          .filter((moduleId) => moduleId !== currentModule)
-          .sort((a, b) => a - b),
-      ];
+const formatSignedPercentagePoints = (value: number) =>
+  `${value >= 0 ? "+" : ""}${(value * 100).toFixed(1)} pp`;
 
-      let bestModule = currentModule;
-      let bestScore = Number.NEGATIVE_INFINITY;
+const moduleDistanceFromTruth = (outcome: PartitionOutcome) =>
+  Math.abs(outcome.moduleCount - outcome.truthModuleCount);
 
-      for (const candidateModule of candidateModules) {
-        const edgeScore = edgeWeightByModule.get(candidateModule) ?? 0;
-        const candidateVolume = moduleVolumes.get(candidateModule) ?? 0;
-        const candidateSize = moduleSizes.get(candidateModule) ?? 0;
-        const expectedEdgeScore =
-          graph.totalWeight > 0
-            ? (MODULARITY_RESOLUTION * nodeDegree * candidateVolume) /
-              (2 * graph.totalWeight)
-            : 0;
-        const priorScore =
-          priorWeight > 0 ? priorWeight * Math.log1p(candidateSize) : 0;
-        const score = edgeScore - expectedEdgeScore + priorScore;
+const assessOutcome = (
+  outcome: PartitionOutcome,
+  context: "normal" | "regularized",
+  baselineOutcome?: PartitionOutcome | null,
+): OutcomeAssessment => {
+  const moduleDistance = moduleDistanceFromTruth(outcome);
+  const qualityDelta = baselineOutcome
+    ? outcome.quality - baselineOutcome.quality
+    : 0;
+  const baselineDistance = baselineOutcome
+    ? moduleDistanceFromTruth(baselineOutcome)
+    : Number.POSITIVE_INFINITY;
+  const improvedRelativeToBaseline =
+    baselineOutcome &&
+    (qualityDelta > SUCCESS_EPSILON ||
+      (Math.abs(qualityDelta) <= SUCCESS_EPSILON &&
+        moduleDistance < baselineDistance));
 
-        if (score > bestScore + EPSILON) {
-          bestScore = score;
-          bestModule = candidateModule;
-        }
-      }
-
-      partition.set(nodeId, bestModule);
-      moduleSizes.set(bestModule, (moduleSizes.get(bestModule) ?? 0) + 1);
-      moduleVolumes.set(
-        bestModule,
-        (moduleVolumes.get(bestModule) ?? 0) + nodeDegree
-      );
-
-      if (bestModule !== currentModule) {
-        moved = true;
-      }
-    }
-
-    if (!moved) {
-      break;
-    }
+  if (outcome.success) {
+    return {
+      label: "pass",
+      toneClassName: "text-green-700",
+      description: "Exact recovery of the reference partition from the complete network.",
+    };
   }
 
-  if (regularizationStrength > 0) {
-    const minimumStableSize = 1 + Math.floor(regularizationStrength * 4);
-    const stableModuleSizes = moduleSizesFromPartition(partition);
-
-    for (const nodeId of nodeIds) {
-      const currentModule = partition.get(nodeId) ?? 0;
-      if ((stableModuleSizes.get(currentModule) ?? 0) > minimumStableSize) {
-        continue;
-      }
-
-      const edgeWeightByModule = new Map<number, number>();
-      for (const edge of graph.adjacency.get(nodeId) ?? []) {
-        const candidateModule = partition.get(edge.target) ?? 0;
-        if (candidateModule === currentModule) {
-          continue;
-        }
-        edgeWeightByModule.set(
-          candidateModule,
-          (edgeWeightByModule.get(candidateModule) ?? 0) + edge.weight
-        );
-      }
-
-      if (edgeWeightByModule.size === 0) {
-        let largestModule = currentModule;
-        let largestSize = -1;
-
-        stableModuleSizes.forEach((size, moduleId) => {
-          if (moduleId !== currentModule && size > largestSize) {
-            largestSize = size;
-            largestModule = moduleId;
-          }
-        });
-
-        if (largestModule !== currentModule) {
-          edgeWeightByModule.set(largestModule, 0);
-        }
-      }
-
-      if (edgeWeightByModule.size === 0) {
-        continue;
-      }
-
-      let bestModule = currentModule;
-      let bestScore = Number.NEGATIVE_INFINITY;
-
-      edgeWeightByModule.forEach((edgeWeight, candidateModule) => {
-        const score =
-          edgeWeight +
-          priorWeight * Math.log1p(stableModuleSizes.get(candidateModule) ?? 0);
-        if (score > bestScore + EPSILON) {
-          bestScore = score;
-          bestModule = candidateModule;
-        }
-      });
-
-      if (bestModule !== currentModule) {
-        stableModuleSizes.set(
-          currentModule,
-          (stableModuleSizes.get(currentModule) ?? 1) - 1
-        );
-        stableModuleSizes.set(
-          bestModule,
-          (stableModuleSizes.get(bestModule) ?? 0) + 1
-        );
-        partition.set(nodeId, bestModule);
-      }
-    }
+  if (context === "regularized" && improvedRelativeToBaseline) {
+    return {
+      label: "half-pass",
+      toneClassName: "text-yellow-700",
+      description:
+        "Outperforms normal Infomap, but does not exactly recover the reference partition from the complete network.",
+    };
   }
 
-  const targetModuleCount =
-    regularizationStrength >= 0.95
-      ? 1
-      : regularizationStrength >= 0.75
-        ? 2
-        : Number.POSITIVE_INFINITY;
+  return {
+    label: "fail",
+    toneClassName: "text-orange-700",
+    description:
+      context === "regularized"
+        ? "Does not recover the reference partition from the complete network and does not outperform normal Infomap."
+        : "Does not exactly recover the reference partition from the complete network.",
+  };
+};
 
-  if (Number.isFinite(targetModuleCount)) {
-    let moduleSizes = moduleSizesFromPartition(partition);
+const isBetterRegularizationRun = (
+  left: TriedRegularizationRun,
+  right: TriedRegularizationRun,
+) => {
+  const leftOutcome = left.run.outcome;
+  const rightOutcome = right.run.outcome;
 
-    while (moduleSizes.size > targetModuleCount) {
-      let smallestModule = -1;
-      let smallestSize = Number.POSITIVE_INFINITY;
-
-      moduleSizes.forEach((size, moduleId) => {
-        if (
-          size < smallestSize ||
-          (size === smallestSize && moduleId < smallestModule)
-        ) {
-          smallestModule = moduleId;
-          smallestSize = size;
-        }
-      });
-
-      if (smallestModule < 0) {
-        break;
-      }
-
-      const edgeWeightByTarget = new Map<number, number>();
-      partition.forEach((moduleId, nodeId) => {
-        if (moduleId !== smallestModule) {
-          return;
-        }
-
-        for (const edge of graph.adjacency.get(nodeId) ?? []) {
-          const targetModule = partition.get(edge.target) ?? smallestModule;
-          if (targetModule === smallestModule) {
-            continue;
-          }
-          edgeWeightByTarget.set(
-            targetModule,
-            (edgeWeightByTarget.get(targetModule) ?? 0) + edge.weight
-          );
-        }
-      });
-
-      if (edgeWeightByTarget.size === 0) {
-        let largestModule = smallestModule;
-        let largestSize = -1;
-        moduleSizes.forEach((size, moduleId) => {
-          if (moduleId !== smallestModule && size > largestSize) {
-            largestSize = size;
-            largestModule = moduleId;
-          }
-        });
-        if (largestModule !== smallestModule) {
-          edgeWeightByTarget.set(largestModule, 0);
-        }
-      }
-
-      let bestTargetModule = smallestModule;
-      let bestTargetScore = Number.NEGATIVE_INFINITY;
-      edgeWeightByTarget.forEach((edgeWeight, targetModule) => {
-        const score =
-          edgeWeight +
-          priorWeight * Math.log1p(moduleSizes.get(targetModule) ?? 0);
-        if (score > bestTargetScore + EPSILON) {
-          bestTargetScore = score;
-          bestTargetModule = targetModule;
-        }
-      });
-
-      if (bestTargetModule === smallestModule) {
-        break;
-      }
-
-      partition.forEach((moduleId, nodeId) => {
-        if (moduleId === smallestModule) {
-          partition.set(nodeId, bestTargetModule);
-        }
-      });
-
-      moduleSizes = moduleSizesFromPartition(partition);
-    }
+  if (leftOutcome.success !== rightOutcome.success) {
+    return leftOutcome.success;
   }
 
-  return normalizePartitionLabels(partition);
+  if (Math.abs(leftOutcome.quality - rightOutcome.quality) > SUCCESS_EPSILON) {
+    return leftOutcome.quality > rightOutcome.quality;
+  }
+
+  const leftModuleDistance = moduleDistanceFromTruth(leftOutcome);
+  const rightModuleDistance = moduleDistanceFromTruth(rightOutcome);
+  if (leftModuleDistance !== rightModuleDistance) {
+    return leftModuleDistance < rightModuleDistance;
+  }
+
+  return left.strength < right.strength;
 };
 
 const pairwisePartitionAgreement = (
   truthByNodeId: Partition,
   predictedByNodeId: Partition,
-  nodeIds: number[]
+  nodeIds: number[],
 ) => {
   let matchedPairs = 0;
   let comparedPairs = 0;
@@ -431,22 +373,50 @@ const pairwisePartitionAgreement = (
 const evaluatePartition = (
   data: NetworkData,
   predictedByNodeId: Partition,
-  truthByNodeId: Partition
+  truthByNodeId: Partition,
+  isolatedNodeIds: Set<number>,
 ): PartitionOutcome => {
-  const nodeIds = data.nodes.map(({ id }) => id);
-  const truthModuleCount = new Set(truthByNodeId.values()).size;
-  const moduleCount = new Set(predictedByNodeId.values()).size;
+  const allNodeIds = data.nodes.map(({ id }) => id);
+  const evaluatedNodeIds = allNodeIds.filter((id) => !isolatedNodeIds.has(id));
+  const truthModuleCount = new Set(
+    evaluatedNodeIds.map((id) => truthByNodeId.get(id) ?? 0),
+  ).size;
+  const moduleCount = new Set(
+    evaluatedNodeIds.map((id) => predictedByNodeId.get(id) ?? 0),
+  ).size;
+  const rawModuleCount = new Set(predictedByNodeId.values()).size;
+  const nodesByModule = new Map<number, number[]>();
+  allNodeIds.forEach((nodeId) => {
+    const moduleId = predictedByNodeId.get(nodeId) ?? 0;
+    if (!nodesByModule.has(moduleId)) {
+      nodesByModule.set(moduleId, []);
+    }
+    nodesByModule.get(moduleId)!.push(nodeId);
+  });
+  let isolatedOnlyModuleCount = 0;
+  nodesByModule.forEach((nodeIds) => {
+    if (
+      nodeIds.length > 0 &&
+      nodeIds.every((nodeId) => isolatedNodeIds.has(nodeId))
+    ) {
+      isolatedOnlyModuleCount++;
+    }
+  });
   const quality = pairwisePartitionAgreement(
     truthByNodeId,
     predictedByNodeId,
-    nodeIds
+    evaluatedNodeIds,
   );
   const success =
-    moduleCount === truthModuleCount && quality >= SUCCESS_THRESHOLD;
+    moduleCount === truthModuleCount &&
+    Math.abs(quality - 1) <= SUCCESS_EPSILON;
 
   return {
     moduleByNodeId: predictedByNodeId,
     moduleCount,
+    truthModuleCount,
+    rawModuleCount,
+    isolatedOnlyModuleCount,
     quality,
     success,
   };
@@ -455,8 +425,10 @@ const evaluatePartition = (
 const buildVisualizationNetwork = (
   data: NetworkData,
   partitionByNodeId: Partition,
+  isolatedNodeIds: Set<number>,
   width: number,
-  height: number
+  height: number,
+  nodeScale: (value: number) => number,
 ) => {
   const net = new NetworkModel(FlowModel.Undirected);
 
@@ -479,94 +451,716 @@ const buildVisualizationNetwork = (
   });
 
   net.finalize();
+  const nodes = net.nodes;
+  const centerX = width / 2;
+  const centerY = height / 2;
+
+  nodes.forEach((node) => {
+    node.x = centerX + (node.x - centerX) * LAYOUT_EXPANSION_FACTOR;
+    node.y = centerY + (node.y - centerY) * LAYOUT_EXPANSION_FACTOR;
+  });
+
+  const nodesByModule = new Map<number, typeof nodes>();
+  nodes.forEach((node) => {
+    const moduleId = partitionByNodeId.get(node.id) ?? 0;
+    if (!nodesByModule.has(moduleId)) {
+      nodesByModule.set(moduleId, []);
+    }
+    nodesByModule.get(moduleId)!.push(node);
+  });
+
+  nodesByModule.forEach((groupNodes) => {
+    if (groupNodes.length === 0) {
+      return;
+    }
+
+    const centroidX =
+      groupNodes.reduce((sum, node) => sum + node.x, 0) / groupNodes.length;
+    const centroidY =
+      groupNodes.reduce((sum, node) => sum + node.y, 0) / groupNodes.length;
+    const shiftX = (centerX - centroidX) * MODULE_GROUP_CENTER_PULL;
+    const shiftY = (centerY - centroidY) * MODULE_GROUP_CENTER_PULL;
+
+    groupNodes.forEach((node) => {
+      node.x += shiftX;
+      node.y += shiftY;
+    });
+  });
+
+  for (
+    let iteration = 0;
+    iteration < MAX_COLLISION_RELAX_ITERATIONS;
+    iteration++
+  ) {
+    let hadOverlap = false;
+
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const a = nodes[i];
+        const b = nodes[j];
+        const radiusA = nodeScale(a.flow);
+        const radiusB = nodeScale(b.flow);
+        const oneNodeLengthGap =
+          NODE_LENGTH_GAP_MULTIPLIER * Math.max(radiusA, radiusB);
+        const minimumDistance =
+          radiusA + radiusB + oneNodeLengthGap + COLLISION_PADDING;
+        let dx = b.x - a.x;
+        let dy = b.y - a.y;
+        let distance = Math.hypot(dx, dy);
+
+        if (distance >= minimumDistance) {
+          continue;
+        }
+
+        hadOverlap = true;
+
+        if (distance < EPSILON) {
+          const angle = (((a.id * 37 + b.id * 17) % 360) * Math.PI) / 180;
+          dx = Math.cos(angle);
+          dy = Math.sin(angle);
+          distance = 1;
+        }
+
+        const overlap = (minimumDistance - distance) / 2;
+        const ux = dx / distance;
+        const uy = dy / distance;
+
+        a.x -= ux * overlap;
+        a.y -= uy * overlap;
+        b.x += ux * overlap;
+        b.y += uy * overlap;
+      }
+    }
+
+    nodes.forEach((node) => {
+      const radius = nodeScale(node.flow);
+      const minX = radius + VIEWPORT_MARGIN;
+      const maxX = Math.max(minX, width - radius - VIEWPORT_MARGIN);
+      const minY = radius + VIEWPORT_MARGIN;
+      const maxY = Math.max(minY, height - radius - VIEWPORT_MARGIN);
+
+      node.x = Math.max(minX, Math.min(maxX, node.x));
+      node.y = Math.max(minY, Math.min(maxY, node.y));
+    });
+
+    if (!hadOverlap) {
+      break;
+    }
+  }
+
+  const isolatedNodes = nodes
+    .filter((node) => isolatedNodeIds.has(node.id))
+    .sort((a, b) => a.id - b.id);
+
+  if (isolatedNodes.length > 0) {
+    const maxIsolatedRadius = isolatedNodes.reduce(
+      (maxRadius, node) => Math.max(maxRadius, nodeScale(node.flow)),
+      0,
+    );
+    const edgeOffset = Math.max(
+      ISOLATED_CLUSTER_EDGE_OFFSET,
+      VIEWPORT_MARGIN + maxIsolatedRadius,
+    );
+    const isolatedClusterX = width - edgeOffset - maxIsolatedRadius;
+    const isolatedClusterY = edgeOffset + maxIsolatedRadius;
+    const columnSize = ISOLATED_CLUSTER_COLUMN_SIZE;
+    const spacing =
+      maxIsolatedRadius * ISOLATED_NODE_SPACING_MULTIPLIER + COLLISION_PADDING;
+
+    isolatedNodes.forEach((node, index) => {
+      const radius = nodeScale(node.flow);
+      const row = index % columnSize;
+      const col = Math.floor(index / columnSize);
+      const targetX = isolatedClusterX - col * spacing;
+      const targetY = isolatedClusterY + row * spacing;
+      const minX = radius + VIEWPORT_MARGIN;
+      const maxX = Math.max(minX, width - radius - VIEWPORT_MARGIN);
+      const minY = radius + VIEWPORT_MARGIN;
+      const maxY = Math.max(minY, height - radius - VIEWPORT_MARGIN);
+
+      node.x = Math.max(minX, Math.min(maxX, targetX));
+      node.y = Math.max(minY, Math.min(maxY, targetY));
+    });
+  }
+
   return net;
 };
 
-export default observer(function RegularizedInfomap({ 
-  width = 800, 
-  height = 400 
-}: Props) {
-  const [networkState, setNetworkState] = useState<NetworkState>("normal");
-  const [sparsePercentage, setSparsePercentage] = useState(50);
-  const [regularizationStrength, setRegularizationStrength] = useState(0.7);
-  const [copyStatus, setCopyStatus] = useState("");
+const normalizePathValues = (path: number[]) => {
+  const normalized = path
+    .filter((value) => Number.isFinite(value))
+    .map((value) => (value <= 0 ? value + 1 : value));
 
-  const data = useMemo(
-    () =>
-      sparsePercentage === 0
-        ? fullNetwork
-        : createIncompleteNetwork(sparsePercentage),
-    [sparsePercentage]
+  return normalized.length > 0 ? normalized : [1];
+};
+
+const parseTreeRowsFromText = (
+  treeText: string | undefined,
+  nodeIdSet: Set<number>,
+) => {
+  if (!treeText) {
+    return [];
+  }
+
+  const rows: TreeRow[] = [];
+
+  for (const rawLine of treeText.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) {
+      continue;
+    }
+
+    const matched = line.match(treeLinePattern);
+    if (matched) {
+      const path = normalizePathValues(
+        matched[1]
+          .split(":")
+          .map((value) => Number(value))
+          .filter((value) => Number.isFinite(value)),
+      );
+      const flow = Number(matched[2]);
+      const nodeId = Number(matched[4]);
+      const name = matched[3].replace(/\\"/g, '"');
+
+      if (nodeIdSet.has(nodeId)) {
+        rows.push({
+          nodeId,
+          path,
+          flow: Number.isFinite(flow) ? flow : 0,
+          name,
+        });
+      }
+      continue;
+    }
+
+    const tokens = line.split(/\s+/);
+    if (tokens.length < 3) {
+      continue;
+    }
+
+    const path = normalizePathValues(
+      tokens[0]
+        .split(":")
+        .map((value) => Number(value))
+        .filter((value) => Number.isFinite(value)),
+    );
+    const flow = Number(tokens[1]);
+    const nodeId = Number(tokens[tokens.length - 1]);
+    const fallbackName = tokens.slice(2, -1).join(" ").replace(/^"|"$/g, "");
+
+    if (nodeIdSet.has(nodeId)) {
+      rows.push({
+        nodeId,
+        path,
+        flow: Number.isFinite(flow) ? flow : 0,
+        name: fallbackName || nodeId.toString(),
+      });
+    }
+  }
+
+  return rows;
+};
+
+const parseTreeRowsFromJson = (
+  json: InfomapJsonLike | undefined,
+  nodeIdSet: Set<number>,
+) => {
+  if (!json?.nodes) {
+    return [];
+  }
+
+  const rows: TreeRow[] = [];
+
+  json.nodes.forEach((node) => {
+    if (!nodeIdSet.has(node.id)) {
+      return;
+    }
+
+    rows.push({
+      nodeId: node.id,
+      path: normalizePathValues(node.path ?? [1]),
+      flow: Number.isFinite(node.flow) ? (node.flow as number) : 0,
+      name: node.name ?? node.id.toString(),
+    });
+  });
+
+  return rows;
+};
+
+const buildTreeText = (rows: TreeRow[]) =>
+  rows
+    .slice()
+    .sort((a, b) => a.nodeId - b.nodeId)
+    .map((row) => {
+      const escapedName = row.name.replace(/"/g, '\\"');
+      return `${row.path.join(":")} ${row.flow.toFixed(6)} "${escapedName}" ${row.nodeId}`;
+    })
+    .join("\n");
+
+const parseTreeHeaderCodelength = (treeText: string | undefined) => {
+  if (!treeText) {
+    return Number.NaN;
+  }
+
+  const line = treeText
+    .split(/\r?\n/)
+    .find((candidate) => /codelength/i.test(candidate));
+  if (!line) {
+    return Number.NaN;
+  }
+
+  const match = line.match(
+    /codelength(?:\s*[:=])?\s*([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)/i,
+  );
+  if (!match) {
+    return Number.NaN;
+  }
+
+  const value = Number(match[1]);
+  return Number.isFinite(value) ? value : Number.NaN;
+};
+
+const runInfomap = async ({
+  data,
+  truthByNodeId,
+  isolatedNodeIds,
+  regularizationStrength,
+}: {
+  data: NetworkData;
+  truthByNodeId: Partition;
+  isolatedNodeIds: Set<number>;
+  regularizationStrength: number | null;
+}): Promise<InfomapRun> => {
+  const Infomap = await loadInfomapConstructor();
+  const infomap = new Infomap();
+
+  const args: Record<string, unknown> = {
+    twoLevel: true,
+    directed: false,
+    silent: true,
+    numTrials: NUM_TRIALS,
+    output: ["json", "tree"],
+  };
+
+  if (
+    regularizationStrength !== null &&
+    regularizationStrength > SUCCESS_EPSILON
+  ) {
+    args.regularized = true;
+    args.regularizationStrength = regularizationStrength;
+  }
+
+  const result = (await infomap.runAsync({
+    filename: "network.net",
+    network: {
+      nodes: data.nodes.map(({ id }) => ({
+        id,
+        name: id.toString(),
+      })),
+      links: data.links.map(({ source, target, weight }) => ({
+        source,
+        target,
+        weight,
+      })),
+    },
+    args,
+  })) as InfomapResultLike;
+
+  const nodeIds = data.nodes.map(({ id }) => id).sort((a, b) => a - b);
+  const nodeIdSet = new Set(nodeIds);
+
+  const rowsFromTree = parseTreeRowsFromText(result.tree, nodeIdSet);
+  const parsedRows =
+    rowsFromTree.length > 0
+      ? rowsFromTree
+      : parseTreeRowsFromJson(result.json, nodeIdSet);
+
+  const rowsByNodeId = new Map<number, TreeRow>();
+  parsedRows.forEach((row) => rowsByNodeId.set(row.nodeId, row));
+
+  let syntheticModulePath =
+    parsedRows.reduce(
+      (maxModule, row) => Math.max(maxModule, row.path[0] ?? 1),
+      0,
+    ) + 1;
+
+  for (const nodeId of nodeIds) {
+    if (rowsByNodeId.has(nodeId)) {
+      continue;
+    }
+    rowsByNodeId.set(nodeId, {
+      nodeId,
+      path: [syntheticModulePath++],
+      flow: 0,
+      name: nodeId.toString(),
+    });
+  }
+
+  const rows = [...rowsByNodeId.values()].sort((a, b) => a.nodeId - b.nodeId);
+
+  const rawPartition = new Map<number, number>();
+  rows.forEach((row) => {
+    rawPartition.set(row.nodeId, row.path[0] ?? row.nodeId);
+  });
+
+  const moduleByNodeId = normalizePartitionLabels(rawPartition);
+  const outcome = evaluatePartition(
+    data,
+    moduleByNodeId,
+    truthByNodeId,
+    isolatedNodeIds,
   );
 
-  const { normalOutcome, regularizedOutcome } = useMemo(() => {
-    const truthByNodeId = new Map<number, number>(
-      data.nodes.map(({ id, topModule }) => [id, topModule])
-    );
-    const graph = buildGraphContext(data);
-    const fragmentedPartition = createFragmentedPartition(
-      data,
-      graph.adjacency,
-      truthByNodeId
-    );
+  const jsonCodelength = result.json?.codelength;
+  const apiCodelength = Number.isFinite(jsonCodelength)
+    ? (jsonCodelength as number)
+    : parseTreeHeaderCodelength(result.tree);
 
-    const normalPartition = runRegularizedRefinement(
-      data,
-      graph,
-      fragmentedPartition,
-      0
-    );
-    const regularizedPartition = runRegularizedRefinement(
-      data,
-      graph,
-      fragmentedPartition,
-      regularizationStrength
-    );
+  return {
+    outcome,
+    treeText: buildTreeText(rows),
+    apiCodelength,
+    trials: NUM_TRIALS,
+  };
+};
 
-    return {
-      normalOutcome: evaluatePartition(data, normalPartition, truthByNodeId),
-      regularizedOutcome: evaluatePartition(
-        data,
-        regularizedPartition,
-        truthByNodeId
-      ),
+const EMPTY_NETWORK_DATA: NetworkData = {
+  nodes: [],
+  links: [],
+};
+const EMPTY_PARTITION: Partition = new Map();
+
+const createPlaceholderNetworkData = (
+  baseNetwork: RegularizedBaseNetwork,
+): NetworkData => ({
+  nodes: baseNetwork.nodeIds.map((id) => ({
+    id,
+    x: 0.5,
+    y: 0.5,
+    topModule: 0,
+  })),
+  links: baseNetwork.links.map((link) => ({ ...link })),
+});
+
+export default observer(function RegularizedInfomap({
+  width = 800,
+  height = 400,
+}: Props) {
+  const [networkState, setNetworkState] = useState<NetworkState>("normal");
+  const [sparsePercentage, setSparsePercentage] = useState(0);
+  const [regularizationStrength, setRegularizationStrength] = useState(0.7);
+  const [copyStatus, setCopyStatus] = useState("");
+  const [treeCopyStatus, setTreeCopyStatus] = useState("");
+  const [datasetState, setDatasetState] = useState<DatasetState>({
+    status: "loading",
+  });
+  const [regularizedHistory, setRegularizedHistory] = useState<
+    TriedRegularizationRun[]
+  >([]);
+  const [normalRunState, setNormalRunState] = useState<RunState>({
+    status: "loading",
+  });
+  const [regularizedRunState, setRegularizedRunState] = useState<RunState>({
+    status: "loading",
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+    setDatasetState({ status: "loading" });
+
+    const load = async () => {
+      try {
+        const response = await fetch(REGULARIZED_NETWORK_URL);
+        if (!response.ok) {
+          throw new Error(
+            `Could not load the complete network (${response.status})`,
+          );
+        }
+
+        const baseNetwork = parseRegularizedNetworkDat(await response.text());
+        const placeholderData = createPlaceholderNetworkData(baseNetwork);
+        const placeholderTruth = new Map<number, number>(
+          baseNetwork.nodeIds.map((id) => [id, 0]),
+        );
+        const referenceRun = await runInfomap({
+          data: placeholderData,
+          truthByNodeId: placeholderTruth,
+          isolatedNodeIds: getIsolatedNodeIds(placeholderData),
+          regularizationStrength: null,
+        });
+        const completeData = buildRegularizedNetworkData(
+          baseNetwork,
+          referenceRun.outcome.moduleByNodeId,
+        );
+
+        if (!cancelled) {
+          setDatasetState({
+            status: "ready",
+            completeData,
+            referencePartition: referenceRun.outcome.moduleByNodeId,
+          });
+        }
+      } catch (error) {
+        if (!cancelled) {
+          const message =
+            error instanceof Error ? error.message : String(error);
+          setDatasetState({
+            status: "error",
+            message: `Failed to prepare the complete network (${message})`,
+          });
+        }
+      }
     };
-  }, [data, regularizationStrength]);
 
-  const activeOutcome =
-    networkState === "regularized" ? regularizedOutcome : normalOutcome;
+    load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const completeData =
+    datasetState.status === "ready" ? datasetState.completeData : EMPTY_NETWORK_DATA;
+  const truthByNodeId =
+    datasetState.status === "ready"
+      ? datasetState.referencePartition
+      : EMPTY_PARTITION;
+  const data = useMemo(
+    () =>
+      datasetState.status === "ready"
+        ? createRegularizedIncompleteNetwork(completeData, sparsePercentage)
+        : EMPTY_NETWORK_DATA,
+    [completeData, datasetState.status, sparsePercentage],
+  );
+  const isolatedNodeIds = useMemo(() => getIsolatedNodeIds(data), [data]);
+
+  useEffect(() => {
+    if (datasetState.status !== "ready") {
+      return;
+    }
+
+    let cancelled = false;
+    setNormalRunState({ status: "loading" });
+
+    const run = async () => {
+      try {
+        const runResult = await runInfomap({
+          data,
+          truthByNodeId,
+          isolatedNodeIds,
+          regularizationStrength: null,
+        });
+        if (!cancelled) {
+          setNormalRunState({ status: "ready", run: runResult });
+        }
+      } catch (error) {
+        if (!cancelled) {
+          const message =
+            error instanceof Error ? error.message : String(error);
+          setNormalRunState({
+            status: "error",
+            message: `Failed to run Infomap API (${message})`,
+          });
+        }
+      }
+    };
+
+    run();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [data, datasetState.status, truthByNodeId, isolatedNodeIds]);
+
+  useEffect(() => {
+    if (datasetState.status !== "ready") {
+      return;
+    }
+
+    let cancelled = false;
+    setRegularizedRunState({ status: "loading" });
+
+    const run = async () => {
+      try {
+        const runResult = await runInfomap({
+          data,
+          truthByNodeId,
+          isolatedNodeIds,
+          regularizationStrength,
+        });
+        if (!cancelled) {
+          setRegularizedRunState({ status: "ready", run: runResult });
+          setRegularizedHistory((previous) => {
+            const nextEntry = {
+              sparsePercentage,
+              strength: regularizationStrength,
+              run: runResult,
+            };
+            const filtered = previous.filter(
+              (entry) =>
+                !(
+                  entry.sparsePercentage === sparsePercentage &&
+                  Math.abs(entry.strength - regularizationStrength) <=
+                    SUCCESS_EPSILON
+                ),
+            );
+            return [...filtered, nextEntry];
+          });
+        }
+      } catch (error) {
+        if (!cancelled) {
+          const message =
+            error instanceof Error ? error.message : String(error);
+          setRegularizedRunState({
+            status: "error",
+            message: `Failed to run regularized Infomap API (${message})`,
+          });
+        }
+      }
+    };
+
+    run();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    data,
+    datasetState.status,
+    truthByNodeId,
+    isolatedNodeIds,
+    regularizationStrength,
+    sparsePercentage,
+  ]);
+
+  const isNormal = networkState === "normal";
+  const isRegularized = networkState === "regularized";
+  const activeRunState = isRegularized ? regularizedRunState : normalRunState;
+
+  const fallbackPartition = useMemo(
+    () =>
+      new Map<number, number>(
+        data.nodes.map(({ id, topModule }) => [id, topModule]),
+      ),
+    [data],
+  );
+
+  const activePartition = useMemo(() => {
+    if (activeRunState.status === "ready") {
+      return activeRunState.run.outcome.moduleByNodeId;
+    }
+    return fallbackPartition;
+  }, [activeRunState, fallbackPartition]);
+
+  const { moduleScheme, moduleSchemeAlt } = useMemo(() => {
+    const moduleStats = new Map<
+      number,
+      { isolated: number; nonIsolated: number }
+    >();
+
+    data.nodes.forEach(({ id }) => {
+      const moduleId = activePartition.get(id) ?? 0;
+      const stats = moduleStats.get(moduleId) ?? {
+        isolated: 0,
+        nonIsolated: 0,
+      };
+      if (isolatedNodeIds.has(id)) {
+        stats.isolated++;
+      } else {
+        stats.nonIsolated++;
+      }
+      moduleStats.set(moduleId, stats);
+    });
+
+    const moduleIds = [...moduleStats.keys()].sort((a, b) => a - b);
+    const maxModuleId = moduleIds.length > 0 ? Math.max(...moduleIds) : 0;
+    const scheme = Array.from(
+      { length: maxModuleId + 1 },
+      () => ISOLATED_MODULE_COLOR,
+    );
+    const schemeAlt = Array.from({ length: maxModuleId + 1 }, () =>
+      darkenHex(ISOLATED_MODULE_COLOR),
+    );
+    let nonIsolatedColorIndex = 0;
+
+    moduleIds.forEach((moduleId) => {
+      const stats = moduleStats.get(moduleId)!;
+      if (stats.nonIsolated === 0) {
+        scheme[moduleId] = ISOLATED_MODULE_COLOR;
+        schemeAlt[moduleId] = darkenHex(ISOLATED_MODULE_COLOR);
+        return;
+      }
+
+      const color =
+        nonIsolatedColorIndex < COLORBLIND_FRIENDLY_POOL.length
+          ? COLORBLIND_FRIENDLY_POOL[nonIsolatedColorIndex]
+          : generatedModuleColor(nonIsolatedColorIndex);
+      scheme[moduleId] = color;
+      schemeAlt[moduleId] = darkenHex(color);
+      nonIsolatedColorIndex++;
+    });
+
+    return { moduleScheme: scheme, moduleSchemeAlt: schemeAlt };
+  }, [activePartition, data.nodes, isolatedNodeIds]);
 
   const network = useMemo(
     () =>
       buildVisualizationNetwork(
         data,
-        activeOutcome.moduleByNodeId,
+        activePartition,
+        isolatedNodeIds,
         width,
-        height
+        height,
+        regularizedNodeScale,
       ),
-    [activeOutcome.moduleByNodeId, data, height, width]
+    [activePartition, data, height, isolatedNodeIds, width],
   );
 
-  const formattedLinks = useMemo(
+  const allLinksText = useMemo(() => {
+    const vertices = [...network.nodes]
+      .sort((a, b) => a.id - b.id)
+      .map((node) => {
+        const escapedName = node.name.replace(/"/g, '\\"');
+        return `${node.id} "${escapedName}"`;
+      });
+
+    const edges = [...network.links]
+      .sort(
+        (a, b) =>
+          a.source.id - b.source.id ||
+          a.target.id - b.target.id ||
+          a.weight - b.weight,
+      )
+      .map(
+        (link) =>
+          `${link.source.id} ${link.target.id} ${link.weight.toFixed(6)}`,
+      );
+
+    return [
+      `*Vertices ${network.nodes.length}`,
+      ...vertices,
+      "*Edges",
+      ...edges,
+    ].join("\n");
+  }, [network]);
+
+  const fallbackTreeText = useMemo(
     () =>
       [...network.nodes]
-        .sort((a, b) => a.id - b.id)
-        .flatMap((node) => {
-          const outgoing = [...node.outLinks].sort(
-            (a, b) => a.target.id - b.target.id || a.weight - b.weight
-          );
-
-          if (outgoing.length === 0) {
-            return [`${node.id} ${node.id}`];
-          }
-
-          return outgoing.map(
-            (link) => `${node.id} ${link.target.id} ${link.weight.toFixed(2)}`
-          );
-        }),
-    [network]
+        .sort((a, b) => a.topModule - b.topModule || a.id - b.id)
+        .map((node) => {
+          const escapedName = node.name.replace(/"/g, '\\"');
+          const oneBasedPath = node.topModule + 1;
+          return `${oneBasedPath} ${node.flow.toFixed(6)} "${escapedName}" ${node.id}`;
+        })
+        .join("\n"),
+    [network],
   );
-  const allLinksText = useMemo(() => formattedLinks.join("\n"), [formattedLinks]);
+
+  const treeText =
+    activeRunState.status === "ready"
+      ? activeRunState.run.treeText
+      : fallbackTreeText;
 
   const handleNormalInfomap = useCallback(() => {
     setNetworkState("normal");
@@ -587,186 +1181,502 @@ export default observer(function RegularizedInfomap({
     setTimeout(() => setCopyStatus(""), 1500);
   }, [allLinksText]);
 
-  const isNormal = networkState === "normal";
-  const isRegularized = networkState === "regularized";
-  const displayedOutcome = isRegularized ? regularizedOutcome : normalOutcome;
+  const handleCopyTree = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(treeText);
+      setTreeCopyStatus("Copied");
+    } catch {
+      setTreeCopyStatus("Copy failed");
+    }
+
+    setTimeout(() => setTreeCopyStatus(""), 1500);
+  }, [treeText]);
+
+  const handleDownloadTree = useCallback(() => {
+    const blob = new Blob([`${treeText}\n`], {
+      type: "text/plain;charset=utf-8",
+    });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "network.tree";
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(url);
+  }, [treeText]);
+
+  const displayedOutcome =
+    activeRunState.status === "ready" ? activeRunState.run.outcome : null;
+  const normalOutcome =
+    normalRunState.status === "ready" ? normalRunState.run.outcome : null;
+  const displayedAssessment = displayedOutcome
+    ? assessOutcome(
+        displayedOutcome,
+        isRegularized ? "regularized" : "normal",
+        isRegularized ? normalOutcome : null,
+      )
+    : null;
+  const currentRegularizedComparison =
+    normalOutcome && regularizedRunState.status === "ready"
+      ? regularizedRunState.run.outcome.quality - normalOutcome.quality
+      : null;
+  const triedRegularizationsForCurrentSparsity = useMemo(
+    () =>
+      regularizedHistory.filter(
+        (entry) => entry.sparsePercentage === sparsePercentage,
+      ),
+    [regularizedHistory, sparsePercentage],
+  );
+  const bestTriedRegularization = useMemo(() => {
+    if (triedRegularizationsForCurrentSparsity.length === 0) {
+      return null;
+    }
+
+    return triedRegularizationsForCurrentSparsity.reduce((best, candidate) =>
+      isBetterRegularizationRun(candidate, best) ? candidate : best,
+    );
+  }, [triedRegularizationsForCurrentSparsity]);
+
+  const apiTotalCodelength =
+    activeRunState.status === "ready"
+      ? activeRunState.run.apiCodelength
+      : Number.NaN;
+  const completeNetworkNodeCount = completeData.nodes.length;
+  const completeNetworkAvgDegree =
+    completeNetworkNodeCount > 0
+      ? (2 * completeData.links.length) / completeNetworkNodeCount
+      : 0;
 
   return (
     <div className="space-y-6">
       <div className="prose max-w-none">
         <h2 className="text-2xl font-bold mb-4">Regularized Infomap</h2>
         <p>
-          This section mirrors the tutorial example with a synthetic network of 50 nodes
-          (average degree $\approx 8$) and three planted modules. We then remove a
-          fraction of links at random to simulate incomplete data.
+          In real life you often deal with incomplete data, such as missing
+          links or inaccurate link weights. Regularized Infomap is useful in
+          those settings because it can make the detected modules less brittle
+          when the observed network is only a partial or noisy picture of the
+          underlying system.
         </p>
         <p>
-          <strong>Regularized Infomap</strong> uses prior knowledge about network
-          structure to reduce overfitting when data is sparse. Here we showcase a
-          <strong>uniform prior</strong>, which discourages spurious small modules when
-          links are missing.
+          This example uses the complete network in{" "}
+          <code>VII_network_complete.dat</code>
+          {completeNetworkNodeCount > 0 && (
+            <>
+              {" "}
+              with {completeNetworkNodeCount} nodes and average degree{" "}
+              {completeNetworkAvgDegree.toFixed(1)}
+            </>
+          )}
+          . We first run normal Infomap on that full network and use the
+          resulting partition as the reference structure. We then remove a
+          fraction of links at random to simulate incomplete data and ask
+          Infomap to recover that reference partition.
+        </p>
+        <p>
+          <strong>Regularized Infomap</strong> adds a weak structural prior that
+          makes the partition less eager to overreact to missing links and
+          noisy evidence. When the observed network is sparse, that extra bias
+          can stabilize the solution by balancing the measured flow against a
+          simpler baseline model, instead of trusting every missing edge as a
+          strong signal. Here we use the <strong>Infomap API</strong> and
+          compare regularized and non-regularized solutions directly.
         </p>
       </div>
 
-      {/* Controls */}
-      <div className="space-y-4 p-4 bg-gray-50 rounded-lg">
-        <div className="flex gap-3 items-center flex-wrap">
-          <strong>Network Type:</strong>
-          <Button
-            className={`button ${isNormal ? "bg-blue-600" : ""}`}
-            onClick={handleNormalInfomap}
-          >
-            Normal Infomap
-          </Button>
-          <Button
-            className={`button ${isRegularized ? "bg-green-600" : ""}`}
-            onClick={handleRegularize}
-          >
-            Regularized Infomap
-          </Button>
-        </div>
+      <div className="xl:grid xl:grid-cols-[minmax(0,30rem)_minmax(0,1fr)] xl:items-start xl:gap-8">
+        <div className="relative z-10 space-y-6 xl:pr-4">
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <strong className="block">Network Type:</strong>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  className={`button w-full whitespace-nowrap ${isNormal ? "bg-blue-600" : ""}`}
+                  style={{ padding: "0.375rem 0.625rem", fontSize: "0.75rem" }}
+                  onClick={handleNormalInfomap}
+                >
+                  Normal Infomap
+                </Button>
+                <Button
+                  className={`button w-full whitespace-nowrap ${isRegularized ? "bg-green-600" : ""}`}
+                  style={{ padding: "0.375rem 0.625rem", fontSize: "0.75rem" }}
+                  onClick={handleRegularize}
+                >
+                  Regularized Infomap
+                </Button>
+              </div>
+            </div>
 
-        {/* Sparsity Slider */}
-        <div className="space-y-2">
-          <label className="flex items-center gap-3">
-            <strong className="min-w-[200px]">
-              Link Removal: {sparsePercentage}%
-            </strong>
-            <input
-              type="range"
-              min="0"
-              max="80"
-              step="5"
-              value={sparsePercentage}
-              onChange={(e) => setSparsePercentage(Number(e.target.value))}
-              className="flex-1"
-            />
-          </label>
-          <p className="text-sm text-gray-600">
-            Removes {sparsePercentage}% of links at random to simulate incomplete data
-          </p>
-        </div>
+            <div className="space-y-2">
+              <label className="flex items-center gap-3">
+                <strong className="min-w-[200px]">
+                  Link Removal: {sparsePercentage}%
+                </strong>
+                <input
+                  type="range"
+                  min="0"
+                  max="80"
+                  step="5"
+                  value={sparsePercentage}
+                  onChange={(e) => setSparsePercentage(Number(e.target.value))}
+                  className="flex-1"
+                />
+              </label>
+              <p className="text-sm text-gray-600">
+                Removes {sparsePercentage}% of links at random to simulate
+                incomplete data
+              </p>
+            </div>
 
-        {/* Regularization Slider */}
-        {isRegularized && (
-          <div className="space-y-2">
-            <label className="flex items-center gap-3">
-              <strong className="min-w-[200px]">
-                Regularization: {regularizationStrength.toFixed(2)}
-              </strong>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.05"
-                value={regularizationStrength}
-                onChange={(e) => setRegularizationStrength(Number(e.target.value))}
-                className="flex-1"
-              />
-            </label>
-            <p className="text-sm text-gray-600">
-              Uniform-prior strength used in the regularized run
-            </p>
+            <div className="min-h-[5.75rem]">
+              {isRegularized && (
+                <div className="space-y-2">
+                  <label className="flex items-center gap-3">
+                    <strong className="min-w-[200px]">
+                      Regularization: {regularizationStrength.toFixed(2)}
+                    </strong>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.05"
+                      value={regularizationStrength}
+                      onChange={(e) =>
+                        setRegularizationStrength(Number(e.target.value))
+                      }
+                      className="flex-1"
+                    />
+                  </label>
+                  <p className="text-sm text-gray-600">
+                    Uniform prior strength used with <code>--regularized</code>{" "}
+                    <span
+                      className="inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full border border-gray-400 text-[10px] font-bold text-gray-500 align-middle"
+                      title="The uniform prior acts like a weak background assumption that gently links all nodes together before the observed network is taken into account. Increasing this strength makes Infomap rely a bit less on sparse or noisy edge evidence and a bit more on that neutral baseline, instead of interpreting every missing link as strong evidence that nodes should be separated."
+                    >
+                      ?
+                    </span>
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
-        )}
-      </div>
 
-      {/* Status Message */}
-      <div className="p-4 rounded-lg border-2 bg-white space-y-2">
-        <div className={displayedOutcome.success ? "text-green-700" : "text-orange-700"}>
-          {displayedOutcome.success ? "✓" : "⚠"}{" "}
-          <strong>{isRegularized ? "Regularized Infomap" : "Normal Infomap"}:</strong>{" "}
-          {displayedOutcome.success ? "pass" : "fail"}
-          {isRegularized && (
-            <> at regularization strength {regularizationStrength.toFixed(2)}</>
-          )}
-          (agreement {displayedOutcome.quality.toFixed(2)}, modules{" "}
-          {displayedOutcome.moduleCount}/3).
+          <div className="space-y-4">
+            <div className="min-h-[7.5rem]">
+              {displayedOutcome && normalOutcome && (
+                <div>
+                  <h4 className="font-semibold mb-2">Evaluation</h4>
+                  <div className="space-y-1 text-sm">
+                    <div>
+                      Truth similarity{" "}
+                      <span
+                        className="inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full border border-gray-400 text-[10px] font-bold text-gray-500 align-middle"
+                        title="Truth similarity compares every pair of non-isolated nodes with the reference partition from the complete 0% network. A value of 90% means 90% of node pairs are classified consistently with that reference: either together in both partitions or separate in both."
+                      >
+                        ?
+                      </span>
+                      : <strong>{formatPercent(displayedOutcome.quality)}</strong>
+                    </div>
+                    <div>
+                      Distance from reference module count:{" "}
+                      <strong>{moduleDistanceFromTruth(displayedOutcome)}</strong>
+                    </div>
+                    {isRegularized && currentRegularizedComparison !== null && (
+                      <div>
+                        Compared with normal Infomap:{" "}
+                        <strong>
+                          {formatSignedPercentagePoints(currentRegularizedComparison)}
+                        </strong>{" "}
+                        in truth similarity
+                        {currentRegularizedComparison > NOTICEABLE_IMPROVEMENT
+                          ? " (closer to truth)"
+                          : currentRegularizedComparison < -NOTICEABLE_IMPROVEMENT
+                            ? " (worse than normal)"
+                            : " (about the same)"}
+                        .
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="min-h-[6.5rem]">
+              {isRegularized &&
+                displayedOutcome &&
+                normalOutcome &&
+                bestTriedRegularization &&
+                triedRegularizationsForCurrentSparsity.length > 1 && (
+                  <div>
+                    <h4 className="font-semibold mb-2">Best Tried Strength</h4>
+                    <div className="space-y-1 text-sm">
+                      <div>
+                        Best tried regularization strength for {sparsePercentage}%
+                        link removal:{" "}
+                        <strong>
+                          {bestTriedRegularization.strength.toFixed(2)}
+                        </strong>
+                      </div>
+                      <div>
+                        Truth similarity:{" "}
+                        <strong>
+                          {formatPercent(
+                            bestTriedRegularization.run.outcome.quality,
+                          )}
+                        </strong>
+                      </div>
+                      <div>
+                        Assessment:{" "}
+                        <strong>
+                          {
+                            assessOutcome(
+                              bestTriedRegularization.run.outcome,
+                              "regularized",
+                              normalOutcome,
+                            ).label
+                          }
+                        </strong>
+                      </div>
+                    </div>
+                  </div>
+                )}
+            </div>
+          </div>
         </div>
-        <div className="text-sm text-gray-600">
-          Pass criterion: recover exactly the three planted modules.
+
+        <div className="mt-6 xl:mt-0 xl:self-start xl:sticky xl:top-0">
+          <Network
+            network={network}
+            scheme={moduleScheme}
+            schemeAlt={moduleSchemeAlt}
+            showLabels={false}
+            showModules={true}
+            colorIntraModuleLinks={true}
+            baseLinkStrokeWidth={1}
+            showNodeId={true}
+            nodeIdPosition="middle"
+            nodeIdFontSize={10}
+            nodeStroke="#fff"
+            nodeStrokeWidth={1.5}
+            width={width}
+            height={height}
+            nodeScale={regularizedNodeScale}
+          />
+
+          <div className="mt-4 space-y-4">
+            <div className="min-h-[2.75rem]">
+              {datasetState.status === "loading" && (
+                <div className="text-blue-700">
+                  <strong>Dataset:</strong> loading <code>VII_network_complete.dat</code>{" "}
+                  and deriving the 0% normal-Infomap reference partition...
+                </div>
+              )}
+              {datasetState.status === "error" && (
+                <div className="text-red-700">
+                  <strong>Dataset:</strong> {datasetState.message}
+                </div>
+              )}
+              {datasetState.status === "ready" &&
+                activeRunState.status === "loading" && (
+                  <div className="text-blue-700">
+                    <strong>
+                      {isRegularized ? "Regularized Infomap" : "Normal Infomap"}:
+                    </strong>{" "}
+                    running Infomap API with -N {NUM_TRIALS}...
+                  </div>
+                )}
+              {datasetState.status === "ready" &&
+                activeRunState.status === "error" && (
+                  <div className="text-red-700">
+                    <strong>
+                      {isRegularized ? "Regularized Infomap" : "Normal Infomap"}:
+                    </strong>{" "}
+                    {activeRunState.message}
+                  </div>
+                )}
+            </div>
+
+            <div className="min-h-[4.5rem]">
+              {displayedOutcome && displayedAssessment && (
+                <div className={displayedAssessment.toneClassName}>
+                  {displayedAssessment.label === "pass"
+                    ? "✓"
+                    : displayedAssessment.label === "half-pass"
+                      ? "~"
+                      : "⚠"}{" "}
+                  <strong>
+                    {isRegularized ? "Regularized Infomap" : "Normal Infomap"}:
+                  </strong>{" "}
+                  {displayedAssessment.label}
+                  {isRegularized && (
+                    <>
+                      {" "}
+                      at regularization strength {regularizationStrength.toFixed(2)}
+                    </>
+                  )}{" "}
+                  ({displayedAssessment.description} Modules{" "}
+                  {displayedOutcome.moduleCount}/{displayedOutcome.truthModuleCount}
+                  {displayedOutcome.rawModuleCount !==
+                    displayedOutcome.moduleCount && (
+                    <> - ignoring isolated node modules</>
+                  )}
+                  ).
+                </div>
+              )}
+            </div>
+
+            <div className="min-h-[7rem]">
+              {isolatedNodeIds.size > 0 && (
+                <div className="text-sky-900 space-y-2">
+                  <div className="font-semibold">Isolated Nodes</div>
+                  <div className="text-sm">
+                    {`${isolatedNodeIds.size} isolated node${isolatedNodeIds.size === 1 ? "" : "s"} detected.`}
+                  </div>
+                  <div className="text-sm">
+                    Isolated nodes have no links, so Infomap has no flow evidence
+                    connecting them to the reference partition. Regularization cannot
+                    recover missing information when a node has zero observed links, so
+                    isolated-only modules are excluded from pass/fail module counting.
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="min-h-[6.5rem]">
+              {isRegularized &&
+                displayedOutcome &&
+                displayedOutcome.moduleCount === 1 &&
+                activeRunState.status === "ready" && (
+                  <div className="text-amber-900 space-y-2">
+                    <div className="font-semibold">
+                      Strong Regularization Collapses Modules
+                    </div>
+                    <div className="text-sm">
+                      The regularization strength is currently so strong that Infomap
+                      prefers one large module instead of separating the reference
+                      communities.
+                    </div>
+                    <div className="text-sm">
+                      A strong uniform prior increases the cost of keeping modules
+                      separate, so the best codelength solution can become a
+                      single-module partition.
+                    </div>
+                  </div>
+                )}
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Network Visualization */}
-      <div className="border rounded-lg p-4 bg-white">
-        <Network
-          network={network}
-          scheme={Object.values(scheme)}
-          schemeAlt={Object.values(schemeAlt)}
-          showLabels={false}
-          showModules={true}
-          colorIntraModuleLinks={true}
-          showNodeId={true}
-          nodeIdPosition="top"
-          nodeIdFontSize={9}
-          nodeStroke="none"
-          nodeStrokeWidth={0}
-          width={width}
-          height={height}
-          nodeScale={scaleSqrt().domain([0, 1]).range([5, 11])}
-        />
-      </div>
-
-      {/* Diagnostics */}
       <div className="grid gap-4 md:grid-cols-2">
-        <div className="border rounded-lg p-4 bg-white">
-          <h4 className="font-semibold mb-2">Codelength</h4>
-          <div className="font-mono text-lg">
-            {network.mapequation.codelength.toFixed(4)} bits
+        <CollapsiblePanel title="Codelength">
+          <div className="space-y-1 font-mono text-sm">
+            <div>
+              total (Infomap API):{" "}
+              {activeRunState.status === "ready"
+                ? Number.isFinite(apiTotalCodelength)
+                  ? `${apiTotalCodelength.toFixed(9)} bits`
+                  : "unavailable from API"
+                : "running..."}
+            </div>
+            <div>
+              trials run:{" "}
+              {activeRunState.status === "ready"
+                ? activeRunState.run.trials
+                : NUM_TRIALS}{" "}
+              (best solution shown)
+            </div>
+            <div className="font-sans text-gray-600">
+              Exact JS API output exposes the total codelength, but not the
+              exact module/index/one-level split.
+            </div>
           </div>
-        </div>
+        </CollapsiblePanel>
 
-        <div className="border rounded-lg p-4 bg-white">
-          <div className="flex items-center justify-between mb-2 gap-2">
-            <h4 className="font-semibold">
-              Current Links (source target strength; isolated nodes shown as id id)
-            </h4>
+        <CollapsiblePanel title="Current Links (Pajek format)">
+          <div className="mb-2 flex items-center justify-end gap-2">
             <button
               type="button"
               className="button text-xs py-1 px-2"
               onClick={handleCopyLinks}
             >
-              Copy all
+              Copy Pajek
             </button>
           </div>
           <textarea
             readOnly
             spellCheck={false}
             value={allLinksText}
-            className="font-mono text-xs text-gray-700 h-56 w-full border rounded p-2 resize-none"
+            className="font-mono text-xs text-gray-700 h-56 w-full border-0 bg-transparent p-0 resize-none outline-none"
             onFocus={(e) => e.currentTarget.select()}
           />
           <div className="text-xs text-gray-500 mt-2">
-            Click in the box, then press Cmd+A and Cmd+C to copy all links.
+            Click in the box, then press Cmd+A and Cmd+C to copy the full Pajek
+            output.
             {copyStatus ? ` ${copyStatus}.` : ""}
           </div>
-        </div>
+        </CollapsiblePanel>
+
+        <CollapsiblePanel title={'Tree Output (path flow "name" node_id)'}>
+          <div className="mb-2 flex items-center justify-end gap-2">
+            <button
+              type="button"
+              className="button text-xs py-1 px-2"
+              onClick={handleCopyTree}
+            >
+              Copy tree
+            </button>
+            <button
+              type="button"
+              className="button text-xs py-1 px-2"
+              onClick={handleDownloadTree}
+            >
+              Download .tree
+            </button>
+          </div>
+          <textarea
+            readOnly
+            spellCheck={false}
+            value={treeText}
+            className="font-mono text-xs text-gray-700 h-56 w-full border-0 bg-transparent p-0 resize-none outline-none"
+            onFocus={(e) => e.currentTarget.select()}
+          />
+          <div className="text-xs text-gray-500 mt-2">
+            Click in the box, then press Cmd+A and Cmd+C to copy all tree rows.
+            {treeCopyStatus ? ` ${treeCopyStatus}.` : ""}
+          </div>
+        </CollapsiblePanel>
       </div>
 
-      {/* Explanation */}
       <div className="prose max-w-none">
         <h3 className="text-xl font-bold">How it works</h3>
         <ol>
           <li>
-            <strong>Complete Network:</strong> The full network contains the planted modules,
-            so Infomap recovers the correct community structure.
+            <strong>Complete Network:</strong> We load the edge list from{" "}
+            <code>VII_network_complete.dat</code> and run normal Infomap at 0%
+            link removal to get the reference partition.
           </li>
           {isNormal ? (
             <li>
-              <strong>Normal Infomap:</strong> We start from connected components inside each
-              planted module, then run deterministic local moves with no prior. Missing links can
-              fragment modules and produce overfitting.
+              <strong>Normal Infomap:</strong> Runs{" "}
+              <code>@mapequation/infomap</code> with two-level optimization and{" "}
+              <code>-N {NUM_TRIALS}</code> trials.
             </li>
           ) : (
             <li>
-              <strong>Regularized Infomap:</strong> We add a uniform-prior term to favor larger
-              modules. Very high regularization can over-collapse all nodes into one module.
+              <strong>Regularized Infomap:</strong> Runs the same API with
+              <code>
+                {" "}
+                --regularized --regularization-strength{" "}
+                {regularizationStrength.toFixed(2)}
+              </code>{" "}
+              and <code>-N {NUM_TRIALS}</code> trials.
             </li>
           )}
           <li>
-            <strong>Evaluation:</strong> A run passes only if it recovers exactly the three
-            planted modules (high pairwise agreement and module count = 3).
+            <strong>Evaluation:</strong> A run passes only if it recovers
+            exactly the reference partition from the complete network.
           </li>
         </ol>
       </div>
