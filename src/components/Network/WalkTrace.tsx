@@ -3,6 +3,7 @@ import { motion, SVGMotionProps } from "framer-motion";
 import { useMemo } from "react";
 import * as d3 from "d3";
 import { RandomWalker } from "../../model/algorithms";
+import { neutralLinkColor } from "../scheme";
 import Path from "./utils/Path";
 
 interface Props {
@@ -28,7 +29,7 @@ export default observer(function WalkTrace({
     minWidth = 1,
     maxWidth = 14,
     maxVisiblePaths = 15,
-    stroke = "#707070",
+    stroke = neutralLinkColor,
   }: Props) {
   const { current, nodeTrace, teleported, interval } = walker;
 

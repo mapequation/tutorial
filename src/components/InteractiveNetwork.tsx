@@ -9,6 +9,7 @@ import type { Network as NetworkModel, Node as NodeModel } from "../model";
 import { observer } from "mobx-react";
 import { scaleSqrt } from "d3";
 import { getRate, Rate } from "../model";
+import { neutralLinkColor } from "./scheme";
 import Network from "./Network/Network";
 
 interface Props {
@@ -324,6 +325,7 @@ export default observer(function InteractiveNetwork({
             height: "auto",
             display: "block",
             userSelect: "none",
+            overflow: "visible",
           }}
           viewBox={`0 0 ${width} ${height}`}
           xmlns="http://www.w3.org/2000/svg"
@@ -339,7 +341,7 @@ export default observer(function InteractiveNetwork({
               orient="auto"
               markerUnits="strokeWidth"
             >
-              <path d="M0,0 L0,6 L9,3 z" fill="#888" />
+              <path d="M0,0 L0,6 L9,3 z" fill={neutralLinkColor} />
             </marker>
           </defs>
 
@@ -380,11 +382,16 @@ export default observer(function InteractiveNetwork({
       </div>
 
       {/* Feedback message */}
-      {feedback && (
-        <div style={{ color: "#2d5f2e", fontWeight: 500, minHeight: "1.25rem" }}>
-          {feedback}
-        </div>
-      )}
+      <div
+        aria-live="polite"
+        style={{
+          color: "#2d5f2e",
+          fontWeight: 500,
+          minHeight: "1.25rem",
+        }}
+      >
+        {feedback || "\u00A0"}
+      </div>
 
       {/* Instructions */}
       <div style={{ color: "#666", fontSize: "0.8rem" }}>

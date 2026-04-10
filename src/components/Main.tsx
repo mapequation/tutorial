@@ -2,7 +2,13 @@ import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { observer } from "mobx-react";
 import { Network as NetworkModel, Node as NodeModel, Rate } from "../model";
 import { modular_w_json } from "../networks";
-import { scheme, schemeAlt } from "./scheme";
+import {
+  neutralLinkColor,
+  neutralNodeColor,
+  neutralNodeColorAlt,
+  scheme,
+  schemeAlt,
+} from "./scheme";
 import { CodelengthChart, InlineTrace } from "./Trace";
 import Rates from "./Rates";
 import CodeBooks from "./CodeBooks";
@@ -25,7 +31,57 @@ const network = NetworkModel.parse(modular_w_json).setNodeExtents(
   [50, 700],
 );
 
-const CodelengthSummary = observer(function CodelengthSummary({
+function CodelengthOverlay({
+  x,
+  y,
+  width,
+  lines,
+}: {
+  x: number;
+  y: number;
+  width: number;
+  lines: string[];
+}) {
+  return (
+    <foreignObject
+      x={x}
+      y={y}
+      width={width}
+      height={Math.max(32, lines.length * 28)}
+      pointerEvents="none"
+    >
+      <div className="space-y-1 text-base leading-6 text-gray-900">
+        {lines.map((line) => (
+          <div key={line}>{line}</div>
+        ))}
+      </div>
+    </foreignObject>
+  );
+}
+
+function formatRelativeCodelength(
+  oneLevelCodelength: number,
+  totalCodelength: number,
+) {
+  if (oneLevelCodelength <= 0) {
+    return "Relative codelength unavailable";
+  }
+
+  const relativeChange =
+    ((totalCodelength - oneLevelCodelength) / oneLevelCodelength) * 100;
+
+  if (Math.abs(relativeChange) < 0.05) {
+    return "Two-level is about the same length";
+  }
+
+  return relativeChange < 0
+    ? `Two-level is ${Math.abs(relativeChange).toFixed(1)}% shorter`
+    : `Two-level is ${relativeChange.toFixed(1)}% longer`;
+}
+
+const TWO_LEVEL_OVERLAY_PANEL_OFFSET = 64;
+
+const OneLevelCodelengthOverlay = observer(function OneLevelCodelengthOverlay({
   network,
 }: {
   network: NetworkModel;
@@ -33,25 +89,49 @@ const CodelengthSummary = observer(function CodelengthSummary({
   // Read the update counter so this summary refreshes after partition edits
   // trigger `network.finalize()`, even though `Main` itself is not observed.
   network.treeUpdateCounter;
+  const anchorNode = network.getNode(15);
+  const x = (anchorNode?.x ?? 500) - 120;
+  const y = (anchorNode?.y ?? 700) + 54;
+  const relativeCodelength = formatRelativeCodelength(
+    network.mapequation.oneLevelCodelength,
+    network.mapequation.codelength,
+  );
 
   return (
-    <div className="mt-4 space-y-1 text-sm">
-      <div>
-        {"One-level codelength "}
-        {network.mapequation.oneLevelCodelength.toFixed(3)} {"bits"}
-      </div>
-      <div>
-        {"Index codelength "}
-        {network.mapequation.indexCodelength.toFixed(3)} {"bits"}
-      </div>
-      <div>
-        {"Module codelength "}
-        {network.mapequation.moduleCodelength.toFixed(3)} {"bits"}
-      </div>
-      <div>
-        {"Codelength"} {network.mapequation.codelength.toFixed(3)} {"bits"}
-      </div>
-    </div>
+    <CodelengthOverlay
+      x={x}
+      y={y}
+      width={240}
+      lines={[
+        `One-level codelength ${network.mapequation.oneLevelCodelength.toFixed(3)} bits`,
+        relativeCodelength,
+      ]}
+    />
+  );
+});
+
+const TwoLevelCodelengthOverlay = observer(function TwoLevelCodelengthOverlay({
+  network,
+}: {
+  network: NetworkModel;
+}) {
+  // Read the update counter so this summary refreshes after partition edits
+  // trigger `network.finalize()`, even though `Main` itself is not observed.
+  network.treeUpdateCounter;
+  const anchorNode = network.getNode(15);
+  const y = (anchorNode?.y ?? 700) + 54;
+
+  return (
+    <CodelengthOverlay
+      x={-118}
+      y={y - TWO_LEVEL_OVERLAY_PANEL_OFFSET}
+      width={236}
+      lines={[
+        `Index codelength ${network.mapequation.indexCodelength.toFixed(3)} bits`,
+        `Module codelength ${network.mapequation.moduleCodelength.toFixed(3)} bits`,
+        `Total codelength ${network.mapequation.codelength.toFixed(3)} bits`,
+      ]}
+    />
   );
 });
 
@@ -140,8 +220,8 @@ export default function Main() {
       >
         <Network
           network={network}
-          scheme={["#d7d7d7"]}
-          schemeAlt={["#a8a8a8"]}
+          scheme={[neutralNodeColor]}
+          schemeAlt={[neutralNodeColorAlt]}
           rate={showVisitRates ? Rate.Visits : Rate.Uniform}
           showLabels={false}
           showModules={false}
@@ -151,8 +231,12 @@ export default function Main() {
           width={800}
           height={830}
         >
-          <WalkTrace walker={network.walker} stroke="#a3a3a3" opacity={0.28} />
-          <Walker walker={network.walker} r={12} fill="#4a4a4a" />
+          <WalkTrace
+            walker={network.walker}
+            stroke={neutralLinkColor}
+            opacity={0.28}
+          />
+          <Walker walker={network.walker} r={12} fill={neutralNodeColorAlt} />
         </Network>
       </div>
 
@@ -222,8 +306,8 @@ export default function Main() {
         <h3 className="text-lg font-bold mb-4">One-Level Partition</h3>
         <Network
           network={network}
-          scheme={["#ddd"]}
-          schemeAlt={["#aaa"]}
+          scheme={[neutralNodeColor]}
+          schemeAlt={[neutralNodeColorAlt]}
           rate={showVisitRates ? Rate.Visits : Rate.Uniform}
           showLabels={true}
           showModules={false}
@@ -233,10 +317,14 @@ export default function Main() {
           width={800}
           height={830}
         >
-          <WalkTrace walker={network.walker} stroke="#999" opacity={0.4} />
-          <Walker walker={network.walker} r={12} fill="#666" />
+          <WalkTrace
+            walker={network.walker}
+            stroke={neutralLinkColor}
+            opacity={0.4}
+          />
+          <Walker walker={network.walker} r={12} fill={neutralNodeColorAlt} />
+          <OneLevelCodelengthOverlay network={network} />
         </Network>
-        <CodelengthSummary network={network} />
       </div>
 
       <div className="col-span-2 mb-10">
@@ -254,9 +342,14 @@ export default function Main() {
           width={800}
           height={830}
         >
-          <WalkTrace walker={network.walker} stroke="#888" opacity={0.5} />
-          <Walker walker={network.walker} r={12} fill="#393939" />
+          <WalkTrace
+            walker={network.walker}
+            stroke={neutralLinkColor}
+            opacity={0.5}
+          />
+          <Walker walker={network.walker} r={12} fill={neutralNodeColorAlt} />
           <EnterExitCodes network={network} x={200} y={660} />
+          <TwoLevelCodelengthOverlay network={network} />
         </InteractiveNetwork>
       </div>
 

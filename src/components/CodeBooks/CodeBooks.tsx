@@ -37,6 +37,8 @@ interface FittedHeights {
   gap: number;
 }
 
+const PULSE_FADE_STEPS = 5;
+
 function createBandPath({
   startX,
   startTop,
@@ -129,6 +131,103 @@ function fitHeights(
   return { heights, gap };
 }
 
+function hexToRgb(hex: string) {
+  const normalized = hex.replace("#", "");
+  const parsed = Number.parseInt(normalized, 16);
+
+  return {
+    r: (parsed >> 16) & 255,
+    g: (parsed >> 8) & 255,
+    b: parsed & 255,
+  };
+}
+
+function rgbToHex({
+  r,
+  g,
+  b,
+}: {
+  r: number;
+  g: number;
+  b: number;
+}) {
+  return `#${[r, g, b]
+    .map((value) =>
+      Math.max(0, Math.min(255, Math.round(value)))
+        .toString(16)
+        .padStart(2, "0"),
+    )
+    .join("")}`;
+}
+
+function interpolateHexColor(start: string, end: string, progress: number) {
+  const clampedProgress = Math.max(0, Math.min(1, progress));
+  const from = hexToRgb(start);
+  const to = hexToRgb(end);
+
+  return rgbToHex({
+    r: from.r + (to.r - from.r) * clampedProgress,
+    g: from.g + (to.g - from.g) * clampedProgress,
+    b: from.b + (to.b - from.b) * clampedProgress,
+  });
+}
+
+function darkenHexColor(color: string, amount: number) {
+  return interpolateHexColor(color, "#000000", amount);
+}
+
+function getPulseProgress(age: number | null) {
+  if (age === null) {
+    return null;
+  }
+
+  if (PULSE_FADE_STEPS <= 1) {
+    return 1;
+  }
+
+  return Math.max(0, Math.min(1, age / (PULSE_FADE_STEPS - 1)));
+}
+
+function getPulseFill(baseColor: string, activeColor: string, age: number | null) {
+  const progress = getPulseProgress(age);
+
+  if (progress === null) {
+    return baseColor;
+  }
+
+  return interpolateHexColor(darkenHexColor(activeColor, 0.4), baseColor, progress);
+}
+
+function getPulseOpacity(
+  baseOpacity: number,
+  activeOpacity: number,
+  age: number | null,
+) {
+  const progress = getPulseProgress(age);
+
+  if (progress === null) {
+    return baseOpacity;
+  }
+
+  return activeOpacity + (baseOpacity - activeOpacity) * progress;
+}
+
+function getPulseScale(baseScale: number, age: number | null) {
+  if (age !== 0) {
+    return 1;
+  }
+
+  return baseScale;
+}
+
+function getPulseTranslateX(baseTranslateX: number, age: number | null) {
+  if (age !== 0) {
+    return 0;
+  }
+
+  return baseTranslateX;
+}
+
 export default observer(function CodeBooks({ barWidth = 200, network }: Props) {
   const treeVersion = network.treeUpdateCounter;
   const { root } = network.tree;
@@ -156,15 +255,6 @@ export default observer(function CodeBooks({ barWidth = 200, network }: Props) {
   const availableHeight = height - contentTop - bottomPadding;
   const moduleHeightRatio = 0.3;
   const duration = (0.5 * walker.interval) / 1000;
-  const currentNodeId = walker.current?.id ?? -1;
-  const prevNodeId = walker.prev?.id ?? -1;
-  const currentModuleId = walker.current
-    ? (root.getLeaf(walker.current.id)?.parent?.id ?? -1)
-    : -1;
-  const prevModuleId = walker.prev
-    ? (root.getLeaf(walker.prev.id)?.parent?.id ?? -1)
-    : -1;
-  const moduleChanged = currentModuleId !== prevModuleId;
   const motionStyle = {
     transformBox: "fill-box" as const,
     transformOrigin: "left center" as const,
@@ -172,8 +262,47 @@ export default observer(function CodeBooks({ barWidth = 200, network }: Props) {
   const pulseScale = 1.03;
   const pulseTranslateX = 1.5;
   const baseRibbonOpacity = 0.18;
-  const activeRibbonOpacity = 0.3;
-  const pulseRibbonOpacity = 0.38;
+  const pulseRibbonOpacity = 0.46;
+
+  const recentNodeAgeById = new Map<number, number>();
+  const recentModuleEnterAgeById = new Map<number, number>();
+  const recentModuleExitAgeById = new Map<number, number>();
+  const trace = walker.trace;
+  const firstRelevantTraceIndex = Math.max(trace.length - PULSE_FADE_STEPS, 0);
+
+  for (let traceIndex = trace.length - 1; traceIndex >= firstRelevantTraceIndex; traceIndex--) {
+    const nodeId = trace[traceIndex];
+    const age = trace.length - 1 - traceIndex;
+    const currentTreeNode = root.getLeaf(nodeId);
+
+    if (!currentTreeNode) {
+      continue;
+    }
+
+    if (!recentNodeAgeById.has(nodeId)) {
+      recentNodeAgeById.set(nodeId, age);
+    }
+
+    const previousNodeId = traceIndex > 0 ? trace[traceIndex - 1] : null;
+    const previousTreeNode =
+      previousNodeId === null ? null : root.getLeaf(previousNodeId);
+    const enteredModuleId = currentTreeNode.parent?.id ?? -1;
+    const previousModuleId = previousTreeNode?.parent?.id ?? null;
+    const moduleChangedOnStep =
+      previousTreeNode === null || previousModuleId !== enteredModuleId;
+
+    if (moduleChangedOnStep && !recentModuleEnterAgeById.has(enteredModuleId)) {
+      recentModuleEnterAgeById.set(enteredModuleId, age);
+    }
+
+    if (
+      moduleChangedOnStep &&
+      previousModuleId !== null &&
+      !recentModuleExitAgeById.has(previousModuleId)
+    ) {
+      recentModuleExitAgeById.set(previousModuleId, age);
+    }
+  }
 
   // Layout modules on left side by enter flow
   const moduleAvailableHeight = availableHeight * moduleHeightRatio;
@@ -279,12 +408,9 @@ export default observer(function CodeBooks({ barWidth = 200, network }: Props) {
 
     return groupedNodes.map((node, index) => {
       const isExitNode = node.exitFlow > 0;
-      const isCurrentNode = !isExitNode && node.id === currentNodeId;
-      const isTriggeredNode = isCurrentNode && node.id !== prevNodeId;
-      const isTriggeredExit =
-        isExitNode && moduleChanged && module.id === prevModuleId;
-      const isActive = isCurrentNode;
-      const transitionDelay = isTriggeredNode && moduleChanged ? duration : 0;
+      const pulseAge = isExitNode
+        ? (recentModuleExitAgeById.get(module.id) ?? null)
+        : (recentNodeAgeById.get(node.id) ?? null);
       const isLastNode = index === groupedNodes.length - 1;
       const sliceHeight = isLastNode
         ? module.y - sliceTop
@@ -293,9 +419,7 @@ export default observer(function CodeBooks({ barWidth = 200, network }: Props) {
         key: `${module.id}-${node.id}-${index}`,
         fill: scheme[module.id],
         activeFill: schemeAlt[module.id],
-        active: isActive,
-        triggered: isTriggeredNode || isTriggeredExit,
-        delay: transitionDelay,
+        pulseAge,
         path: createBandPath({
           startX: module.x + barWidth,
           startTop: sliceTop,
@@ -352,70 +476,51 @@ export default observer(function CodeBooks({ barWidth = 200, network }: Props) {
             key={band.key}
             d={band.path}
             initial={{
-              fill: band.active ? band.activeFill : band.fill,
-              fillOpacity: band.active
-                ? activeRibbonOpacity
-                : baseRibbonOpacity,
+              fill: band.fill,
+              fillOpacity: baseRibbonOpacity,
             }}
             animate={{
-              fill: band.triggered
-                ? [
-                    null,
-                    band.activeFill,
-                    band.active ? band.activeFill : band.fill,
-                  ]
-                : band.active
-                  ? [null, band.activeFill]
-                  : band.fill,
-              fillOpacity: band.triggered
-                ? [
-                    null,
-                    pulseRibbonOpacity,
-                    band.active ? activeRibbonOpacity : baseRibbonOpacity,
-                  ]
-                : band.active
-                  ? [null, activeRibbonOpacity]
-                  : baseRibbonOpacity,
+              fill: getPulseFill(band.fill, band.activeFill, band.pulseAge),
+              fillOpacity: getPulseOpacity(
+                baseRibbonOpacity,
+                pulseRibbonOpacity,
+                band.pulseAge,
+              ),
             }}
-            transition={{ duration, delay: band.delay }}
+            transition={{ duration }}
           />
         ))}
       </g>
       {/* Left column: module enter codes */}
       <g>
         <g id="modules">
-          {modules.map((module, i) => (
-            <g key={`module-${module.id}`}>
-              <EnterFlow
-                {...getProps(module)}
-                initial={{
-                  fill: scheme[module.id],
-                  scale: 1,
-                  translateX: 0,
-                }}
-                animate={{
-                  fill:
-                    moduleChanged && module.id === currentModuleId
-                      ? [null, schemeAlt[module.id], scheme[module.id]]
-                      : scheme[module.id],
-                  scale:
-                    moduleChanged && module.id === currentModuleId
-                      ? [null, pulseScale, 1]
-                      : 1,
-                  translateX:
-                    moduleChanged && module.id === currentModuleId
-                      ? [null, pulseTranslateX, 0]
-                      : 0,
-                }}
-                transition={{
-                  duration,
-                  delay:
-                    moduleChanged && module.id === currentModuleId
-                      ? 0.5 * duration
-                      : 0,
-                }}
-                style={motionStyle}
-              />
+          {modules.map((module) => {
+            const modulePulseAge = recentModuleEnterAgeById.get(module.id) ?? null;
+
+            return (
+              <g key={`module-${module.id}`}>
+                <EnterFlow
+                  {...getProps(module)}
+                  initial={{
+                    fill: scheme[module.id],
+                    scale: 1,
+                    translateX: 0,
+                  }}
+                  animate={{
+                    fill: getPulseFill(
+                      scheme[module.id],
+                      schemeAlt[module.id],
+                      modulePulseAge,
+                    ),
+                    scale: getPulseScale(pulseScale, modulePulseAge),
+                    translateX: getPulseTranslateX(
+                      pulseTranslateX,
+                      modulePulseAge,
+                    ),
+                  }}
+                  transition={{ duration }}
+                  style={motionStyle}
+                />
               <text
                 x={module.x + barWidth + 20}
                 y={module.y - module.height / 2}
@@ -424,8 +529,9 @@ export default observer(function CodeBooks({ barWidth = 200, network }: Props) {
               >
                 {module.enterCode}
               </text>
-            </g>
-          ))}
+              </g>
+            );
+          })}
         </g>
         {/* Right column: node exit and visit codes */}
         <g id="nodes">
@@ -434,12 +540,9 @@ export default observer(function CodeBooks({ barWidth = 200, network }: Props) {
             const moduleId = node.parent!.id;
             const mainColor = scheme[moduleId];
             const altColor = schemeAlt[moduleId];
-            const changedFromModule =
-              moduleChanged && moduleId === prevModuleId;
-            const isCurrentNode = !isExitNode && node.id === currentNodeId;
-            const isTriggeredNode = isCurrentNode && node.id !== prevNodeId;
-            const transitionDelay =
-              isTriggeredNode && moduleChanged ? duration : 0;
+            const pulseAge = isExitNode
+              ? (recentModuleExitAgeById.get(moduleId) ?? null)
+              : (recentNodeAgeById.get(node.id) ?? null);
 
             return isExitNode ? (
               // Exit flow node (module exit event)
@@ -452,12 +555,12 @@ export default observer(function CodeBooks({ barWidth = 200, network }: Props) {
                     translateX: 0,
                   }}
                   animate={{
-                    fill: changedFromModule
-                      ? [null, altColor, mainColor]
-                      : mainColor,
-                    scale: changedFromModule ? [null, pulseScale, 1] : 1,
-                    translateX:
-                      changedFromModule ? [null, pulseTranslateX, 0] : 0,
+                    fill: getPulseFill(mainColor, altColor, pulseAge),
+                    scale: getPulseScale(pulseScale, pulseAge),
+                    translateX: getPulseTranslateX(
+                      pulseTranslateX,
+                      pulseAge,
+                    ),
                   }}
                   transition={{ duration }}
                   style={motionStyle}
@@ -478,17 +581,19 @@ export default observer(function CodeBooks({ barWidth = 200, network }: Props) {
                 <Flow
                   {...getProps(node)}
                   initial={{
-                    fill: isCurrentNode ? altColor : mainColor,
+                    fill: mainColor,
                     scale: 1,
                     translateX: 0,
                   }}
                   animate={{
-                    fill: isCurrentNode ? [null, altColor] : mainColor,
-                    scale: isTriggeredNode ? [null, pulseScale, 1] : 1,
-                    translateX:
-                      isTriggeredNode ? [null, pulseTranslateX, 0] : 0,
+                    fill: getPulseFill(mainColor, altColor, pulseAge),
+                    scale: getPulseScale(pulseScale, pulseAge),
+                    translateX: getPulseTranslateX(
+                      pulseTranslateX,
+                      pulseAge,
+                    ),
                   }}
-                  transition={{ duration, delay: transitionDelay }}
+                  transition={{ duration }}
                   style={motionStyle}
                 />
                 <text

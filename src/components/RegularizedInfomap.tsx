@@ -13,6 +13,7 @@ import {
 import { observer } from "mobx-react";
 import { scaleSqrt } from "d3";
 import { Network as NetworkModel, FlowModel } from "../model";
+import { isolatedModuleColor, scheme as figColors } from "./scheme";
 import {
   buildRegularizedNetworkData,
   createRegularizedIncompleteNetwork,
@@ -43,7 +44,7 @@ interface PartitionOutcome {
   truthModuleCount: number;
   rawModuleCount: number;
   isolatedOnlyModuleCount: number;
-  quality: number;
+  adjustedMutualInformation: number;
   success: boolean;
 }
 
@@ -117,9 +118,24 @@ interface InfomapResultLike {
   json?: InfomapJsonLike;
 }
 
-const NUM_TRIALS = 10;
+const NUM_TRIALS = 5;
 const SUCCESS_EPSILON = 1e-9;
 const NOTICEABLE_IMPROVEMENT = 0.01;
+const RUNNING_STATUS_MESSAGE = `running Infomap API with -N ${NUM_TRIALS}...`;
+const PASS_DESCRIPTION =
+  "Exact recovery of the reference partition from the complete network.";
+const REGULARIZED_HALF_PASS_DESCRIPTION =
+  "Outperforms normal Infomap, but does not exactly recover the reference partition from the complete network.";
+const NORMAL_FAIL_DESCRIPTION =
+  "Does not exactly recover the reference partition from the complete network.";
+const REGULARIZED_FAIL_DESCRIPTION =
+  "Does not recover the reference partition from the complete network and does not outperform normal Infomap.";
+const REGULARIZED_RESERVED_ASSESSMENT_LABEL = "half-pass";
+const COLLAPSE_WARNING_TITLE = "Strong Regularization Collapses Modules";
+const COLLAPSE_WARNING_DESCRIPTION =
+  "The regularization strength is currently so strong that Infomap prefers one large module instead of separating the reference communities.";
+const COLLAPSE_WARNING_EXPLANATION =
+  "A strong uniform prior increases the cost of keeping modules separate, so the best codelength solution can become a single-module partition.";
 const COLLISION_PADDING = 2;
 const NODE_LENGTH_GAP_MULTIPLIER = 2;
 const LAYOUT_EXPANSION_FACTOR = 1.2;
@@ -134,31 +150,34 @@ const REGULARIZED_NETWORK_URL = "/demo/data/VII_network_complete.dat";
 const regularizedNodeScale = scaleSqrt().domain([0, 1]).range([7, 14]);
 const treeLinePattern =
   /^([0-9:]+)\s+([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)\s+"((?:[^"\\]|\\.)*)"\s+(\d+)\s*$/;
-const ISOLATED_MODULE_COLOR = "#9CA3AF";
-const COLORBLIND_FRIENDLY_POOL = [
-  "#0072B2",
-  "#E69F00",
-  "#009E73",
-  "#CC79A7",
-  "#D55E00",
-  "#56B4E9",
-  "#F0E442",
-  "#7B70D6",
-  "#117733",
-  "#44AA99",
-  "#88CCEE",
-  "#DDCC77",
-  "#CC6677",
-  "#AA4499",
-  "#882255",
-  "#661100",
-  "#6699CC",
-  "#AA4466",
-  "#4477AA",
-  "#228833",
-] as const;
+const ISOLATED_MODULE_COLOR = isolatedModuleColor;
+const COLORBLIND_FRIENDLY_POOL = figColors;
 
 let infomapConstructorPromise: Promise<InfomapConstructor> | null = null;
+
+const resolveInfomapConstructor = (moduleValue?: unknown) => {
+  const importedModule = (moduleValue ?? {}) as {
+    default?: unknown;
+    Infomap?: unknown;
+  };
+  const globalExports = (
+    globalThis as typeof globalThis & {
+      infomap?: {
+        default?: unknown;
+        Infomap?: unknown;
+      };
+    }
+  ).infomap;
+  const constructor =
+    importedModule.default ??
+    importedModule.Infomap ??
+    globalExports?.default ??
+    globalExports?.Infomap;
+
+  return typeof constructor === "function"
+    ? (constructor as InfomapConstructor)
+    : undefined;
+};
 
 function CollapsiblePanel({
   title,
@@ -187,11 +206,17 @@ function CollapsiblePanel({
 
 const loadInfomapConstructor = async (): Promise<InfomapConstructor> => {
   if (!infomapConstructorPromise) {
+    const existingConstructor = resolveInfomapConstructor();
+    if (existingConstructor) {
+      return existingConstructor;
+    }
+
     infomapConstructorPromise = import("@mapequation/infomap").then(
       (module) => {
-        const constructor = (module.default ?? module.Infomap) as
-          | InfomapConstructor
-          | undefined;
+        // In @mapequation/infomap 2.9.x the package executes as a side-effect
+        // bundle and attaches itself to `self.infomap`, while the ESM import
+        // namespace can be empty. Support both export styles.
+        const constructor = resolveInfomapConstructor(module);
         if (!constructor) {
           throw new Error(
             "Infomap constructor was not found in @mapequation/infomap.",
@@ -267,10 +292,10 @@ const getIsolatedNodeIds = (data: NetworkData) => {
   );
 };
 
-const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`;
+const formatAmi = (value: number) => value.toFixed(3);
 
-const formatSignedPercentagePoints = (value: number) =>
-  `${value >= 0 ? "+" : ""}${(value * 100).toFixed(1)} pp`;
+const formatSignedAmiDifference = (value: number) =>
+  `${value >= 0 ? "+" : ""}${value.toFixed(3)}`;
 
 const moduleDistanceFromTruth = (outcome: PartitionOutcome) =>
   Math.abs(outcome.moduleCount - outcome.truthModuleCount);
@@ -281,23 +306,24 @@ const assessOutcome = (
   baselineOutcome?: PartitionOutcome | null,
 ): OutcomeAssessment => {
   const moduleDistance = moduleDistanceFromTruth(outcome);
-  const qualityDelta = baselineOutcome
-    ? outcome.quality - baselineOutcome.quality
+  const adjustedMutualInformationDelta = baselineOutcome
+    ? outcome.adjustedMutualInformation -
+      baselineOutcome.adjustedMutualInformation
     : 0;
   const baselineDistance = baselineOutcome
     ? moduleDistanceFromTruth(baselineOutcome)
     : Number.POSITIVE_INFINITY;
   const improvedRelativeToBaseline =
     baselineOutcome &&
-    (qualityDelta > SUCCESS_EPSILON ||
-      (Math.abs(qualityDelta) <= SUCCESS_EPSILON &&
+    (adjustedMutualInformationDelta > SUCCESS_EPSILON ||
+      (Math.abs(adjustedMutualInformationDelta) <= SUCCESS_EPSILON &&
         moduleDistance < baselineDistance));
 
   if (outcome.success) {
     return {
       label: "pass",
       toneClassName: "text-green-700",
-      description: "Exact recovery of the reference partition from the complete network.",
+      description: PASS_DESCRIPTION,
     };
   }
 
@@ -305,8 +331,7 @@ const assessOutcome = (
     return {
       label: "half-pass",
       toneClassName: "text-yellow-700",
-      description:
-        "Outperforms normal Infomap, but does not exactly recover the reference partition from the complete network.",
+      description: REGULARIZED_HALF_PASS_DESCRIPTION,
     };
   }
 
@@ -315,8 +340,8 @@ const assessOutcome = (
     toneClassName: "text-orange-700",
     description:
       context === "regularized"
-        ? "Does not recover the reference partition from the complete network and does not outperform normal Infomap."
-        : "Does not exactly recover the reference partition from the complete network.",
+        ? REGULARIZED_FAIL_DESCRIPTION
+        : NORMAL_FAIL_DESCRIPTION,
   };
 };
 
@@ -331,8 +356,16 @@ const isBetterRegularizationRun = (
     return leftOutcome.success;
   }
 
-  if (Math.abs(leftOutcome.quality - rightOutcome.quality) > SUCCESS_EPSILON) {
-    return leftOutcome.quality > rightOutcome.quality;
+  if (
+    Math.abs(
+      leftOutcome.adjustedMutualInformation -
+        rightOutcome.adjustedMutualInformation,
+    ) > SUCCESS_EPSILON
+  ) {
+    return (
+      leftOutcome.adjustedMutualInformation >
+      rightOutcome.adjustedMutualInformation
+    );
   }
 
   const leftModuleDistance = moduleDistanceFromTruth(leftOutcome);
@@ -344,30 +377,210 @@ const isBetterRegularizationRun = (
   return left.strength < right.strength;
 };
 
-const pairwisePartitionAgreement = (
+const LOG_FACTORIAL_CACHE = [0];
+
+const logFactorial = (n: number) => {
+  if (n <= 1) {
+    return 0;
+  }
+
+  for (let i = LOG_FACTORIAL_CACHE.length; i <= n; i++) {
+    LOG_FACTORIAL_CACHE[i] = LOG_FACTORIAL_CACHE[i - 1] + Math.log(i);
+  }
+
+  return LOG_FACTORIAL_CACHE[n];
+};
+
+const buildContingencyTable = (
   truthByNodeId: Partition,
   predictedByNodeId: Partition,
   nodeIds: number[],
 ) => {
-  let matchedPairs = 0;
-  let comparedPairs = 0;
+  const truthLabels = [
+    ...new Set(nodeIds.map((nodeId) => truthByNodeId.get(nodeId) ?? 0)),
+  ];
+  const predictedLabels = [
+    ...new Set(nodeIds.map((nodeId) => predictedByNodeId.get(nodeId) ?? 0)),
+  ];
+  const truthIndexByLabel = new Map<number, number>();
+  const predictedIndexByLabel = new Map<number, number>();
 
-  for (let i = 0; i < nodeIds.length; i++) {
-    for (let j = i + 1; j < nodeIds.length; j++) {
-      const a = nodeIds[i];
-      const b = nodeIds[j];
-      const sameTruth = truthByNodeId.get(a) === truthByNodeId.get(b);
-      const samePrediction =
-        predictedByNodeId.get(a) === predictedByNodeId.get(b);
+  truthLabels.forEach((label, index) => truthIndexByLabel.set(label, index));
+  predictedLabels.forEach((label, index) =>
+    predictedIndexByLabel.set(label, index),
+  );
 
-      if (sameTruth === samePrediction) {
-        matchedPairs++;
+  const matrix = Array.from({ length: truthLabels.length }, () =>
+    Array.from({ length: predictedLabels.length }, () => 0),
+  );
+  const truthCounts = Array.from({ length: truthLabels.length }, () => 0);
+  const predictedCounts = Array.from({ length: predictedLabels.length }, () => 0);
+
+  nodeIds.forEach((nodeId) => {
+    const truthIndex = truthIndexByLabel.get(truthByNodeId.get(nodeId) ?? 0)!;
+    const predictedIndex = predictedIndexByLabel.get(
+      predictedByNodeId.get(nodeId) ?? 0,
+    )!;
+
+    matrix[truthIndex][predictedIndex]++;
+    truthCounts[truthIndex]++;
+    predictedCounts[predictedIndex]++;
+  });
+
+  return {
+    matrix,
+    truthCounts,
+    predictedCounts,
+  };
+};
+
+const partitionEntropyFromCounts = (counts: number[], totalCount: number) =>
+  counts.reduce((entropy, count) => {
+    if (count <= 0 || totalCount <= 0) {
+      return entropy;
+    }
+
+    const probability = count / totalCount;
+    return entropy - probability * Math.log2(probability);
+  }, 0);
+
+const mutualInformationFromContingencyTable = (
+  matrix: number[][],
+  truthCounts: number[],
+  predictedCounts: number[],
+  totalCount: number,
+) => {
+  let mutualInformation = 0;
+
+  for (let truthIndex = 0; truthIndex < matrix.length; truthIndex++) {
+    for (
+      let predictedIndex = 0;
+      predictedIndex < matrix[truthIndex].length;
+      predictedIndex++
+    ) {
+      const intersectionCount = matrix[truthIndex][predictedIndex];
+      if (intersectionCount <= 0) {
+        continue;
       }
-      comparedPairs++;
+
+      mutualInformation +=
+        (intersectionCount / totalCount) *
+        Math.log2(
+          (totalCount * intersectionCount) /
+            (truthCounts[truthIndex] * predictedCounts[predictedIndex]),
+        );
     }
   }
 
-  return comparedPairs === 0 ? 1 : matchedPairs / comparedPairs;
+  return mutualInformation;
+};
+
+const expectedMutualInformation = (
+  truthCounts: number[],
+  predictedCounts: number[],
+  totalCount: number,
+) => {
+  if (totalCount <= 1) {
+    return 0;
+  }
+
+  let expectedValue = 0;
+
+  truthCounts.forEach((truthCount) => {
+    predictedCounts.forEach((predictedCount) => {
+      const minIntersection = Math.min(truthCount, predictedCount);
+      const maxIntersection = Math.max(
+        1,
+        truthCount + predictedCount - totalCount,
+      );
+
+      if (maxIntersection > minIntersection) {
+        return;
+      }
+
+      const logCombinationPrefix =
+        logFactorial(truthCount) +
+        logFactorial(predictedCount) +
+        logFactorial(totalCount - truthCount) +
+        logFactorial(totalCount - predictedCount) -
+        logFactorial(totalCount);
+
+      for (
+        let intersectionCount = maxIntersection;
+        intersectionCount <= minIntersection;
+        intersectionCount++
+      ) {
+        const logProbability =
+          logCombinationPrefix -
+          logFactorial(intersectionCount) -
+          logFactorial(truthCount - intersectionCount) -
+          logFactorial(predictedCount - intersectionCount) -
+          logFactorial(
+            totalCount - truthCount - predictedCount + intersectionCount,
+          );
+        const probability = Math.exp(logProbability);
+
+        expectedValue +=
+          (intersectionCount / totalCount) *
+          Math.log2(
+            (totalCount * intersectionCount) / (truthCount * predictedCount),
+          ) *
+          probability;
+      }
+    });
+  });
+
+  return expectedValue;
+};
+
+const adjustedMutualInformation = (
+  truthByNodeId: Partition,
+  predictedByNodeId: Partition,
+  nodeIds: number[],
+) => {
+  const totalCount = nodeIds.length;
+  if (totalCount <= 1) {
+    return 1;
+  }
+
+  const { matrix, truthCounts, predictedCounts } = buildContingencyTable(
+    truthByNodeId,
+    predictedByNodeId,
+    nodeIds,
+  );
+  const truthEntropy = partitionEntropyFromCounts(truthCounts, totalCount);
+  const predictedEntropy = partitionEntropyFromCounts(
+    predictedCounts,
+    totalCount,
+  );
+  const mutualInformation = mutualInformationFromContingencyTable(
+    matrix,
+    truthCounts,
+    predictedCounts,
+    totalCount,
+  );
+  const expectedInformation = expectedMutualInformation(
+    truthCounts,
+    predictedCounts,
+    totalCount,
+  );
+  const denominator =
+    (truthEntropy + predictedEntropy) / 2 - expectedInformation;
+
+  if (Math.abs(denominator) <= SUCCESS_EPSILON) {
+    return Math.abs(mutualInformation - expectedInformation) <=
+      SUCCESS_EPSILON
+      ? 1
+      : 0;
+  }
+
+  return Math.max(
+    -1,
+    Math.min(
+      1,
+      (mutualInformation - expectedInformation) / denominator,
+    ),
+  );
 };
 
 const evaluatePartition = (
@@ -402,14 +615,14 @@ const evaluatePartition = (
       isolatedOnlyModuleCount++;
     }
   });
-  const quality = pairwisePartitionAgreement(
+  const adjustedMutualInformationScore = adjustedMutualInformation(
     truthByNodeId,
     predictedByNodeId,
     evaluatedNodeIds,
   );
   const success =
     moduleCount === truthModuleCount &&
-    Math.abs(quality - 1) <= SUCCESS_EPSILON;
+    Math.abs(adjustedMutualInformationScore - 1) <= SUCCESS_EPSILON;
 
   return {
     moduleByNodeId: predictedByNodeId,
@@ -417,7 +630,7 @@ const evaluatePartition = (
     truthModuleCount,
     rawModuleCount,
     isolatedOnlyModuleCount,
-    quality,
+    adjustedMutualInformation: adjustedMutualInformationScore,
     success,
   };
 };
@@ -1206,21 +1419,6 @@ export default observer(function RegularizedInfomap({
     URL.revokeObjectURL(url);
   }, [treeText]);
 
-  const displayedOutcome =
-    activeRunState.status === "ready" ? activeRunState.run.outcome : null;
-  const normalOutcome =
-    normalRunState.status === "ready" ? normalRunState.run.outcome : null;
-  const displayedAssessment = displayedOutcome
-    ? assessOutcome(
-        displayedOutcome,
-        isRegularized ? "regularized" : "normal",
-        isRegularized ? normalOutcome : null,
-      )
-    : null;
-  const currentRegularizedComparison =
-    normalOutcome && regularizedRunState.status === "ready"
-      ? regularizedRunState.run.outcome.quality - normalOutcome.quality
-      : null;
   const triedRegularizationsForCurrentSparsity = useMemo(
     () =>
       regularizedHistory.filter(
@@ -1237,15 +1435,52 @@ export default observer(function RegularizedInfomap({
       isBetterRegularizationRun(candidate, best) ? candidate : best,
     );
   }, [triedRegularizationsForCurrentSparsity]);
+  const latestTriedRegularization = useMemo(() => {
+    if (triedRegularizationsForCurrentSparsity.length === 0) {
+      return null;
+    }
+
+    return triedRegularizationsForCurrentSparsity[
+      triedRegularizationsForCurrentSparsity.length - 1
+    ];
+  }, [triedRegularizationsForCurrentSparsity]);
+  const displayedOutcome =
+    activeRunState.status === "ready" ? activeRunState.run.outcome : null;
+  const normalOutcome =
+    normalRunState.status === "ready" ? normalRunState.run.outcome : null;
+  const displayedAssessment = displayedOutcome
+    ? assessOutcome(
+        displayedOutcome,
+        isRegularized ? "regularized" : "normal",
+        isRegularized ? normalOutcome : null,
+      )
+    : null;
+  const reservedRegularizedOutcome =
+    displayedOutcome ?? latestTriedRegularization?.run.outcome ?? null;
+  const currentRegularizedComparison =
+    normalOutcome && regularizedRunState.status === "ready"
+      ? regularizedRunState.run.outcome.adjustedMutualInformation -
+        normalOutcome.adjustedMutualInformation
+      : null;
 
   const apiTotalCodelength =
     activeRunState.status === "ready"
       ? activeRunState.run.apiCodelength
       : Number.NaN;
   const completeNetworkNodeCount = completeData.nodes.length;
-  const completeNetworkAvgDegree =
+  const completeNetworkUniqueLinkCount = new Set(
+    completeData.links.map(({ source, target }) => {
+      const minNodeId = Math.min(source, target);
+      const maxNodeId = Math.max(source, target);
+      return `${minNodeId}:${maxNodeId}`;
+    }),
+  ).size;
+  const completeNetworkAvgLinksPerNode =
     completeNetworkNodeCount > 0
-      ? (2 * completeData.links.length) / completeNetworkNodeCount
+      ? Math.round(
+          ((2 * completeNetworkUniqueLinkCount) / completeNetworkNodeCount) *
+            2,
+        ) / 2
       : 0;
 
   return (
@@ -1265,8 +1500,8 @@ export default observer(function RegularizedInfomap({
           {completeNetworkNodeCount > 0 && (
             <>
               {" "}
-              with {completeNetworkNodeCount} nodes and average degree{" "}
-              {completeNetworkAvgDegree.toFixed(1)}
+              with {completeNetworkNodeCount} nodes, where each node has about{" "}
+              {completeNetworkAvgLinksPerNode.toFixed(1)} links on average
             </>
           )}
           . We first run normal Infomap on that full network and use the
@@ -1369,14 +1604,17 @@ export default observer(function RegularizedInfomap({
                   <h4 className="font-semibold mb-2">Evaluation</h4>
                   <div className="space-y-1 text-sm">
                     <div>
-                      Truth similarity{" "}
+                      AMI{" "}
                       <span
                         className="inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full border border-gray-400 text-[10px] font-bold text-gray-500 align-middle"
-                        title="Truth similarity compares every pair of non-isolated nodes with the reference partition from the complete 0% network. A value of 90% means 90% of node pairs are classified consistently with that reference: either together in both partitions or separate in both."
+                        title="Adjusted mutual information (AMI) compares the current non-isolated-node partition with the reference partition from the complete 0% network while correcting for agreement expected by chance. A value of 1 means the partitions match exactly up to relabeling, values near 0 mean no better agreement than random partitions with similar module sizes, and negative values mean worse-than-chance agreement."
                       >
                         ?
                       </span>
-                      : <strong>{formatPercent(displayedOutcome.quality)}</strong>
+                      :{" "}
+                      <strong>
+                        {formatAmi(displayedOutcome.adjustedMutualInformation)}
+                      </strong>
                     </div>
                     <div>
                       Distance from reference module count:{" "}
@@ -1386,14 +1624,14 @@ export default observer(function RegularizedInfomap({
                       <div>
                         Compared with normal Infomap:{" "}
                         <strong>
-                          {formatSignedPercentagePoints(currentRegularizedComparison)}
+                          {formatSignedAmiDifference(currentRegularizedComparison)}
                         </strong>{" "}
-                        in truth similarity
+                        in AMI
                         {currentRegularizedComparison > NOTICEABLE_IMPROVEMENT
-                          ? " (closer to truth)"
+                          ? " (better agreement with the reference partition)"
                           : currentRegularizedComparison < -NOTICEABLE_IMPROVEMENT
-                            ? " (worse than normal)"
-                            : " (about the same)"}
+                            ? " (worse agreement than normal)"
+                            : " (about the same AMI)"}
                         .
                       </div>
                     )}
@@ -1419,10 +1657,11 @@ export default observer(function RegularizedInfomap({
                         </strong>
                       </div>
                       <div>
-                        Truth similarity:{" "}
+                        AMI:{" "}
                         <strong>
-                          {formatPercent(
-                            bestTriedRegularization.run.outcome.quality,
+                          {formatAmi(
+                            bestTriedRegularization.run.outcome
+                              .adjustedMutualInformation,
                           )}
                         </strong>
                       </div>
@@ -1465,7 +1704,21 @@ export default observer(function RegularizedInfomap({
           />
 
           <div className="mt-4 space-y-4">
-            <div className="min-h-[2.75rem]">
+            <div
+              className={
+                datasetState.status === "ready"
+                  ? "grid min-h-[2.75rem]"
+                  : "min-h-[2.75rem]"
+              }
+            >
+              {datasetState.status === "ready" && (
+                <div aria-hidden="true" className="invisible [grid-area:1/1]">
+                  <strong>
+                    {isRegularized ? "Regularized Infomap" : "Normal Infomap"}:
+                  </strong>{" "}
+                  {RUNNING_STATUS_MESSAGE}
+                </div>
+              )}
               {datasetState.status === "loading" && (
                 <div className="text-blue-700">
                   <strong>Dataset:</strong> loading <code>VII_network_complete.dat</code>{" "}
@@ -1479,16 +1732,16 @@ export default observer(function RegularizedInfomap({
               )}
               {datasetState.status === "ready" &&
                 activeRunState.status === "loading" && (
-                  <div className="text-blue-700">
+                  <div className="text-blue-700 [grid-area:1/1]">
                     <strong>
                       {isRegularized ? "Regularized Infomap" : "Normal Infomap"}:
                     </strong>{" "}
-                    running Infomap API with -N {NUM_TRIALS}...
+                    {RUNNING_STATUS_MESSAGE}
                   </div>
                 )}
               {datasetState.status === "ready" &&
                 activeRunState.status === "error" && (
-                  <div className="text-red-700">
+                  <div className="text-red-700 [grid-area:1/1]">
                     <strong>
                       {isRegularized ? "Regularized Infomap" : "Normal Infomap"}:
                     </strong>{" "}
@@ -1497,9 +1750,31 @@ export default observer(function RegularizedInfomap({
                 )}
             </div>
 
-            <div className="min-h-[4.5rem]">
+            <div
+              className={
+                isRegularized ? "grid min-h-[4.5rem]" : "min-h-[4.5rem]"
+              }
+            >
+              {isRegularized && reservedRegularizedOutcome && (
+                <div aria-hidden="true" className="invisible [grid-area:1/1]">
+                  ~ <strong>Regularized Infomap:</strong>{" "}
+                  {REGULARIZED_RESERVED_ASSESSMENT_LABEL} at
+                  regularization strength {regularizationStrength.toFixed(2)} (
+                  {REGULARIZED_FAIL_DESCRIPTION} Modules{" "}
+                  {Math.max(
+                    reservedRegularizedOutcome.moduleCount,
+                    reservedRegularizedOutcome.rawModuleCount,
+                  )}
+                  /
+                  {reservedRegularizedOutcome.truthModuleCount}
+                  <> - ignoring isolated node modules</>
+                  ).
+                </div>
+              )}
               {displayedOutcome && displayedAssessment && (
-                <div className={displayedAssessment.toneClassName}>
+                <div
+                  className={`${displayedAssessment.toneClassName}${isRegularized ? " [grid-area:1/1]" : ""}`}
+                >
                   {displayedAssessment.label === "pass"
                     ? "✓"
                     : displayedAssessment.label === "half-pass"
@@ -1512,11 +1787,13 @@ export default observer(function RegularizedInfomap({
                   {isRegularized && (
                     <>
                       {" "}
-                      at regularization strength {regularizationStrength.toFixed(2)}
+                      at regularization strength{" "}
+                      {regularizationStrength.toFixed(2)}
                     </>
                   )}{" "}
                   ({displayedAssessment.description} Modules{" "}
-                  {displayedOutcome.moduleCount}/{displayedOutcome.truthModuleCount}
+                  {displayedOutcome.moduleCount}/
+                  {displayedOutcome.truthModuleCount}
                   {displayedOutcome.rawModuleCount !==
                     displayedOutcome.moduleCount && (
                     <> - ignoring isolated node modules</>
@@ -1543,25 +1820,29 @@ export default observer(function RegularizedInfomap({
               )}
             </div>
 
-            <div className="min-h-[6.5rem]">
+            <div
+              className={
+                isRegularized ? "grid min-h-[6.5rem]" : "min-h-[6.5rem]"
+              }
+            >
+              {isRegularized && (
+                <div
+                  aria-hidden="true"
+                  className="invisible space-y-2 [grid-area:1/1]"
+                >
+                  <div className="font-semibold">{COLLAPSE_WARNING_TITLE}</div>
+                  <div className="text-sm">{COLLAPSE_WARNING_DESCRIPTION}</div>
+                  <div className="text-sm">{COLLAPSE_WARNING_EXPLANATION}</div>
+                </div>
+              )}
               {isRegularized &&
                 displayedOutcome &&
                 displayedOutcome.moduleCount === 1 &&
                 activeRunState.status === "ready" && (
-                  <div className="text-amber-900 space-y-2">
-                    <div className="font-semibold">
-                      Strong Regularization Collapses Modules
-                    </div>
-                    <div className="text-sm">
-                      The regularization strength is currently so strong that Infomap
-                      prefers one large module instead of separating the reference
-                      communities.
-                    </div>
-                    <div className="text-sm">
-                      A strong uniform prior increases the cost of keeping modules
-                      separate, so the best codelength solution can become a
-                      single-module partition.
-                    </div>
+                  <div className="text-amber-900 space-y-2 [grid-area:1/1]">
+                    <div className="font-semibold">{COLLAPSE_WARNING_TITLE}</div>
+                    <div className="text-sm">{COLLAPSE_WARNING_DESCRIPTION}</div>
+                    <div className="text-sm">{COLLAPSE_WARNING_EXPLANATION}</div>
                   </div>
                 )}
             </div>

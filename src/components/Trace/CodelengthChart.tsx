@@ -1,312 +1,261 @@
-import { useEffect, useState } from "react";
 import { observer } from "mobx-react";
+import TeX from "@matejmazur/react-katex";
 import type { Network } from "../../model";
 
 interface Props {
   network: Network;
 }
 
-function linePath(points: Array<[number, number]>) {
-  if (points.length === 0) return "";
-
-  return points
-    .map(([x, y], index) => `${index === 0 ? "M" : "L"} ${x} ${y}`)
-    .join(" ");
+function HelpBadge({ title }: { title: string }) {
+  return (
+    <span
+      className="inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full border border-gray-400 text-[10px] font-bold text-gray-500 align-middle"
+      title={title}
+    >
+      ?
+    </span>
+  );
 }
 
-function nextScaleCeiling(bits: number) {
-  if (bits <= 0) return 10;
+function formatRelativeComparison(
+  baselineCodelength: number,
+  comparisonCodelength: number,
+) {
+  if (baselineCodelength <= 0) {
+    return "Unavailable";
+  }
 
-  const magnitude = 10 ** Math.floor(Math.log10(bits));
-  const normalized = bits / magnitude;
+  const relativeChange =
+    ((comparisonCodelength - baselineCodelength) / baselineCodelength) * 100;
 
-  if (normalized <= 1) return magnitude;
-  if (normalized <= 2) return 2 * magnitude;
-  if (normalized <= 5) return 5 * magnitude;
-  return 10 * magnitude;
+  if (Math.abs(relativeChange) < 0.05) {
+    return "About the same as one-level";
+  }
+
+  return relativeChange < 0
+    ? `${Math.abs(relativeChange).toFixed(1)}% shorter than one-level`
+    : `${relativeChange.toFixed(1)}% longer than one-level`;
+}
+
+function formatRatio(numerator: number, denominator: number) {
+  if (denominator <= 0) {
+    return "Unavailable";
+  }
+
+  return `${(numerator / denominator).toFixed(3)}x`;
+}
+
+function formatNumberSummary(
+  values: number[],
+  formatter: (value: number) => string = (value) => value.toFixed(3),
+) {
+  if (values.length === 0) {
+    return "none";
+  }
+
+  const visibleValues = values.slice(0, 6).map(formatter).join(", ");
+
+  return values.length > 6
+    ? `${visibleValues}, and ${values.length - 6} more`
+    : visibleValues;
 }
 
 export default observer(function CodelengthChart({ network }: Props) {
-  const { walker } = network;
-  const history = walker.codelengthHistory.slice();
-  const latest = history[history.length - 1];
-  const historyMaxBits = history.length
-    ? Math.max(
-        ...history.map((point) => point.oneLevelBits),
-        ...history.map((point) => point.twoLevelBits),
-      )
-    : 0;
-  const [scaleMaxBits, setScaleMaxBits] = useState(() =>
-    nextScaleCeiling(historyMaxBits),
+  // Read the update counter so the equations refresh when modules change.
+  network.treeUpdateCounter;
+
+  const { walker, mapequation } = network;
+  const oneLevelCodelength = mapequation.oneLevelCodelength;
+  const indexCodelength = mapequation.indexCodelength;
+  const moduleCodelength = mapequation.moduleCodelength;
+  const twoLevelCodelength = mapequation.codelength;
+  const modules = Array.from(network.tree.root.children.values()).sort(
+    (a, b) => a.id - b.id,
   );
-  const displayScaleMaxBits =
-    history.length === 0
-      ? nextScaleCeiling(0)
-      : historyMaxBits > scaleMaxBits
-        ? nextScaleCeiling(historyMaxBits)
-        : scaleMaxBits;
+  const moduleCount = modules.length;
+  const moduleSwitchRate = modules.reduce(
+    (total, module) => total + module.exitFlow,
+    0,
+  );
+  const moduleEntryRates = modules.map((module) => module.enterFlow);
+  const moduleUseRates = modules.map(
+    (module) =>
+      module.exitFlow +
+      module
+        .map((node) => node.flow)
+        .reduce((total, nodeFlow) => total + nodeFlow, 0),
+  );
+  const moduleCodebookSizes = modules.map((module) => module.children.size + 1);
 
-  useEffect(() => {
-    if (history.length === 0) {
-      setScaleMaxBits(nextScaleCeiling(0));
-      return;
-    }
+  const estimatedOneLevelCodelength =
+    walker.totalVisits > 0
+      ? walker.cumulativeOneLevelBits / walker.totalVisits
+      : null;
+  const estimatedTwoLevelCodelength =
+    walker.totalVisits > 0
+      ? walker.cumulativeTwoLevelBits / walker.totalVisits
+      : null;
 
-    setScaleMaxBits((currentScaleMaxBits) =>
-      historyMaxBits > currentScaleMaxBits
-        ? nextScaleCeiling(historyMaxBits)
-        : currentScaleMaxBits,
-    );
-  }, [history.length, historyMaxBits]);
-
-  const [viewBoxWidth, viewBoxHeight] = [1000, 280];
-  const leftPadding = 72;
-  const rightPadding = 24;
-  const topPadding = 52;
-  const bottomPadding = 42;
-  const chartWidth = viewBoxWidth - leftPadding - rightPadding;
-  const chartHeight = viewBoxHeight - topPadding - bottomPadding;
-
-  const chartData = (() => {
-    if (history.length === 0) {
-      return {
-        oneLevelPath: "",
-        twoLevelPath: "",
-        areaPath: "",
-        maxBits: displayScaleMaxBits,
-        minStep: 0,
-        maxStep: 1,
-      };
-    }
-
-    const minStep = history[0].step;
-    const maxStep = history[history.length - 1].step;
-    const x = (step: number) =>
-      maxStep === minStep
-        ? leftPadding + chartWidth / 2
-        : leftPadding + ((step - minStep) / (maxStep - minStep)) * chartWidth;
-    const y = (bits: number) =>
-      topPadding + chartHeight - (bits / displayScaleMaxBits) * chartHeight;
-
-    const oneLevelPoints = history.map(
-      (point) => [x(point.step), y(point.oneLevelBits)] as [number, number],
-    );
-    const twoLevelPoints = history.map(
-      (point) => [x(point.step), y(point.twoLevelBits)] as [number, number],
-    );
-
-    return {
-      oneLevelPath: linePath(oneLevelPoints),
-      twoLevelPath: linePath(twoLevelPoints),
-      areaPath:
-        oneLevelPoints.length > 1
-          ? `${linePath(oneLevelPoints)} ${linePath([...twoLevelPoints].reverse()).replace(/^M /, "L ")} Z`
-          : "",
-      maxBits: displayScaleMaxBits,
-      minStep,
-      maxStep,
-    };
-  })();
-
-  const bitsSaved = latest ? latest.oneLevelBits - latest.twoLevelBits : 0;
-  const savingsPct =
-    latest && latest.oneLevelBits > 0 ? bitsSaved / latest.oneLevelBits : 0;
+  const predictedRatio = formatRatio(twoLevelCodelength, oneLevelCodelength);
+  const predictedComparison = formatRelativeComparison(
+    oneLevelCodelength,
+    twoLevelCodelength,
+  );
+  const estimatedRatio =
+    estimatedOneLevelCodelength !== null &&
+    estimatedTwoLevelCodelength !== null &&
+    estimatedOneLevelCodelength > 0
+      ? formatRatio(estimatedTwoLevelCodelength, estimatedOneLevelCodelength)
+      : null;
+  const estimatedComparison =
+    estimatedOneLevelCodelength !== null && estimatedTwoLevelCodelength !== null
+      ? formatRelativeComparison(
+          estimatedOneLevelCodelength,
+          estimatedTwoLevelCodelength,
+        )
+      : null;
+  const nodeVisitRateHelp =
+    `This network has ${network.numNodes} node-visit probabilities, one for each node. ` +
+    "They come from the visit-rate calculation and sum to 1.";
+  const entropyHelp =
+    "H(·) is Shannon entropy in bits: it tells us how many binary questions are needed on average to identify an outcome from the given probability distribution.";
+  const estimatedHelp =
+    "A hat means an empirical estimate from the simulated random walker: emitted bits divided by the number of visits so far.";
+  const partitionHelp =
+    `M is the current partition of the network into modules. Right now the network is split into ${moduleCount} ` +
+    `${moduleCount === 1 ? "module" : "modules"}, so m = ${moduleCount}.`;
+  const switchRateHelp =
+    `For the current partition, q↷ = ${moduleSwitchRate.toFixed(3)}. ` +
+    "This is the total rate at which the walker leaves its current module and has to use the index codebook.";
+  const moduleEntryHelp =
+    `Q is the index-codebook distribution over module entries. For the current partition its entry rates are ` +
+    `${formatNumberSummary(moduleEntryRates)}.`;
+  const moduleUseHelp =
+    `Each p⟳^i is the total use rate of module i's codebook: visits inside that module plus its exit rate. ` +
+    `For the current partition those rates are ${formatNumberSummary(moduleUseRates)}.`;
+  const localCodebookHelp =
+    "Each P^i is the local distribution inside module i: all node visits in that module plus one extra exit symbol. " +
+    `The current module codebooks therefore contain ${formatNumberSummary(moduleCodebookSizes, (value) => `${value} symbols`)}.`;
 
   return (
-    <section className="mt-6">
-      <div className="mb-4 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h4 className="text-lg font-bold text-gray-900">
-            Accumulated codelength
-          </h4>
-          <p className="text-sm leading-relaxed text-gray-600">
-            The lines add up emitted bits over time. A good two-level partition
-            grows more slowly, so the gap between the lines widens as bits are
-            saved. The y-axis stays fixed until a line reaches the current
-            ceiling.
-          </p>
+    <section className="mt-6 space-y-6">
+      <div>
+        <h4 className="text-lg font-bold text-gray-900">
+          One-level and two-level codelength
+        </h4>
+        <p className="text-sm leading-relaxed text-gray-600">
+          The one-level partition uses a single codebook for all node visits.
+          The two-level partition uses an index codebook between modules and a
+          module codebook inside each module. The walker estimates divide the
+          emitted bits by the number of visits, so they should approach the
+          predicted codelengths as the walk gets longer.
+        </p>
+        <p className="mt-2 text-sm leading-relaxed text-gray-600">
+          <TeX math="H(\cdot)" /> means entropy in bits{" "}
+          <HelpBadge title={entropyHelp} />, and a hat such as{" "}
+          <TeX math="\hat{L}" /> means a walker-based estimate{" "}
+          <HelpBadge title={estimatedHelp} />.
+        </p>
+      </div>
+
+      <div className="space-y-6">
+        <div className="space-y-2">
+          <h5 className="text-base font-semibold text-gray-900">
+            One-level partition
+          </h5>
+          <div className="overflow-x-auto text-base text-gray-900">
+            <TeX math="L_1 = H(\mathcal{P}) = -\sum_{\alpha} p_{\alpha} \log_2 p_{\alpha}" />
+          </div>
+          <div className="overflow-x-auto text-base text-gray-900">
+            <TeX
+              math={`L_1 = ${oneLevelCodelength.toFixed(3)}\\ \\text{bits}`}
+            />
+          </div>
+          <div className="text-sm leading-relaxed text-gray-600">
+            <TeX math="L_1" /> is the average bits per step when one shared
+            codebook is used for the whole network. Here{" "}
+            <TeX math="\mathcal{P}" /> is the full node-visit distribution for
+            all {network.numNodes} nodes, and <TeX math="p_{\alpha}" /> is the
+            visit rate of node <TeX math="\alpha" />{" "}
+            <HelpBadge title={nodeVisitRateHelp} />.
+          </div>
+          <div className="overflow-x-auto overflow-y-visible py-1 text-base leading-8 text-gray-900">
+            {estimatedOneLevelCodelength === null ? (
+              <span>
+                Start the walker to estimate the one-level codelength
+                empirically.
+              </span>
+            ) : (
+              <TeX
+                math={`\\hat{L}_1 = \\frac{${walker.cumulativeOneLevelBits}}{${walker.totalVisits}} = ${estimatedOneLevelCodelength.toFixed(3)}\\ \\text{bits}`}
+              />
+            )}
+          </div>
         </div>
-        <div className="grid gap-2 text-sm sm:grid-cols-3">
-          <div className="px-3 py-2">
-            <div className="font-semibold text-gray-500">One-level</div>
-            <div className="text-lg font-bold text-gray-900">
-              {latest?.oneLevelBits ?? 0} bits
+
+        <div className="space-y-2">
+          <h5 className="text-base font-semibold text-gray-900">
+            Two-level partition
+          </h5>
+          <div className="overflow-x-auto text-base text-gray-900">
+            <TeX math="L(M) = q_{\curvearrowright} H(\mathcal{Q}) + \sum_{i = 1}^{m} p_{\circlearrowright}^{i} H(\mathcal{P}^{i})" />
+          </div>
+          <div className="overflow-x-auto text-base text-gray-900">
+            <TeX
+              math={`L(M) = ${indexCodelength.toFixed(3)} + ${moduleCodelength.toFixed(3)} = ${twoLevelCodelength.toFixed(3)}\\ \\text{bits}`}
+            />
+          </div>
+          <div className="space-y-1 text-sm leading-relaxed text-gray-600">
+            <div>
+              <TeX math="M" /> is the current partition{" "}
+              <HelpBadge title={partitionHelp} /> and <TeX math="m" /> ={" "}
+              {moduleCount}. For this network, <TeX math="q_{\curvearrowright}" /> ={" "}
+              {moduleSwitchRate.toFixed(3)}{" "}
+              <HelpBadge title={switchRateHelp} />.
+            </div>
+            <div>
+              <TeX math="\mathcal{Q}" /> is the distribution over which module
+              the walker enters next <HelpBadge title={moduleEntryHelp} />, and{" "}
+              <TeX math="p_{\circlearrowright}^{i}" /> is the total rate of
+              using module <TeX math="i" />'s codebook{" "}
+              <HelpBadge title={moduleUseHelp} />.
+            </div>
+            <div>
+              <TeX math="\mathcal{P}^{i}" /> is the local distribution inside
+              module <TeX math="i" />: the node visits in that module plus its
+              exit symbol <HelpBadge title={localCodebookHelp} />.
             </div>
           </div>
-          <div className="px-3 py-2">
-            <div className="font-semibold text-gray-500">Two-level</div>
-            <div className="text-lg font-bold text-teal-700">
-              {latest?.twoLevelBits ?? 0} bits
-            </div>
+          <div className="overflow-x-auto overflow-y-visible py-1 text-base leading-8 text-gray-900">
+            {estimatedTwoLevelCodelength === null ? (
+              <span>
+                Start the walker to estimate the two-level codelength
+                empirically.
+              </span>
+            ) : (
+              <TeX
+                math={`\\hat{L}_{\\mathrm{two}} = \\frac{${walker.cumulativeTwoLevelBits}}{${walker.totalVisits}} = ${estimatedTwoLevelCodelength.toFixed(3)}\\ \\text{bits}`}
+              />
+            )}
           </div>
-          <div className="px-3 py-2">
-            <div className="font-semibold text-gray-500">Saved</div>
-            <div className="text-lg font-bold text-emerald-700">
-              {bitsSaved.toFixed(0)} bits
-              {latest ? ` (${(savingsPct * 100).toFixed(1)}%)` : ""}
-            </div>
+        </div>
+
+        <div className="space-y-2">
+          <h5 className="text-base font-semibold text-gray-900">Comparison</h5>
+          <div className="text-base text-gray-900">
+            Predicted ratio:{" "}
+            <strong>
+              {predictedRatio}
+            </strong>{" "}
+            ({predictedComparison})
+          </div>
+          <div className="text-base text-gray-900">
+            Estimated ratio:{" "}
+            <strong>{estimatedRatio ?? "Waiting for visits"}</strong>
+            {estimatedComparison ? ` (${estimatedComparison})` : ""}
           </div>
         </div>
       </div>
-
-      <svg viewBox={`0 0 ${viewBoxWidth} ${viewBoxHeight}`} className="w-full">
-        <g stroke="#d1d5db" strokeDasharray="4 6">
-          {[0, 0.25, 0.5, 0.75, 1].map((fraction) => {
-            const y = topPadding + chartHeight - fraction * chartHeight;
-            return (
-              <line
-                key={fraction}
-                x1={leftPadding}
-                x2={viewBoxWidth - rightPadding}
-                y1={y}
-                y2={y}
-              />
-            );
-          })}
-        </g>
-        <g stroke="#9ca3af" fill="#6b7280">
-          <line
-            x1={leftPadding}
-            x2={leftPadding}
-            y1={topPadding}
-            y2={topPadding + chartHeight}
-          />
-          <line
-            x1={leftPadding}
-            x2={viewBoxWidth - rightPadding}
-            y1={topPadding + chartHeight}
-            y2={topPadding + chartHeight}
-          />
-          {[0, 0.5, 1].map((fraction) => {
-            const y = topPadding + chartHeight - fraction * chartHeight;
-            return (
-              <g key={`y-${fraction}`}>
-                <line x1={leftPadding - 8} x2={leftPadding} y1={y} y2={y} />
-                <text
-                  x={leftPadding - 12}
-                  y={y}
-                  textAnchor="end"
-                  dominantBaseline="middle"
-                  fontSize={12}
-                >
-                  {(chartData.maxBits * fraction).toFixed(0)}
-                </text>
-              </g>
-            );
-          })}
-          <text
-            x={18}
-            y={topPadding + chartHeight / 2}
-            textAnchor="middle"
-            fontSize={12}
-            fill="#4b5563"
-            transform={`rotate(-90 18 ${topPadding + chartHeight / 2})`}
-          >
-            Total bits emitted
-          </text>
-          <text
-            x={(leftPadding + viewBoxWidth - rightPadding) / 2}
-            y={viewBoxHeight - 8}
-            textAnchor="middle"
-            fontSize={12}
-            fill="#4b5563"
-          >
-            Walk step
-          </text>
-          {history.length > 0 && (
-            <>
-              <text
-                x={leftPadding}
-                y={topPadding + chartHeight + 18}
-                textAnchor="start"
-                fontSize={12}
-              >
-                {chartData.minStep}
-              </text>
-              <text
-                x={viewBoxWidth - rightPadding}
-                y={topPadding + chartHeight + 18}
-                textAnchor="end"
-                fontSize={12}
-              >
-                {chartData.maxStep}
-              </text>
-            </>
-          )}
-        </g>
-
-        {chartData.areaPath && (
-          <path d={chartData.areaPath} fill="rgba(16, 185, 129, 0.12)" />
-        )}
-        {chartData.oneLevelPath && (
-          <path
-            d={chartData.oneLevelPath}
-            fill="none"
-            stroke="#6b7280"
-            strokeWidth={3}
-            strokeLinejoin="round"
-            strokeLinecap="round"
-          />
-        )}
-        {chartData.twoLevelPath && (
-          <path
-            d={chartData.twoLevelPath}
-            fill="none"
-            stroke="#0f766e"
-            strokeWidth={3}
-            strokeLinejoin="round"
-            strokeLinecap="round"
-          />
-        )}
-
-        <g fontSize={12} fontWeight={600}>
-          <text x={leftPadding} y={24} fill="#6b7280">
-            One-level
-          </text>
-          <text x={leftPadding + 90} y={24} fill="#0f766e">
-            Two-level
-          </text>
-          <text x={leftPadding + 188} y={24} fill="#10b981">
-            Saved bits
-          </text>
-          <line
-            x1={leftPadding - 24}
-            x2={leftPadding - 6}
-            y1={20}
-            y2={20}
-            stroke="#6b7280"
-            strokeWidth={3}
-          />
-          <line
-            x1={leftPadding + 62}
-            x2={leftPadding + 80}
-            y1={20}
-            y2={20}
-            stroke="#0f766e"
-            strokeWidth={3}
-          />
-          <line
-            x1={leftPadding + 158}
-            x2={leftPadding + 176}
-            y1={20}
-            y2={20}
-            stroke="#10b981"
-            strokeWidth={3}
-          />
-        </g>
-
-        {history.length === 0 && (
-          <text
-            x={viewBoxWidth / 2}
-            y={topPadding + chartHeight / 2}
-            textAnchor="middle"
-            fontSize={14}
-            fill="#6b7280"
-          >
-            Start the walker to accumulate emitted bits.
-          </text>
-        )}
-      </svg>
     </section>
   );
 });

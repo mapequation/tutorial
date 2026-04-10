@@ -9,6 +9,11 @@ import type {
 } from "../../model";
 import { getRate, Rate } from "../../model";
 import { performanceMonitor } from "../../utils/performance";
+import {
+  neutralLinkColor,
+  neutralNodeColor,
+  neutralNodeColorAlt,
+} from "../scheme";
 import ArrowMarker from "./ArrowMarker";
 import Link from "./Link";
 import Node from "./Node";
@@ -54,8 +59,8 @@ interface Props {
  */
 function Network({
   network,
-  scheme = ["#ddd"],
-  schemeAlt = ["#aaa"],
+  scheme = [neutralNodeColor],
+  schemeAlt = [neutralNodeColorAlt],
   rate = Rate.Uniform,
   showLabels = false,
   showModules = false,
@@ -64,7 +69,7 @@ function Network({
   nodeIdFontSize = 12,
   showVisiting = true,
   colorIntraModuleLinks = false,
-  interModuleLinkColor = "#888",
+  interModuleLinkColor = neutralLinkColor,
   nodeStroke = "#fff",
   nodeStrokeWidth = 4,
   modules = "topModule",
@@ -77,6 +82,7 @@ function Network({
   scaleLinksByWeight = false,
   baseLinkStrokeWidth = 3,
   children,
+  style,
   ...props
 }: Props & SVGProps<SVGSVGElement>) {
   // Mark render start
@@ -152,10 +158,11 @@ function Network({
       className="network"
       viewBox={`0 0 ${width} ${height}`}
       onLoad={() => performanceMonitor.measure('network-render')}
+      style={{ overflow: "visible", ...style }}
       {...props}
     >
       <defs>
-        <ArrowMarker id={arrowId} fill="#888" />
+        <ArrowMarker id={arrowId} fill={interModuleLinkColor} />
       </defs>
 
       {/* Render links first so nodes appear above them. Optionally scale
