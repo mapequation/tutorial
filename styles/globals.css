@@ -3,8 +3,12 @@
 @import "tailwindcss";
 
 /* Base Styles */
+:root {
+  --base-path: "/demo";
+}
+
 body {
-  background-image: url("/demo/images/noise-100-90-5.png");
+  background-image: var(--bg-noise-url);
   background-size: 50px 50px;
   color: #4b5563;
   line-height: 1.625;
@@ -20,7 +24,10 @@ strong {
   letter-spacing: 0.05em;
 }
 
-h1, h2, h3, h4 {
+h1,
+h2,
+h3,
+h4 {
   font-weight: 700;
   letter-spacing: 0.05em;
   color: #111827;

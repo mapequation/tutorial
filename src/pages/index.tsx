@@ -3,6 +3,7 @@ import Head from "next/head";
 import dynamic from "next/dynamic";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
+import { getAssetPath } from "../lib/basePath";
 
 // Dynamically import the `Main` component and disable server-side rendering
 // because it depends on browser-only APIs (e.g. animation, window, or canvas).
@@ -41,7 +42,7 @@ const Home: NextPage = () => {
           <div className="col-span-1 xl:mt-12 mb-20">
             <img
               className="rounded-full w-1/2 mx-auto xl:w-full"
-              src="/demo/images/hairball.png"
+              src={getAssetPath("/images/hairball.png")}
               alt="Hairball graph"
             />
           </div>
@@ -72,27 +73,27 @@ const Home: NextPage = () => {
             <div>
               <img
                 className="filter-grayscale-25 object-cover rounded-full shadow-xl"
-                src="/demo/images/globe.png"
+                src={getAssetPath("/images/globe.png")}
                 alt="The Earth"
               />
             </div>
             <div className="relative">
               <img
-                src="/demo/images/map-1.png"
+                src={getAssetPath("/images/map-1.png")}
                 alt="Map over Europe"
                 className="filter-grayscale-25 object-cover rounded-xl shadow-xl"
               />
             </div>
             <div className="relative">
               <img
-                src="/demo/images/map-2.png"
+                src={getAssetPath("/images/map-2.png")}
                 alt="Map over Umeå"
                 className="filter-grayscale-25 object-cover rounded-xl shadow-xl"
               />
             </div>
             <div className="relative">
               <img
-                src="/demo/images/map-3.png"
+                src={getAssetPath("/images/map-3.png")}
                 alt="Map over Umeå University"
                 className="filter-grayscale-25 object-cover rounded-xl shadow-xl"
               />

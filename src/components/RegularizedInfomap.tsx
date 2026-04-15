@@ -14,6 +14,7 @@ import { observer } from "mobx-react";
 import { scaleSqrt } from "d3";
 import { Network as NetworkModel, FlowModel } from "../model";
 import { isolatedModuleColor, scheme as figColors } from "./scheme";
+import { getAssetPath } from "../lib/basePath";
 import {
   buildRegularizedNetworkData,
   createRegularizedIncompleteNetwork,
@@ -146,7 +147,8 @@ const ISOLATED_CLUSTER_COLUMN_SIZE = 3;
 const ISOLATED_NODE_SPACING_MULTIPLIER = 2.75;
 const MAX_COLLISION_RELAX_ITERATIONS = 160;
 const EPSILON = 1e-9;
-const REGULARIZED_NETWORK_URL = "/demo/data/VII_network_complete.dat";
+const getRegularizedNetworkUrl = () =>
+  getAssetPath("/data/VII_network_complete.dat");
 const regularizedNodeScale = scaleSqrt().domain([0, 1]).range([7, 14]);
 const treeLinePattern =
   /^([0-9:]+)\s+([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)\s+"((?:[^"\\]|\\.)*)"\s+(\d+)\s*$/;
@@ -414,7 +416,10 @@ const buildContingencyTable = (
     Array.from({ length: predictedLabels.length }, () => 0),
   );
   const truthCounts = Array.from({ length: truthLabels.length }, () => 0);
-  const predictedCounts = Array.from({ length: predictedLabels.length }, () => 0);
+  const predictedCounts = Array.from(
+    { length: predictedLabels.length },
+    () => 0,
+  );
 
   nodeIds.forEach((nodeId) => {
     const truthIndex = truthIndexByLabel.get(truthByNodeId.get(nodeId) ?? 0)!;
@@ -568,18 +573,14 @@ const adjustedMutualInformation = (
     (truthEntropy + predictedEntropy) / 2 - expectedInformation;
 
   if (Math.abs(denominator) <= SUCCESS_EPSILON) {
-    return Math.abs(mutualInformation - expectedInformation) <=
-      SUCCESS_EPSILON
+    return Math.abs(mutualInformation - expectedInformation) <= SUCCESS_EPSILON
       ? 1
       : 0;
   }
 
   return Math.max(
     -1,
-    Math.min(
-      1,
-      (mutualInformation - expectedInformation) / denominator,
-    ),
+    Math.min(1, (mutualInformation - expectedInformation) / denominator),
   );
 };
 
@@ -1083,7 +1084,7 @@ export default observer(function RegularizedInfomap({
 
     const load = async () => {
       try {
-        const response = await fetch(REGULARIZED_NETWORK_URL);
+        const response = await fetch(getRegularizedNetworkUrl());
         if (!response.ok) {
           throw new Error(
             `Could not load the complete network (${response.status})`,
@@ -1133,7 +1134,9 @@ export default observer(function RegularizedInfomap({
   }, []);
 
   const completeData =
-    datasetState.status === "ready" ? datasetState.completeData : EMPTY_NETWORK_DATA;
+    datasetState.status === "ready"
+      ? datasetState.completeData
+      : EMPTY_NETWORK_DATA;
   const truthByNodeId =
     datasetState.status === "ready"
       ? datasetState.referencePartition
@@ -1478,8 +1481,7 @@ export default observer(function RegularizedInfomap({
   const completeNetworkAvgLinksPerNode =
     completeNetworkNodeCount > 0
       ? Math.round(
-          ((2 * completeNetworkUniqueLinkCount) / completeNetworkNodeCount) *
-            2,
+          ((2 * completeNetworkUniqueLinkCount) / completeNetworkNodeCount) * 2,
         ) / 2
       : 0;
 
@@ -1511,9 +1513,9 @@ export default observer(function RegularizedInfomap({
         </p>
         <p>
           <strong>Regularized Infomap</strong> adds a weak structural prior that
-          makes the partition less eager to overreact to missing links and
-          noisy evidence. When the observed network is sparse, that extra bias
-          can stabilize the solution by balancing the measured flow against a
+          makes the partition less eager to overreact to missing links and noisy
+          evidence. When the observed network is sparse, that extra bias can
+          stabilize the solution by balancing the measured flow against a
           simpler baseline model, instead of trusting every missing edge as a
           strong signal. Here we use the <strong>Infomap API</strong> and
           compare regularized and non-regularized solutions directly.
@@ -1618,18 +1620,23 @@ export default observer(function RegularizedInfomap({
                     </div>
                     <div>
                       Distance from reference module count:{" "}
-                      <strong>{moduleDistanceFromTruth(displayedOutcome)}</strong>
+                      <strong>
+                        {moduleDistanceFromTruth(displayedOutcome)}
+                      </strong>
                     </div>
                     {isRegularized && currentRegularizedComparison !== null && (
                       <div>
                         Compared with normal Infomap:{" "}
                         <strong>
-                          {formatSignedAmiDifference(currentRegularizedComparison)}
+                          {formatSignedAmiDifference(
+                            currentRegularizedComparison,
+                          )}
                         </strong>{" "}
                         in AMI
                         {currentRegularizedComparison > NOTICEABLE_IMPROVEMENT
                           ? " (better agreement with the reference partition)"
-                          : currentRegularizedComparison < -NOTICEABLE_IMPROVEMENT
+                          : currentRegularizedComparison <
+                              -NOTICEABLE_IMPROVEMENT
                             ? " (worse agreement than normal)"
                             : " (about the same AMI)"}
                         .
@@ -1650,8 +1657,8 @@ export default observer(function RegularizedInfomap({
                     <h4 className="font-semibold mb-2">Best Tried Strength</h4>
                     <div className="space-y-1 text-sm">
                       <div>
-                        Best tried regularization strength for {sparsePercentage}%
-                        link removal:{" "}
+                        Best tried regularization strength for{" "}
+                        {sparsePercentage}% link removal:{" "}
                         <strong>
                           {bestTriedRegularization.strength.toFixed(2)}
                         </strong>
@@ -1721,8 +1728,9 @@ export default observer(function RegularizedInfomap({
               )}
               {datasetState.status === "loading" && (
                 <div className="text-blue-700">
-                  <strong>Dataset:</strong> loading <code>VII_network_complete.dat</code>{" "}
-                  and deriving the 0% normal-Infomap reference partition...
+                  <strong>Dataset:</strong> loading{" "}
+                  <code>VII_network_complete.dat</code> and deriving the 0%
+                  normal-Infomap reference partition...
                 </div>
               )}
               {datasetState.status === "error" && (
@@ -1734,7 +1742,8 @@ export default observer(function RegularizedInfomap({
                 activeRunState.status === "loading" && (
                   <div className="text-blue-700 [grid-area:1/1]">
                     <strong>
-                      {isRegularized ? "Regularized Infomap" : "Normal Infomap"}:
+                      {isRegularized ? "Regularized Infomap" : "Normal Infomap"}
+                      :
                     </strong>{" "}
                     {RUNNING_STATUS_MESSAGE}
                   </div>
@@ -1743,7 +1752,8 @@ export default observer(function RegularizedInfomap({
                 activeRunState.status === "error" && (
                   <div className="text-red-700 [grid-area:1/1]">
                     <strong>
-                      {isRegularized ? "Regularized Infomap" : "Normal Infomap"}:
+                      {isRegularized ? "Regularized Infomap" : "Normal Infomap"}
+                      :
                     </strong>{" "}
                     {activeRunState.message}
                   </div>
@@ -1758,15 +1768,14 @@ export default observer(function RegularizedInfomap({
               {isRegularized && reservedRegularizedOutcome && (
                 <div aria-hidden="true" className="invisible [grid-area:1/1]">
                   ~ <strong>Regularized Infomap:</strong>{" "}
-                  {REGULARIZED_RESERVED_ASSESSMENT_LABEL} at
-                  regularization strength {regularizationStrength.toFixed(2)} (
+                  {REGULARIZED_RESERVED_ASSESSMENT_LABEL} at regularization
+                  strength {regularizationStrength.toFixed(2)} (
                   {REGULARIZED_FAIL_DESCRIPTION} Modules{" "}
                   {Math.max(
                     reservedRegularizedOutcome.moduleCount,
                     reservedRegularizedOutcome.rawModuleCount,
                   )}
-                  /
-                  {reservedRegularizedOutcome.truthModuleCount}
+                  /{reservedRegularizedOutcome.truthModuleCount}
                   <> - ignoring isolated node modules</>
                   ).
                 </div>
@@ -1811,10 +1820,11 @@ export default observer(function RegularizedInfomap({
                     {`${isolatedNodeIds.size} isolated node${isolatedNodeIds.size === 1 ? "" : "s"} detected.`}
                   </div>
                   <div className="text-sm">
-                    Isolated nodes have no links, so Infomap has no flow evidence
-                    connecting them to the reference partition. Regularization cannot
-                    recover missing information when a node has zero observed links, so
-                    isolated-only modules are excluded from pass/fail module counting.
+                    Isolated nodes have no links, so Infomap has no flow
+                    evidence connecting them to the reference partition.
+                    Regularization cannot recover missing information when a
+                    node has zero observed links, so isolated-only modules are
+                    excluded from pass/fail module counting.
                   </div>
                 </div>
               )}
@@ -1840,9 +1850,15 @@ export default observer(function RegularizedInfomap({
                 displayedOutcome.moduleCount === 1 &&
                 activeRunState.status === "ready" && (
                   <div className="text-amber-900 space-y-2 [grid-area:1/1]">
-                    <div className="font-semibold">{COLLAPSE_WARNING_TITLE}</div>
-                    <div className="text-sm">{COLLAPSE_WARNING_DESCRIPTION}</div>
-                    <div className="text-sm">{COLLAPSE_WARNING_EXPLANATION}</div>
+                    <div className="font-semibold">
+                      {COLLAPSE_WARNING_TITLE}
+                    </div>
+                    <div className="text-sm">
+                      {COLLAPSE_WARNING_DESCRIPTION}
+                    </div>
+                    <div className="text-sm">
+                      {COLLAPSE_WARNING_EXPLANATION}
+                    </div>
                   </div>
                 )}
             </div>

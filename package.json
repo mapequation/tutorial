@@ -3,16 +3,19 @@
   "version": "0.1.0",
   "private": true,
   "repository": "https://github.com/mapequation/map-demo",
-  "homepage": "http://mapequation.org/demo",
+  "homepage": "http://mapequation.org/demo/",
   "license": "MIT",
   "author": "Anton Eriksson, Daniel Edler",
   "scripts": {
     "dev": "next dev --webpack",
-    "build": "next build && next export",
+    "build": "next build --webpack",
+    "build:demo": "rm -rf .next out && NEXT_PUBLIC_BASE_PATH=/demo npm run build",
+    "build:demo-test": "rm -rf .next out && NEXT_PUBLIC_BASE_PATH=/demo-test npm run build",
     "start": "next start",
     "lint": "next lint",
     "format": "prettier --write \"src/**/*.{js,jsx,ts,tsx}\"",
-    "deploy": "npm run build && scp -r out/* mapequation:/var/www/demo"
+    "deploy": "npm run build:demo && rsync -avz out/* mapequation:/var/www/demo/",
+    "deploy-test": "npm run build:demo-test && rsync -avz out/* mapequation:/var/www/demo-test/"
   },
   "dependencies": {
     "@mapequation/infomap": "^2.9.2",

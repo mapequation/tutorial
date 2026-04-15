@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { observer } from "mobx-react";
 import { Network as NetworkModel, Node as NodeModel, Rate } from "../model";
 import { modular_w_json } from "../networks";
+import { getAssetPath } from "../lib/basePath";
 import {
   neutralLinkColor,
   neutralNodeColor,
@@ -257,14 +258,14 @@ export default function Main() {
         <div>
           <img
             className="rounded-lg shadow-lg"
-            src="/demo/images/compression-top.png"
+            src={getAssetPath("/images/compression-top.png")}
             alt="top"
           />
         </div>
         <div>
           <img
             className="rounded-lg shadow-lg"
-            src="/demo/images/compression-bottom.png"
+            src={getAssetPath("/images/compression-bottom.png")}
             alt=""
           />
         </div>

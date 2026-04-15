@@ -2,6 +2,7 @@
 // are applied to every page in the Next.js app.
 import "../../styles/globals.css";
 import type { AppProps } from "next/app";
+import { useEffect } from "react";
 
 /**
  * Top-level App component used by Next.js.
@@ -12,6 +13,15 @@ import type { AppProps } from "next/app";
  * if the app grows and needs shared context or state wrappers.
  */
 function MyApp({ Component, pageProps }: AppProps) {
+  useEffect(() => {
+    // Set CSS variables based on environment
+    const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "/demo";
+    document.documentElement.style.setProperty(
+      "--bg-noise-url",
+      `url("${basePath}/images/noise-100-90-5.png")`,
+    );
+  }, []);
+
   return <Component {...pageProps} />;
 }
 
