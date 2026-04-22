@@ -49,6 +49,7 @@ export default class RandomWalker {
   private readonly maxVisibleLength = 50;
 
   // Teleportation settings for simulating real-world behavior
+  private readonly defaultTeleportRate: number;
   private teleportRate: number;
   private readonly teleportModel = DEFAULT_TELEPORT_MODEL;
 
@@ -59,9 +60,12 @@ export default class RandomWalker {
 
   constructor(network: Network) {
     this.network = network;
-    this.teleportRate = this.network.directed ? DEFAULT_TELEPORT_RATE : 0.02;
+    this.defaultTeleportRate = this.network.directed
+      ? DEFAULT_TELEPORT_RATE
+      : 0.02;
+    this.teleportRate = this.defaultTeleportRate;
 
-    makeObservable(this, {
+    makeObservable<RandomWalker, "teleportRate">(this, {
       totalVisits: observable,
       current: observable,
       teleported: observable,
@@ -71,19 +75,27 @@ export default class RandomWalker {
       trace: observable,
       intervalId: observable,
       interval: observable,
+      teleportRate: observable,
       setInterval: action,
       setSpeed: action,
+      setTeleportRate: action,
+      toggleRandomTeleportation: action,
       start: action,
       stop: action,
       restart: action,
       reset: action,
       step: action,
       isStarted: computed,
+      teleportationEnabled: computed,
     });
   }
 
   get isStarted() {
     return this.intervalId !== this.intervalStopped;
+  }
+
+  get teleportationEnabled() {
+    return this.teleportRate > 0;
   }
 
   setInterval(interval: number) {
@@ -100,6 +112,13 @@ export default class RandomWalker {
   setTeleportRate(teleportRate: number) {
     if (teleportRate < 0) throw new Error("teleportRate must be non-negative");
     this.teleportRate = teleportRate;
+    return this;
+  }
+
+  toggleRandomTeleportation() {
+    this.teleportRate = this.teleportationEnabled
+      ? 0
+      : this.defaultTeleportRate;
     return this;
   }
 
@@ -132,6 +151,7 @@ export default class RandomWalker {
     this.codelengthHistory.length = 0;
     this.trace.length = 0;
     this.nodeTrace.length = 0;
+    this.teleported = false;
 
     for (const node of this.network.nodes) {
       node.visits = 0;

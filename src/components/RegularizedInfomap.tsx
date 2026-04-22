@@ -13,6 +13,7 @@ import {
 import { observer } from "mobx-react";
 import { scaleSqrt } from "d3";
 import { Network as NetworkModel, FlowModel } from "../model";
+import HelpTooltip from "./HelpTooltip";
 import { isolatedModuleColor, scheme as figColors } from "./scheme";
 import { getAssetPath } from "../lib/basePath";
 import {
@@ -1586,13 +1587,9 @@ export default observer(function RegularizedInfomap({
                     />
                   </label>
                   <p className="text-sm text-gray-600">
-                    Uniform prior strength used with <code>--regularized</code>{" "}
-                    <span
-                      className="inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full border border-gray-400 text-[10px] font-bold text-gray-500 align-middle"
-                      title="The uniform prior acts like a weak background assumption that gently links all nodes together before the observed network is taken into account. Increasing this strength makes Infomap rely a bit less on sparse or noisy edge evidence and a bit more on that neutral baseline, instead of interpreting every missing link as strong evidence that nodes should be separated."
-                    >
-                      ?
-                    </span>
+                    Uniform prior <HelpTooltip
+                      content="The uniform prior acts like a weak background assumption that gently links all nodes together before the observed network is taken into account. Increasing this strength makes Infomap rely a bit less on sparse or noisy edge evidence and a bit more on that neutral baseline, instead of interpreting every missing link as strong evidence that nodes should be separated."
+                    /> strength used with <code>--regularized</code>{" "}
                   </p>
                 </div>
               )}
@@ -1607,12 +1604,9 @@ export default observer(function RegularizedInfomap({
                   <div className="space-y-1 text-sm">
                     <div>
                       AMI{" "}
-                      <span
-                        className="inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full border border-gray-400 text-[10px] font-bold text-gray-500 align-middle"
-                        title="Adjusted mutual information (AMI) compares the current non-isolated-node partition with the reference partition from the complete 0% network while correcting for agreement expected by chance. A value of 1 means the partitions match exactly up to relabeling, values near 0 mean no better agreement than random partitions with similar module sizes, and negative values mean worse-than-chance agreement."
-                      >
-                        ?
-                      </span>
+                      <HelpTooltip
+                        content="Adjusted mutual information (AMI) compares the current non-isolated-node partition with the reference partition from the complete 0% network while correcting for agreement expected by chance. A value of 1 means the partitions match exactly up to relabeling, values near 0 mean no better agreement than random partitions with similar module sizes, and negative values mean worse-than-chance agreement."
+                      />
                       :{" "}
                       <strong>
                         {formatAmi(displayedOutcome.adjustedMutualInformation)}

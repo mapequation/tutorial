@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useRef, useState, useMemo } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useMemo,
+  type ReactNode,
+} from "react";
 import { observer } from "mobx-react";
 import { Network as NetworkModel, Node as NodeModel, Rate } from "../model";
 import { modular_w_json } from "../networks";
@@ -10,6 +17,7 @@ import {
   scheme,
   schemeAlt,
 } from "./scheme";
+import HelpTooltip from "./HelpTooltip";
 import { CodelengthChart, InlineTrace } from "./Trace";
 import Rates from "./Rates";
 import CodeBooks from "./CodeBooks";
@@ -41,7 +49,7 @@ function CodelengthOverlay({
   x: number;
   y: number;
   width: number;
-  lines: string[];
+  lines: ReactNode[];
 }) {
   return (
     <foreignObject
@@ -49,11 +57,12 @@ function CodelengthOverlay({
       y={y}
       width={width}
       height={Math.max(32, lines.length * 28)}
-      pointerEvents="none"
     >
-      <div className="space-y-1 text-base leading-6 text-gray-900">
-        {lines.map((line) => (
-          <div key={line}>{line}</div>
+      <div className="pointer-events-none space-y-1 text-base leading-6 text-gray-900">
+        {lines.map((line, index) => (
+          <div key={index} className="pointer-events-none">
+            {line}
+          </div>
         ))}
       </div>
     </foreignObject>
@@ -81,6 +90,10 @@ function formatRelativeCodelength(
 }
 
 const TWO_LEVEL_OVERLAY_PANEL_OFFSET = 64;
+const INDEX_CODELENGTH_HELP =
+  "Index codelength is the cost of telling the walker which module it enters next when it moves between modules.";
+const MODULE_CODELENGTH_HELP =
+  "Module codelength is the cost of encoding what happens inside modules: node visits within a module plus the exit symbol when the walker leaves it.";
 
 const OneLevelCodelengthOverlay = observer(function OneLevelCodelengthOverlay({
   network,
@@ -126,10 +139,22 @@ const TwoLevelCodelengthOverlay = observer(function TwoLevelCodelengthOverlay({
     <CodelengthOverlay
       x={-118}
       y={y - TWO_LEVEL_OVERLAY_PANEL_OFFSET}
-      width={236}
+      width={252}
       lines={[
-        `Index codelength ${network.mapequation.indexCodelength.toFixed(3)} bits`,
-        `Module codelength ${network.mapequation.moduleCodelength.toFixed(3)} bits`,
+        <span className="inline-flex items-center gap-1">
+          <HelpTooltip content={INDEX_CODELENGTH_HELP} />
+          <span>
+            Index codelength {network.mapequation.indexCodelength.toFixed(3)}{" "}
+            bits
+          </span>
+        </span>,
+        <span className="inline-flex items-center gap-1">
+          <HelpTooltip content={MODULE_CODELENGTH_HELP} />
+          <span>
+            Module codelength {network.mapequation.moduleCodelength.toFixed(3)}{" "}
+            bits
+          </span>
+        </span>,
         `Total codelength ${network.mapequation.codelength.toFixed(3)} bits`,
       ]}
     />
@@ -284,11 +309,29 @@ export default function Main() {
       <div className="col-span-4">
         <h2>Huffman coding</h2>
         <p>
-          To use the machinery of information theory, we describe the random
-          walker with a binary message. Huffman coding (Like Morse code, more
-          frequently used symbols should be shorter).
+          To understand the network, we need a compact way to describe how the
+          random walker moves on it. Huffman coding gives short binary codes to
+          symbols that appear often and longer codes to symbols that appear
+          rarely, much like Morse code. If we can describe the walker with few
+          bits, then we have captured important regularities in the network.
         </p>
-
+        <p className="mb-4 text-gray-700">
+          Below we compare a <strong>one-level partition</strong> and a{" "}
+          <strong>two-level partition</strong>. In the one-level partition, the
+          walker uses one shared codebook for all nodes in the network. In the
+          two-level partition, the walker uses an <strong>index codebook</strong>{" "}
+          to say which community it is in and a separate local codebook inside
+          each community for the nodes there.
+        </p>
+        <p className="mb-6 text-gray-700">
+          When the walker stays inside the same community, it only prints the
+          node code. When it moves to a different community, it first prints an{" "}
+          <strong>exit code</strong> to leave the old community, then an{" "}
+          <strong>enter code</strong> to enter the new one, and then the node
+          code inside that community. Try changing the two-level partition
+          yourself by selecting nodes and assigning them to different
+          communities, and watch how the codelength changes.
+        </p>
         <WalkerControls
           network={network}
           rate={showVisitRates ? Rate.Visits : Rate.Uniform}
