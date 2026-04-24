@@ -20,11 +20,29 @@ import { DEFAULT_TELEPORT_MODEL, DEFAULT_TELEPORT_RATE } from ".";
 import { performanceMonitor } from "../../utils/performance";
 import type Network from "../Network";
 import type Node from "../Node";
+import type { TreeNode } from "./Tree";
 
 export interface CodelengthHistoryPoint {
   step: number;
   oneLevelBits: number;
   twoLevelBits: number;
+  hierarchicalBits: number;
+}
+
+export interface WalkerCodeSegment {
+  kind: "enter" | "exit" | "visit";
+  level: number;
+  code: string;
+  modulePath: number[];
+  nodeId?: number;
+}
+
+export interface WalkerEncodedStep {
+  step: number;
+  nodeId: number;
+  oneLevelCode: string;
+  hierarchicalBits: number;
+  hierarchicalSegments: WalkerCodeSegment[];
 }
 
 export default class RandomWalker {
@@ -39,8 +57,12 @@ export default class RandomWalker {
   teleported = false;
   cumulativeOneLevelBits = 0;
   cumulativeTwoLevelBits = 0;
+  cumulativeHierarchicalBits = 0;
   codelengthHistory: CodelengthHistoryPoint[] = [];
+  encodedSteps: WalkerEncodedStep[] = [];
+  latestEncodedStep: WalkerEncodedStep | null = null;
   private readonly maxCodelengthHistoryLength = 400;
+  private readonly maxEncodedStepLength = 120;
 
   // Full trace history (up to 200 steps) and visible trace for UI (up to 50 steps)
   trace: number[] = [];
@@ -71,7 +93,10 @@ export default class RandomWalker {
       teleported: observable,
       cumulativeOneLevelBits: observable,
       cumulativeTwoLevelBits: observable,
+      cumulativeHierarchicalBits: observable,
       codelengthHistory: observable,
+      encodedSteps: observable,
+      latestEncodedStep: observable.ref,
       trace: observable,
       intervalId: observable,
       interval: observable,
@@ -148,7 +173,10 @@ export default class RandomWalker {
     this.totalVisits = 0;
     this.cumulativeOneLevelBits = 0;
     this.cumulativeTwoLevelBits = 0;
+    this.cumulativeHierarchicalBits = 0;
     this.codelengthHistory.length = 0;
+    this.encodedSteps.length = 0;
+    this.latestEncodedStep = null;
     this.trace.length = 0;
     this.nodeTrace.length = 0;
     this.teleported = false;
@@ -247,29 +275,111 @@ export default class RandomWalker {
     const previousTreeNode = this.prev
       ? this.network.tree.root.getLeaf(this.prev.id)
       : null;
-    const enteredNewModule =
-      previousTreeNode?.parent?.id !== currentTreeNode.parent?.id;
-    const twoLevelIncrement = previousTreeNode
-      ? (enteredNewModule
-          ? (previousTreeNode.parent?.exitCode.length ?? 0)
-          : 0) +
-        (enteredNewModule
-          ? (currentTreeNode.parent?.enterCode.length ?? 0)
-          : 0) +
-        currentTreeNode.code.length
-      : (currentTreeNode.parent?.enterCode.length ?? 0) +
-        currentTreeNode.code.length;
+    const hierarchicalSegments = this.buildHierarchicalSegments(
+      currentTreeNode,
+      previousTreeNode,
+    );
+    const hierarchicalIncrement = hierarchicalSegments.reduce(
+      (total, segment) => total + segment.code.length,
+      0,
+    );
 
-    this.cumulativeTwoLevelBits += twoLevelIncrement;
+    this.cumulativeHierarchicalBits += hierarchicalIncrement;
+    this.cumulativeTwoLevelBits += hierarchicalIncrement;
+    this.latestEncodedStep = {
+      step: this.totalVisits,
+      nodeId: this.current.id,
+      oneLevelCode: currentTreeNode.oneLevelCode,
+      hierarchicalBits: hierarchicalIncrement,
+      hierarchicalSegments,
+    };
+    this.encodedSteps.push(this.latestEncodedStep);
+    if (this.encodedSteps.length > this.maxEncodedStepLength) {
+      this.encodedSteps.shift();
+    }
     this.codelengthHistory.push({
       step: this.totalVisits,
       oneLevelBits: this.cumulativeOneLevelBits,
       twoLevelBits: this.cumulativeTwoLevelBits,
+      hierarchicalBits: this.cumulativeHierarchicalBits,
     });
 
     if (this.codelengthHistory.length > this.maxCodelengthHistoryLength) {
       this.codelengthHistory.shift();
     }
+  }
+
+  private getModuleChain(treeNode: TreeNode): TreeNode[] {
+    const chain: TreeNode[] = [];
+    let current = treeNode.parent;
+
+    while (current && !current.isRoot) {
+      chain.push(current);
+      current = current.parent;
+    }
+
+    return chain.reverse();
+  }
+
+  private buildHierarchicalSegments(
+    currentTreeNode: TreeNode,
+    previousTreeNode: TreeNode | null,
+  ): WalkerCodeSegment[] {
+    const currentChain = this.getModuleChain(currentTreeNode);
+    const previousChain = previousTreeNode
+      ? this.getModuleChain(previousTreeNode)
+      : [];
+    let sharedPrefixLength = 0;
+
+    while (
+      sharedPrefixLength < currentChain.length &&
+      sharedPrefixLength < previousChain.length &&
+      currentChain[sharedPrefixLength] === previousChain[sharedPrefixLength]
+    ) {
+      sharedPrefixLength++;
+    }
+
+    const segments: WalkerCodeSegment[] = [];
+
+    for (let index = previousChain.length - 1; index >= sharedPrefixLength; index--) {
+      const module_ = previousChain[index];
+
+      if (!module_.exitCode) {
+        continue;
+      }
+
+      segments.push({
+        kind: "exit",
+        level: module_.depth,
+        code: module_.exitCode,
+        modulePath: [...module_.path],
+      });
+    }
+
+    for (let index = sharedPrefixLength; index < currentChain.length; index++) {
+      const module_ = currentChain[index];
+
+      if (!module_.enterCode) {
+        continue;
+      }
+
+      segments.push({
+        kind: "enter",
+        level: module_.depth,
+        code: module_.enterCode,
+        modulePath: [...module_.path],
+      });
+    }
+
+    segments.push({
+      kind: "visit",
+      level: (currentTreeNode.parent?.depth ?? 0) + 1,
+      code: currentTreeNode.code,
+      modulePath: [...(currentTreeNode.parent?.path ?? [])],
+      nodeId: currentTreeNode.id,
+    });
+
+    return segments;
   }
 
   private pushCurrent(node: Node) {

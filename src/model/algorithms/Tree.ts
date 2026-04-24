@@ -23,6 +23,7 @@ import { action, makeObservable, observable } from "mobx";
  */
 export class TreeNode {
   id: number;
+  path: number[];
 
   // Flow metrics
   flow = 0;
@@ -53,9 +54,10 @@ export class TreeNode {
   parent: TreeNode | null;
   children: Map<number, TreeNode> = new Map();
 
-  constructor(parent: TreeNode | null, id: number = -1) {
+  constructor(parent: TreeNode | null, id: number = -1, path: number[] = []) {
     this.parent = parent;
     this.id = id;
+    this.path = [...path];
 
     makeObservable(this, {
       flow: observable,
@@ -73,8 +75,8 @@ export class TreeNode {
    * Add a child node with the given id.
    * Returns the new child for fluent chaining.
    */
-  add(id: number): TreeNode {
-    const child = new TreeNode(this, id);
+  add(id: number, path: number[] = [...this.path, id]): TreeNode {
+    const child = new TreeNode(this, id, path);
     this.children.set(id, child);
     return child;
   }
@@ -136,6 +138,14 @@ export class TreeNode {
     return this.parent !== null && this.children.size === 0;
   }
 
+  get depth(): number {
+    return this.path.length;
+  }
+
+  get pathKey(): string {
+    return this.path.length > 0 ? this.path.join(":") : "root";
+  }
+
   /**
    * Helper to convert children Map to array.
    */
@@ -195,9 +205,9 @@ export class TreeNode {
  */
 export default class Tree {
   private network: Network;
+  private leafLookup: Map<number, TreeNode> = new Map();
 
   root = new TreeNode(null);
-  private readonly module_ = "topModule";
 
   constructor(network: Network) {
     this.network = network;
@@ -215,6 +225,7 @@ export default class Tree {
    */
   update() {
     this.root = new TreeNode(null);
+    this.leafLookup = new Map();
     this.addNodesToTree();
     this.addEnterExitFlowToTree();
     return this;
@@ -228,16 +239,71 @@ export default class Tree {
     const { root } = this;
 
     this.network.nodes.forEach((node) => {
-      const module_ = node[this.module_];
+      let parent = root;
 
-      if (!root.has(module_)) {
-        root.add(module_);
-      }
+      node.path.forEach((moduleId, index) => {
+        if (!parent.has(moduleId)) {
+          parent.add(moduleId, node.path.slice(0, index + 1));
+        }
 
-      const parent = root.get(module_)!;
-      const child = parent.add(node.id);
+        parent = parent.get(moduleId)!;
+      });
+
+      const child = parent.add(node.id, parent.path);
       child.flow = node.flow;
+      this.leafLookup.set(node.id, child);
     });
+  }
+
+  private getLeaf(id: number): TreeNode | null {
+    return this.leafLookup.get(id) ?? null;
+  }
+
+  getModule(path: number[]): TreeNode | null {
+    let current: TreeNode | null = this.root;
+
+    for (const segment of path) {
+      current = current?.get(segment) ?? null;
+
+      if (!current) {
+        return null;
+      }
+    }
+
+    return current;
+  }
+
+  private getLowestCommonAncestor(source: TreeNode, target: TreeNode): TreeNode {
+    const sourceAncestors = new Set<TreeNode>();
+    let current: TreeNode | null = source.parent;
+
+    while (current) {
+      sourceAncestors.add(current);
+      current = current.parent;
+    }
+
+    current = target.parent;
+
+    while (current) {
+      if (sourceAncestors.has(current)) {
+        return current;
+      }
+      current = current.parent;
+    }
+
+    return this.root;
+  }
+
+  private getBoundaryModules(leaf: TreeNode, stopAt: TreeNode): TreeNode[] {
+    const modules: TreeNode[] = [];
+    let current = leaf.parent;
+
+    while (current && current !== stopAt) {
+      modules.push(current);
+      current = current.parent;
+    }
+
+    return modules;
   }
 
   /**
@@ -249,33 +315,41 @@ export default class Tree {
    * would need level equalization logic (marked as TODO).
    */
   private addEnterExitFlowToTree() {
-    const { root } = this;
-
     this.network.links.forEach(({ source, target, flow }) => {
-      const sourceNode = root.getLeaf(source.id)!;
-      const targetNode = root.getLeaf(target.id)!;
+      const sourceNode = this.getLeaf(source.id);
+      const targetNode = this.getLeaf(target.id);
 
-      let sourceParent = sourceNode.parent;
-      let targetParent = targetNode.parent;
-
-      // Walk up the tree until reaching a common ancestor
-      // Accumulate flow at each module boundary crossed
-      while (sourceParent !== targetParent) {
-        if (this.network.directed) {
-          // For directed: source module exits, target module enters
-          sourceParent!.exitFlow += flow;
-          targetParent!.enterFlow += flow;
-        } else {
-          // For undirected: both directions count equally
-          sourceParent!.exitFlow += flow / 2;
-          sourceParent!.enterFlow += flow / 2;
-          targetParent!.exitFlow += flow / 2;
-          targetParent!.enterFlow += flow / 2;
-        }
-
-        sourceParent = sourceParent!.parent;
-        targetParent = targetParent!.parent;
+      if (!sourceNode || !targetNode) {
+        return;
       }
+
+      const lowestCommonAncestor = this.getLowestCommonAncestor(
+        sourceNode,
+        targetNode,
+      );
+      const sourceModules = this.getBoundaryModules(
+        sourceNode,
+        lowestCommonAncestor,
+      );
+      const targetModules = this.getBoundaryModules(
+        targetNode,
+        lowestCommonAncestor,
+      );
+
+      if (this.network.directed) {
+        sourceModules.forEach((module_) => {
+          module_.exitFlow += flow;
+        });
+        targetModules.forEach((module_) => {
+          module_.enterFlow += flow;
+        });
+        return;
+      }
+
+      [...sourceModules, ...targetModules].forEach((module_) => {
+        module_.enterFlow += flow / 2;
+        module_.exitFlow += flow / 2;
+      });
     });
   }
 

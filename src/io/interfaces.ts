@@ -7,7 +7,7 @@ export interface SerializedNode {
   name?: string;
   x?: number;
   y?: number;
-  path?: string;
+  path?: string | number[];
   flow?: number;
 }
 

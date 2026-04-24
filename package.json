@@ -13,6 +13,7 @@
     "build:demo-test": "rm -rf .next out && NEXT_PUBLIC_BASE_PATH=/demo-test npm run build",
     "start": "next start",
     "lint": "next lint",
+    "test:hierarchical": "npm exec tsc -- --module commonjs --moduleResolution node --target es2020 --lib dom,dom.iterable,esnext --esModuleInterop --skipLibCheck --outDir node_modules/.cache/map-demo-hierarchical-tests --rootDir . --incremental false tests/hierarchical-model.test.ts src/model/*.ts src/model/algorithms/*.ts src/io/*.ts src/networks/hierarchical_paper_toy.ts && node --test $PWD/node_modules/.cache/map-demo-hierarchical-tests/tests/hierarchical-model.test.js",
     "format": "prettier --write \"src/**/*.{js,jsx,ts,tsx}\"",
     "deploy": "npm run build:demo && rsync -avz out/* mapequation:/var/www/demo/",
     "deploy-test": "npm run build:demo-test && rsync -avz out/* mapequation:/var/www/demo-test/"

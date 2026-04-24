@@ -27,6 +27,7 @@ import InteractiveNetwork from "./InteractiveNetwork";
 import WalkerControls from "./WalkerControls";
 import PerformanceDashboard from "./PerformanceDashboard";
 import RegularizedInfomap from "./RegularizedInfomap";
+import HierarchicalCodebooks from "./HierarchicalCodebooks";
 import Walker from "./Network/Walker";
 import WalkTrace from "./Network/WalkTrace";
 import EnterExitCodes from "./Network/EnterExitCodes";
@@ -430,6 +431,8 @@ export default function Main() {
         <CodeBooks network={network} />
         <CodeBookLegend />
       </div>
+
+      <HierarchicalCodebooks />
 
       {/* Regularized Infomap Section */}
       <div className="col-span-4 mb-48">

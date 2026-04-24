@@ -219,10 +219,16 @@ export default class HuffmanCoder {
 
   /**
    * Assign enter codes: codes for entering child modules within this index module.
-   * Uses child modules' enterFlow as probability weights.
+   * Uses child modules' enterFlow as probability weights, and for non-root
+   * modules also assigns one exit code for returning to the parent level.
    */
   private calculateIndexCodes(node: TreeNode) {
+    const exitId = -1;
     const items = node.map(({ id, enterFlow }) => ({ id, flow: enterFlow }));
+
+    if (!node.isRoot) {
+      items.unshift({ id: exitId, flow: node.exitFlow });
+    }
 
     const root = this.createTree(items);
 
@@ -235,6 +241,11 @@ export default class HuffmanCoder {
 
     for (let treeNode of root.depthFirst()) {
       if (treeNode.isLeaf) {
+        if (treeNode.data.id === exitId) {
+          node.exitCode = treeNode.code;
+          continue;
+        }
+
         node.get(treeNode.data.id!)!.enterCode = treeNode.code;
       }
     }

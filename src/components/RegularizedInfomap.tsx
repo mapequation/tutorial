@@ -24,7 +24,6 @@ import {
   type RegularizedBaseNetwork,
 } from "../networks/regularized_infomap_network";
 import { Network } from "./Network";
-import Button from "./Button";
 
 interface Props {
   width?: number;
@@ -39,6 +38,7 @@ interface CollapsiblePanelProps {
 
 type NetworkState = "normal" | "regularized";
 type Partition = Map<number, number>;
+type NodePositionById = Map<number, { x: number; y: number }>;
 
 interface PartitionOutcome {
   moduleByNodeId: Partition;
@@ -76,6 +76,11 @@ interface TriedRegularizationRun {
   run: InfomapRun;
 }
 
+interface TriedNormalRun {
+  sparsePercentage: number;
+  run: InfomapRun;
+}
+
 type RunState =
   | { status: "loading" }
   | { status: "ready"; run: InfomapRun }
@@ -89,6 +94,17 @@ type DatasetState =
       referencePartition: Partition;
     }
   | { status: "error"; message: string };
+
+type PrecomputeState =
+  | { status: "idle"; completedRuns: number; totalRuns: number }
+  | { status: "running"; completedRuns: number; totalRuns: number }
+  | { status: "ready"; completedRuns: number; totalRuns: number }
+  | {
+      status: "error";
+      completedRuns: number;
+      totalRuns: number;
+      message: string;
+    };
 
 interface InfomapRunner {
   runAsync(input: {
@@ -123,7 +139,6 @@ interface InfomapResultLike {
 const NUM_TRIALS = 5;
 const SUCCESS_EPSILON = 1e-9;
 const NOTICEABLE_IMPROVEMENT = 0.01;
-const RUNNING_STATUS_MESSAGE = `running Infomap API with -N ${NUM_TRIALS}...`;
 const PASS_DESCRIPTION =
   "Exact recovery of the reference partition from the complete network.";
 const REGULARIZED_HALF_PASS_DESCRIPTION =
@@ -140,21 +155,36 @@ const COLLAPSE_WARNING_EXPLANATION =
   "A strong uniform prior increases the cost of keeping modules separate, so the best codelength solution can become a single-module partition.";
 const COLLISION_PADDING = 2;
 const NODE_LENGTH_GAP_MULTIPLIER = 2;
-const LAYOUT_EXPANSION_FACTOR = 1.2;
+const LAYOUT_EXPANSION_FACTOR = 1.32;
 const MODULE_GROUP_CENTER_PULL = 0.18;
-const VIEWPORT_MARGIN = 18;
-const ISOLATED_CLUSTER_EDGE_OFFSET = 34;
+const VIEWPORT_MARGIN = 12;
+const ISOLATED_CLUSTER_EDGE_OFFSET = 24;
 const ISOLATED_CLUSTER_COLUMN_SIZE = 3;
 const ISOLATED_NODE_SPACING_MULTIPLIER = 2.75;
 const MAX_COLLISION_RELAX_ITERATIONS = 160;
 const EPSILON = 1e-9;
 const getRegularizedNetworkUrl = () =>
   getAssetPath("/data/VII_network_complete.dat");
-const regularizedNodeScale = scaleSqrt().domain([0, 1]).range([7, 14]);
+const regularizedNodeScale = scaleSqrt().domain([0, 1]).range([3.5, 7]);
 const treeLinePattern =
   /^([0-9:]+)\s+([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)\s+"((?:[^"\\]|\\.)*)"\s+(\d+)\s*$/;
 const ISOLATED_MODULE_COLOR = isolatedModuleColor;
 const COLORBLIND_FRIENDLY_POOL = figColors;
+const LINK_REMOVAL_HELP =
+  "Removes the selected share of links at random to simulate incomplete data in both the normal and regularized networks.";
+const REGULARIZATION_HELP =
+  "Regularization strength controls how strongly Infomap uses the uniform prior when running with --regularized. The uniform prior acts like a weak background assumption that gently links all nodes together before the observed network is taken into account. Increasing this strength makes Infomap rely a bit less on sparse or noisy edge evidence and a bit more on that neutral baseline, instead of interpreting every missing link as strong evidence that nodes should be separated.";
+const SPARSE_PERCENTAGES = Array.from({ length: 17 }, (_, index) => index * 5);
+const MAX_SPARSE_PERCENTAGE =
+  SPARSE_PERCENTAGES[SPARSE_PERCENTAGES.length - 1];
+const TOTAL_NORMAL_PRECOMPUTED_RUNS = SPARSE_PERCENTAGES.length;
+const TOTAL_REGULARIZED_PRECOMPUTED_RUNS = SPARSE_PERCENTAGES.length;
+
+const formatPrecomputeStatusMessage = (
+  label: string,
+  completedRuns: number,
+  totalRuns: number,
+) => `precomputing ${label} cache (${completedRuns}/${totalRuns})...`;
 
 let infomapConstructorPromise: Promise<InfomapConstructor> | null = null;
 
@@ -232,6 +262,68 @@ const loadInfomapConstructor = async (): Promise<InfomapConstructor> => {
 
   return infomapConstructorPromise;
 };
+
+const buildModuleSchemes = (
+  data: NetworkData,
+  partition: Partition,
+  isolatedNodeIds: Set<number>,
+) => {
+  const moduleStats = new Map<number, { isolated: number; nonIsolated: number }>();
+
+  data.nodes.forEach(({ id }) => {
+    const moduleId = partition.get(id) ?? 0;
+    const stats = moduleStats.get(moduleId) ?? {
+      isolated: 0,
+      nonIsolated: 0,
+    };
+    if (isolatedNodeIds.has(id)) {
+      stats.isolated++;
+    } else {
+      stats.nonIsolated++;
+    }
+    moduleStats.set(moduleId, stats);
+  });
+
+  const moduleIds = [...moduleStats.keys()].sort((a, b) => a - b);
+  const maxModuleId = moduleIds.length > 0 ? Math.max(...moduleIds) : 0;
+  const scheme = Array.from(
+    { length: maxModuleId + 1 },
+    () => ISOLATED_MODULE_COLOR,
+  );
+  const schemeAlt = Array.from({ length: maxModuleId + 1 }, () =>
+    darkenHex(ISOLATED_MODULE_COLOR),
+  );
+  let nonIsolatedColorIndex = 0;
+
+  moduleIds.forEach((moduleId) => {
+    const stats = moduleStats.get(moduleId)!;
+    if (stats.nonIsolated === 0) {
+      scheme[moduleId] = ISOLATED_MODULE_COLOR;
+      schemeAlt[moduleId] = darkenHex(ISOLATED_MODULE_COLOR);
+      return;
+    }
+
+    const color =
+      nonIsolatedColorIndex < COLORBLIND_FRIENDLY_POOL.length
+        ? COLORBLIND_FRIENDLY_POOL[nonIsolatedColorIndex]
+        : generatedModuleColor(nonIsolatedColorIndex);
+    scheme[moduleId] = color;
+    schemeAlt[moduleId] = darkenHex(color);
+    nonIsolatedColorIndex++;
+  });
+
+  return { moduleScheme: scheme, moduleSchemeAlt: schemeAlt };
+};
+
+const buildFallbackTreeText = (network: NetworkModel) =>
+  [...network.nodes]
+    .sort((a, b) => a.topModule - b.topModule || a.id - b.id)
+    .map((node) => {
+      const escapedName = node.name.replace(/"/g, '\\"');
+      const oneBasedPath = node.topModule + 1;
+      return `${oneBasedPath} ${node.flow.toFixed(6)} "${escapedName}" ${node.id}`;
+    })
+    .join("\n");
 
 const normalizePartitionLabels = (partition: Partition): Partition => {
   const normalized = new Map<number, number>();
@@ -644,15 +736,23 @@ const buildVisualizationNetwork = (
   width: number,
   height: number,
   nodeScale: (value: number) => number,
+  fixedPositionsByNodeId?: NodePositionById,
 ) => {
   const net = new NetworkModel(FlowModel.Undirected);
+  const useFixedPositions =
+    fixedPositionsByNodeId !== undefined &&
+    data.nodes.every(({ id }) => fixedPositionsByNodeId.has(id));
 
   data.nodes.forEach(({ id, x, y }) => {
     const moduleId = partitionByNodeId.get(id) ?? 0;
+    const fixedPosition = useFixedPositions
+      ? fixedPositionsByNodeId.get(id)
+      : undefined;
+
     net.addNode({
       id,
-      x: x * width,
-      y: y * height,
+      x: fixedPosition?.x ?? x * width,
+      y: fixedPosition?.y ?? y * height,
       path: `${moduleId}`,
     });
   });
@@ -666,6 +766,11 @@ const buildVisualizationNetwork = (
   });
 
   net.finalize();
+
+  if (useFixedPositions) {
+    return net;
+  }
+
   const nodes = net.nodes;
   const centerX = width / 2;
   const centerY = height / 2;
@@ -1061,27 +1166,50 @@ export default observer(function RegularizedInfomap({
   width = 800,
   height = 400,
 }: Props) {
-  const [networkState, setNetworkState] = useState<NetworkState>("normal");
   const [sparsePercentage, setSparsePercentage] = useState(0);
   const [regularizationStrength, setRegularizationStrength] = useState(0.7);
   const [copyStatus, setCopyStatus] = useState("");
-  const [treeCopyStatus, setTreeCopyStatus] = useState("");
+  const [treeCopyStatus, setTreeCopyStatus] = useState<
+    Record<NetworkState, string>
+  >({
+    normal: "",
+    regularized: "",
+  });
   const [datasetState, setDatasetState] = useState<DatasetState>({
     status: "loading",
   });
+  const [normalPrecomputeState, setNormalPrecomputeState] =
+    useState<PrecomputeState>({
+      status: "idle",
+      completedRuns: 0,
+      totalRuns: TOTAL_NORMAL_PRECOMPUTED_RUNS,
+    });
+  const [regularizedPrecomputeState, setRegularizedPrecomputeState] =
+    useState<PrecomputeState>({
+      status: "idle",
+      completedRuns: 0,
+      totalRuns: TOTAL_REGULARIZED_PRECOMPUTED_RUNS,
+    });
+  const [normalHistory, setNormalHistory] = useState<TriedNormalRun[]>([]);
   const [regularizedHistory, setRegularizedHistory] = useState<
     TriedRegularizationRun[]
   >([]);
-  const [normalRunState, setNormalRunState] = useState<RunState>({
-    status: "loading",
-  });
-  const [regularizedRunState, setRegularizedRunState] = useState<RunState>({
-    status: "loading",
-  });
 
   useEffect(() => {
     let cancelled = false;
     setDatasetState({ status: "loading" });
+    setNormalPrecomputeState({
+      status: "idle",
+      completedRuns: 0,
+      totalRuns: TOTAL_NORMAL_PRECOMPUTED_RUNS,
+    });
+    setRegularizedPrecomputeState({
+      status: "idle",
+      completedRuns: 0,
+      totalRuns: TOTAL_REGULARIZED_PRECOMPUTED_RUNS,
+    });
+    setNormalHistory([]);
+    setRegularizedHistory([]);
 
     const load = async () => {
       try {
@@ -1150,6 +1278,21 @@ export default observer(function RegularizedInfomap({
     [completeData, datasetState.status, sparsePercentage],
   );
   const isolatedNodeIds = useMemo(() => getIsolatedNodeIds(data), [data]);
+  const cachedNormalRun = useMemo(
+    () =>
+      normalHistory.find((entry) => entry.sparsePercentage === sparsePercentage)
+        ?.run ?? null,
+    [normalHistory, sparsePercentage],
+  );
+  const cachedRegularizedRun = useMemo(
+    () =>
+      regularizedHistory.find(
+        (entry) =>
+          entry.sparsePercentage === sparsePercentage &&
+          Math.abs(entry.strength - regularizationStrength) <= SUCCESS_EPSILON,
+      )?.run ?? null,
+    [regularizationStrength, regularizedHistory, sparsePercentage],
+  );
 
   useEffect(() => {
     if (datasetState.status !== "ready") {
@@ -1157,37 +1300,78 @@ export default observer(function RegularizedInfomap({
     }
 
     let cancelled = false;
-    setNormalRunState({ status: "loading" });
+    setNormalPrecomputeState({
+      status: "running",
+      completedRuns: 0,
+      totalRuns: TOTAL_NORMAL_PRECOMPUTED_RUNS,
+    });
 
-    const run = async () => {
+    const precomputeNormal = async () => {
+      let completedRuns = 0;
       try {
-        const runResult = await runInfomap({
-          data,
-          truthByNodeId,
-          isolatedNodeIds,
-          regularizationStrength: null,
-        });
+        for (const sparseValue of SPARSE_PERCENTAGES) {
+          const sparseData = createRegularizedIncompleteNetwork(
+            completeData,
+            sparseValue,
+          );
+          const sparseIsolatedNodeIds = getIsolatedNodeIds(sparseData);
+
+          const normalRun = await runInfomap({
+            data: sparseData,
+            truthByNodeId,
+            isolatedNodeIds: sparseIsolatedNodeIds,
+            regularizationStrength: null,
+          });
+
+          if (cancelled) {
+            return;
+          }
+
+          setNormalHistory((previous) => {
+            const nextEntry = {
+              sparsePercentage: sparseValue,
+              run: normalRun,
+            };
+            const filtered = previous.filter(
+              (entry) => entry.sparsePercentage !== sparseValue,
+            );
+            return [...filtered, nextEntry];
+          });
+          completedRuns += 1;
+          setNormalPrecomputeState({
+            status: "running",
+            completedRuns,
+            totalRuns: TOTAL_NORMAL_PRECOMPUTED_RUNS,
+          });
+        }
+
         if (!cancelled) {
-          setNormalRunState({ status: "ready", run: runResult });
+          setNormalPrecomputeState({
+            status: "ready",
+            completedRuns: TOTAL_NORMAL_PRECOMPUTED_RUNS,
+            totalRuns: TOTAL_NORMAL_PRECOMPUTED_RUNS,
+          });
         }
       } catch (error) {
         if (!cancelled) {
           const message =
             error instanceof Error ? error.message : String(error);
-          setNormalRunState({
+          setNormalPrecomputeState({
             status: "error",
-            message: `Failed to run Infomap API (${message})`,
+            completedRuns,
+            totalRuns: TOTAL_NORMAL_PRECOMPUTED_RUNS,
+            message: `Failed to precompute normal Infomap cache (${message})`,
           });
         }
       }
     };
 
-    run();
+    precomputeNormal();
 
     return () => {
       cancelled = true;
     };
-  }, [data, datasetState.status, truthByNodeId, isolatedNodeIds]);
+  }, [completeData, datasetState.status, truthByNodeId]);
 
   useEffect(() => {
     if (datasetState.status !== "ready") {
@@ -1195,64 +1379,106 @@ export default observer(function RegularizedInfomap({
     }
 
     let cancelled = false;
-    setRegularizedRunState({ status: "loading" });
+    setRegularizedHistory([]);
+    setRegularizedPrecomputeState({
+      status: "running",
+      completedRuns: 0,
+      totalRuns: TOTAL_REGULARIZED_PRECOMPUTED_RUNS,
+    });
 
-    const run = async () => {
+    const precomputeRegularized = async () => {
+      let completedRuns = 0;
       try {
-        const runResult = await runInfomap({
-          data,
-          truthByNodeId,
-          isolatedNodeIds,
-          regularizationStrength,
-        });
-        if (!cancelled) {
-          setRegularizedRunState({ status: "ready", run: runResult });
+        for (const sparseValue of SPARSE_PERCENTAGES) {
+          const sparseData = createRegularizedIncompleteNetwork(
+            completeData,
+            sparseValue,
+          );
+          const sparseIsolatedNodeIds = getIsolatedNodeIds(sparseData);
+
+          const regularizedRun = await runInfomap({
+            data: sparseData,
+            truthByNodeId,
+            isolatedNodeIds: sparseIsolatedNodeIds,
+            regularizationStrength,
+          });
+
+          if (cancelled) {
+            return;
+          }
+
           setRegularizedHistory((previous) => {
             const nextEntry = {
-              sparsePercentage,
+              sparsePercentage: sparseValue,
               strength: regularizationStrength,
-              run: runResult,
+              run: regularizedRun,
             };
             const filtered = previous.filter(
               (entry) =>
                 !(
-                  entry.sparsePercentage === sparsePercentage &&
+                  entry.sparsePercentage === sparseValue &&
                   Math.abs(entry.strength - regularizationStrength) <=
                     SUCCESS_EPSILON
                 ),
             );
             return [...filtered, nextEntry];
           });
+          completedRuns += 1;
+          setRegularizedPrecomputeState({
+            status: "running",
+            completedRuns,
+            totalRuns: TOTAL_REGULARIZED_PRECOMPUTED_RUNS,
+          });
+        }
+
+        if (!cancelled) {
+          setRegularizedPrecomputeState({
+            status: "ready",
+            completedRuns: TOTAL_REGULARIZED_PRECOMPUTED_RUNS,
+            totalRuns: TOTAL_REGULARIZED_PRECOMPUTED_RUNS,
+          });
         }
       } catch (error) {
         if (!cancelled) {
           const message =
             error instanceof Error ? error.message : String(error);
-          setRegularizedRunState({
+          setRegularizedPrecomputeState({
             status: "error",
-            message: `Failed to run regularized Infomap API (${message})`,
+            completedRuns,
+            totalRuns: TOTAL_REGULARIZED_PRECOMPUTED_RUNS,
+            message: `Failed to precompute regularized Infomap cache (${message})`,
           });
         }
       }
     };
 
-    run();
+    precomputeRegularized();
 
     return () => {
       cancelled = true;
     };
-  }, [
-    data,
-    datasetState.status,
-    truthByNodeId,
-    isolatedNodeIds,
-    regularizationStrength,
-    sparsePercentage,
-  ]);
+  }, [completeData, datasetState.status, regularizationStrength, truthByNodeId]);
 
-  const isNormal = networkState === "normal";
-  const isRegularized = networkState === "regularized";
-  const activeRunState = isRegularized ? regularizedRunState : normalRunState;
+  const normalRunState: RunState = cachedNormalRun
+    ? { status: "ready", run: cachedNormalRun }
+    : normalPrecomputeState.status === "error"
+      ? { status: "error", message: normalPrecomputeState.message }
+      : { status: "loading" };
+  const regularizedRunState: RunState = cachedRegularizedRun
+    ? { status: "ready", run: cachedRegularizedRun }
+    : regularizedPrecomputeState.status === "error"
+      ? { status: "error", message: regularizedPrecomputeState.message }
+      : { status: "loading" };
+  const normalPrecomputeStatusMessage = formatPrecomputeStatusMessage(
+    "normal Infomap runs",
+    normalPrecomputeState.completedRuns,
+    normalPrecomputeState.totalRuns,
+  );
+  const regularizedPrecomputeStatusMessage = formatPrecomputeStatusMessage(
+    `regularized Infomap runs at strength ${regularizationStrength.toFixed(2)}`,
+    regularizedPrecomputeState.completedRuns,
+    regularizedPrecomputeState.totalRuns,
+  );
 
   const fallbackPartition = useMemo(
     () =>
@@ -1262,130 +1488,145 @@ export default observer(function RegularizedInfomap({
     [data],
   );
 
-  const activePartition = useMemo(() => {
-    if (activeRunState.status === "ready") {
-      return activeRunState.run.outcome.moduleByNodeId;
+  const networkWidth = Math.max(320, Math.round(width / 2));
+  const networkHeight = Math.max(280, Math.round(height * 0.82));
+  const lockedNodePositions = useMemo<NodePositionById | undefined>(() => {
+    if (datasetState.status !== "ready") {
+      return undefined;
     }
-    return fallbackPartition;
-  }, [activeRunState, fallbackPartition]);
 
-  const { moduleScheme, moduleSchemeAlt } = useMemo(() => {
-    const moduleStats = new Map<
-      number,
-      { isolated: number; nonIsolated: number }
-    >();
-
-    data.nodes.forEach(({ id }) => {
-      const moduleId = activePartition.get(id) ?? 0;
-      const stats = moduleStats.get(moduleId) ?? {
-        isolated: 0,
-        nonIsolated: 0,
-      };
-      if (isolatedNodeIds.has(id)) {
-        stats.isolated++;
-      } else {
-        stats.nonIsolated++;
-      }
-      moduleStats.set(moduleId, stats);
-    });
-
-    const moduleIds = [...moduleStats.keys()].sort((a, b) => a - b);
-    const maxModuleId = moduleIds.length > 0 ? Math.max(...moduleIds) : 0;
-    const scheme = Array.from(
-      { length: maxModuleId + 1 },
-      () => ISOLATED_MODULE_COLOR,
+    const referenceNetwork = buildVisualizationNetwork(
+      completeData,
+      truthByNodeId,
+      getIsolatedNodeIds(completeData),
+      networkWidth,
+      networkHeight,
+      regularizedNodeScale,
     );
-    const schemeAlt = Array.from({ length: maxModuleId + 1 }, () =>
-      darkenHex(ISOLATED_MODULE_COLOR),
+
+    return new Map(
+      referenceNetwork.nodes.map((node) => [
+        node.id,
+        { x: node.x, y: node.y },
+      ]),
     );
-    let nonIsolatedColorIndex = 0;
+  }, [
+    completeData,
+    datasetState.status,
+    networkHeight,
+    networkWidth,
+    truthByNodeId,
+  ]);
+  const normalPartition = useMemo(
+    () =>
+      normalRunState.status === "ready"
+        ? normalRunState.run.outcome.moduleByNodeId
+        : fallbackPartition,
+    [fallbackPartition, normalRunState],
+  );
+  const regularizedPartition = useMemo(
+    () =>
+      regularizedRunState.status === "ready"
+        ? regularizedRunState.run.outcome.moduleByNodeId
+        : fallbackPartition,
+    [fallbackPartition, regularizedRunState],
+  );
+  const { moduleScheme: normalModuleScheme, moduleSchemeAlt: normalModuleSchemeAlt } =
+    useMemo(
+      () => buildModuleSchemes(data, normalPartition, isolatedNodeIds),
+      [data, isolatedNodeIds, normalPartition],
+    );
+  const {
+    moduleScheme: regularizedModuleScheme,
+    moduleSchemeAlt: regularizedModuleSchemeAlt,
+  } = useMemo(
+    () =>
+      buildModuleSchemes(data, regularizedPartition, isolatedNodeIds),
+    [data, isolatedNodeIds, regularizedPartition],
+  );
 
-    moduleIds.forEach((moduleId) => {
-      const stats = moduleStats.get(moduleId)!;
-      if (stats.nonIsolated === 0) {
-        scheme[moduleId] = ISOLATED_MODULE_COLOR;
-        schemeAlt[moduleId] = darkenHex(ISOLATED_MODULE_COLOR);
-        return;
-      }
-
-      const color =
-        nonIsolatedColorIndex < COLORBLIND_FRIENDLY_POOL.length
-          ? COLORBLIND_FRIENDLY_POOL[nonIsolatedColorIndex]
-          : generatedModuleColor(nonIsolatedColorIndex);
-      scheme[moduleId] = color;
-      schemeAlt[moduleId] = darkenHex(color);
-      nonIsolatedColorIndex++;
-    });
-
-    return { moduleScheme: scheme, moduleSchemeAlt: schemeAlt };
-  }, [activePartition, data.nodes, isolatedNodeIds]);
-
-  const network = useMemo(
+  const normalNetwork = useMemo(
     () =>
       buildVisualizationNetwork(
         data,
-        activePartition,
+        normalPartition,
         isolatedNodeIds,
-        width,
-        height,
+        networkWidth,
+        networkHeight,
         regularizedNodeScale,
+        lockedNodePositions,
       ),
-    [activePartition, data, height, isolatedNodeIds, width],
+    [
+      data,
+      isolatedNodeIds,
+      lockedNodePositions,
+      networkHeight,
+      networkWidth,
+      normalPartition,
+    ],
+  );
+  const regularizedNetwork = useMemo(
+    () =>
+      buildVisualizationNetwork(
+        data,
+        regularizedPartition,
+        isolatedNodeIds,
+        networkWidth,
+        networkHeight,
+        regularizedNodeScale,
+        lockedNodePositions,
+      ),
+    [
+      data,
+      isolatedNodeIds,
+      lockedNodePositions,
+      networkHeight,
+      networkWidth,
+      regularizedPartition,
+    ],
   );
 
   const allLinksText = useMemo(() => {
-    const vertices = [...network.nodes]
+    const vertices = [...data.nodes]
       .sort((a, b) => a.id - b.id)
-      .map((node) => {
-        const escapedName = node.name.replace(/"/g, '\\"');
-        return `${node.id} "${escapedName}"`;
-      });
+      .map((node) => `${node.id} "${node.id}"`);
 
-    const edges = [...network.links]
+    const edges = [...data.links]
       .sort(
         (a, b) =>
-          a.source.id - b.source.id ||
-          a.target.id - b.target.id ||
+          a.source - b.source ||
+          a.target - b.target ||
           a.weight - b.weight,
       )
       .map(
         (link) =>
-          `${link.source.id} ${link.target.id} ${link.weight.toFixed(6)}`,
+          `${link.source} ${link.target} ${link.weight.toFixed(6)}`,
       );
 
     return [
-      `*Vertices ${network.nodes.length}`,
+      `*Vertices ${data.nodes.length}`,
       ...vertices,
       "*Edges",
       ...edges,
     ].join("\n");
-  }, [network]);
+  }, [data]);
 
-  const fallbackTreeText = useMemo(
-    () =>
-      [...network.nodes]
-        .sort((a, b) => a.topModule - b.topModule || a.id - b.id)
-        .map((node) => {
-          const escapedName = node.name.replace(/"/g, '\\"');
-          const oneBasedPath = node.topModule + 1;
-          return `${oneBasedPath} ${node.flow.toFixed(6)} "${escapedName}" ${node.id}`;
-        })
-        .join("\n"),
-    [network],
+  const normalFallbackTreeText = useMemo(
+    () => buildFallbackTreeText(normalNetwork),
+    [normalNetwork],
   );
-
-  const treeText =
-    activeRunState.status === "ready"
-      ? activeRunState.run.treeText
-      : fallbackTreeText;
-
-  const handleNormalInfomap = useCallback(() => {
-    setNetworkState("normal");
-  }, []);
-
-  const handleRegularize = useCallback(() => {
-    setNetworkState("regularized");
-  }, []);
+  const regularizedFallbackTreeText = useMemo(
+    () => buildFallbackTreeText(regularizedNetwork),
+    [regularizedNetwork],
+  );
+  const normalTreeText =
+    normalRunState.status === "ready"
+      ? normalRunState.run.treeText
+      : normalFallbackTreeText;
+  const regularizedTreeText =
+    regularizedRunState.status === "ready"
+      ? regularizedRunState.run.treeText
+      : regularizedFallbackTreeText;
 
   const handleCopyLinks = useCallback(async () => {
     try {
@@ -1398,30 +1639,46 @@ export default observer(function RegularizedInfomap({
     setTimeout(() => setCopyStatus(""), 1500);
   }, [allLinksText]);
 
-  const handleCopyTree = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(treeText);
-      setTreeCopyStatus("Copied");
-    } catch {
-      setTreeCopyStatus("Copy failed");
-    }
+  const handleCopyTree = useCallback(
+    async (networkType: NetworkState, value: string) => {
+      try {
+        await navigator.clipboard.writeText(value);
+        setTreeCopyStatus((previous) => ({
+          ...previous,
+          [networkType]: "Copied",
+        }));
+      } catch {
+        setTreeCopyStatus((previous) => ({
+          ...previous,
+          [networkType]: "Copy failed",
+        }));
+      }
 
-    setTimeout(() => setTreeCopyStatus(""), 1500);
-  }, [treeText]);
+      setTimeout(
+        () =>
+          setTreeCopyStatus((previous) => ({
+            ...previous,
+            [networkType]: "",
+          })),
+        1500,
+      );
+    },
+    [],
+  );
 
-  const handleDownloadTree = useCallback(() => {
-    const blob = new Blob([`${treeText}\n`], {
+  const handleDownloadTree = useCallback((value: string, filename: string) => {
+    const blob = new Blob([`${value}\n`], {
       type: "text/plain;charset=utf-8",
     });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = "network.tree";
+    anchor.download = filename;
     document.body.appendChild(anchor);
     anchor.click();
     document.body.removeChild(anchor);
     URL.revokeObjectURL(url);
-  }, [treeText]);
+  }, []);
 
   const triedRegularizationsForCurrentSparsity = useMemo(
     () =>
@@ -1448,28 +1705,36 @@ export default observer(function RegularizedInfomap({
       triedRegularizationsForCurrentSparsity.length - 1
     ];
   }, [triedRegularizationsForCurrentSparsity]);
-  const displayedOutcome =
-    activeRunState.status === "ready" ? activeRunState.run.outcome : null;
   const normalOutcome =
     normalRunState.status === "ready" ? normalRunState.run.outcome : null;
-  const displayedAssessment = displayedOutcome
-    ? assessOutcome(
-        displayedOutcome,
-        isRegularized ? "regularized" : "normal",
-        isRegularized ? normalOutcome : null,
-      )
+  const regularizedOutcome =
+    regularizedRunState.status === "ready"
+      ? regularizedRunState.run.outcome
+      : null;
+  const normalAssessment = normalOutcome
+    ? assessOutcome(normalOutcome, "normal", null)
     : null;
+  const regularizedAssessment =
+    regularizedOutcome && normalOutcome
+      ? assessOutcome(regularizedOutcome, "regularized", normalOutcome)
+      : regularizedOutcome
+        ? assessOutcome(regularizedOutcome, "regularized", null)
+        : null;
   const reservedRegularizedOutcome =
-    displayedOutcome ?? latestTriedRegularization?.run.outcome ?? null;
+    regularizedOutcome ?? latestTriedRegularization?.run.outcome ?? null;
   const currentRegularizedComparison =
-    normalOutcome && regularizedRunState.status === "ready"
-      ? regularizedRunState.run.outcome.adjustedMutualInformation -
+    normalOutcome && regularizedOutcome
+      ? regularizedOutcome.adjustedMutualInformation -
         normalOutcome.adjustedMutualInformation
       : null;
 
-  const apiTotalCodelength =
-    activeRunState.status === "ready"
-      ? activeRunState.run.apiCodelength
+  const normalApiTotalCodelength =
+    normalRunState.status === "ready"
+      ? normalRunState.run.apiCodelength
+      : Number.NaN;
+  const regularizedApiTotalCodelength =
+    regularizedRunState.status === "ready"
+      ? regularizedRunState.run.apiCodelength
       : Number.NaN;
   const completeNetworkNodeCount = completeData.nodes.length;
   const completeNetworkUniqueLinkCount = new Set(
@@ -1523,56 +1788,93 @@ export default observer(function RegularizedInfomap({
         </p>
       </div>
 
-      <div className="xl:grid xl:grid-cols-[minmax(0,30rem)_minmax(0,1fr)] xl:items-start xl:gap-8">
-        <div className="relative z-10 space-y-6 xl:pr-4">
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <strong className="block">Network Type:</strong>
-              <div className="grid grid-cols-2 gap-2">
-                <Button
-                  className={`button w-full whitespace-nowrap ${isNormal ? "bg-blue-600" : ""}`}
-                  style={{ padding: "0.375rem 0.625rem", fontSize: "0.75rem" }}
-                  onClick={handleNormalInfomap}
-                >
-                  Normal Infomap
-                </Button>
-                <Button
-                  className={`button w-full whitespace-nowrap ${isRegularized ? "bg-green-600" : ""}`}
-                  style={{ padding: "0.375rem 0.625rem", fontSize: "0.75rem" }}
-                  onClick={handleRegularize}
-                >
-                  Regularized Infomap
-                </Button>
-              </div>
-            </div>
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-gray-700 xl:hidden">
+          <div className="space-y-1">
+            <label className="flex items-center gap-1.5">
+              <strong className="inline-flex min-w-[116px] items-center gap-1 text-xs font-semibold">
+                <HelpTooltip content={LINK_REMOVAL_HELP} />
+                <span>Link Removal: {sparsePercentage}%</span>
+              </strong>
+              <input
+                type="range"
+                min="0"
+                max={MAX_SPARSE_PERCENTAGE}
+                step="5"
+                value={sparsePercentage}
+                onChange={(e) => setSparsePercentage(Number(e.target.value))}
+                className="h-1 w-24 flex-none md:w-28 lg:w-32"
+              />
+            </label>
+          </div>
 
-            <div className="space-y-2">
-              <label className="flex items-center gap-3">
-                <strong className="min-w-[200px]">
-                  Link Removal: {sparsePercentage}%
-                </strong>
-                <input
-                  type="range"
-                  min="0"
-                  max="80"
-                  step="5"
-                  value={sparsePercentage}
-                  onChange={(e) => setSparsePercentage(Number(e.target.value))}
-                  className="flex-1"
-                />
-              </label>
-              <p className="text-sm text-gray-600">
-                Removes {sparsePercentage}% of links at random to simulate
-                incomplete data
-              </p>
-            </div>
+          <div className="space-y-1">
+            <label className="flex items-center gap-1.5">
+              <strong className="inline-flex min-w-[116px] items-center gap-1 text-xs font-semibold">
+                <HelpTooltip content={REGULARIZATION_HELP} />
+                <span>
+                  Regularization: {regularizationStrength.toFixed(2)}
+                </span>
+              </strong>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.05"
+                value={regularizationStrength}
+                onChange={(e) =>
+                  setRegularizationStrength(Number(e.target.value))
+                }
+                className="h-1 w-24 flex-none md:w-28 lg:w-32"
+              />
+            </label>
+          </div>
+        </div>
 
-            <div className="min-h-[5.75rem]">
-              {isRegularized && (
-                <div className="space-y-2">
-                  <label className="flex items-center gap-3">
-                    <strong className="min-w-[200px]">
-                      Regularization: {regularizationStrength.toFixed(2)}
+        {datasetState.status === "loading" && (
+          <div className="text-blue-700">
+            <strong>Dataset:</strong> loading{" "}
+            <code>VII_network_complete.dat</code> and deriving the 0%
+            normal-Infomap reference partition...
+          </div>
+        )}
+        {datasetState.status === "error" && (
+          <div className="text-red-700">
+            <strong>Dataset:</strong> {datasetState.message}
+          </div>
+        )}
+
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] xl:items-start xl:gap-x-6">
+          <div className="xl:col-start-2 xl:row-start-1 xl:self-start xl:justify-self-center xl:pt-7">
+            <div className="hidden xl:block">
+              <div className="flex flex-col items-center gap-3 text-xs text-gray-700">
+                <div className="space-y-1">
+                  <label className="flex items-center gap-1.5">
+                    <strong className="inline-flex min-w-[116px] items-center gap-1 text-xs font-semibold">
+                      <HelpTooltip content={LINK_REMOVAL_HELP} />
+                      <span>Link Removal: {sparsePercentage}%</span>
+                    </strong>
+                    <input
+                      type="range"
+                      min="0"
+                      max={MAX_SPARSE_PERCENTAGE}
+                      step="5"
+                      value={sparsePercentage}
+                      onChange={(e) =>
+                        setSparsePercentage(Number(e.target.value))
+                      }
+                      className="h-1 w-24 flex-none md:w-28 lg:w-32"
+                    />
+                  </label>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="flex items-center gap-1.5">
+                    <strong className="inline-flex min-w-[116px] items-center gap-1 text-xs font-semibold">
+                      <HelpTooltip content={REGULARIZATION_HELP} />
+                      <span>
+                        Regularization: {regularizationStrength.toFixed(2)}
+                      </span>
                     </strong>
                     <input
                       type="range"
@@ -1583,183 +1885,126 @@ export default observer(function RegularizedInfomap({
                       onChange={(e) =>
                         setRegularizationStrength(Number(e.target.value))
                       }
-                      className="flex-1"
+                      className="h-1 w-24 flex-none md:w-28 lg:w-32"
                     />
                   </label>
-                  <p className="text-sm text-gray-600">
-                    Uniform prior <HelpTooltip
-                      content="The uniform prior acts like a weak background assumption that gently links all nodes together before the observed network is taken into account. Increasing this strength makes Infomap rely a bit less on sparse or noisy edge evidence and a bit more on that neutral baseline, instead of interpreting every missing link as strong evidence that nodes should be separated."
-                    /> strength used with <code>--regularized</code>{" "}
-                  </p>
                 </div>
-              )}
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <div className="min-h-[7.5rem]">
-              {displayedOutcome && normalOutcome && (
-                <div>
-                  <h4 className="font-semibold mb-2">Evaluation</h4>
-                  <div className="space-y-1 text-sm">
-                    <div>
-                      AMI{" "}
-                      <HelpTooltip
-                        content="Adjusted mutual information (AMI) compares the current non-isolated-node partition with the reference partition from the complete 0% network while correcting for agreement expected by chance. A value of 1 means the partitions match exactly up to relabeling, values near 0 mean no better agreement than random partitions with similar module sizes, and negative values mean worse-than-chance agreement."
-                      />
-                      :{" "}
-                      <strong>
-                        {formatAmi(displayedOutcome.adjustedMutualInformation)}
-                      </strong>
-                    </div>
-                    <div>
-                      Distance from reference module count:{" "}
-                      <strong>
-                        {moduleDistanceFromTruth(displayedOutcome)}
-                      </strong>
-                    </div>
-                    {isRegularized && currentRegularizedComparison !== null && (
-                      <div>
-                        Compared with normal Infomap:{" "}
-                        <strong>
-                          {formatSignedAmiDifference(
-                            currentRegularizedComparison,
-                          )}
-                        </strong>{" "}
-                        in AMI
-                        {currentRegularizedComparison > NOTICEABLE_IMPROVEMENT
-                          ? " (better agreement with the reference partition)"
-                          : currentRegularizedComparison <
-                              -NOTICEABLE_IMPROVEMENT
-                            ? " (worse agreement than normal)"
-                            : " (about the same AMI)"}
-                        .
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
+              </div>
             </div>
 
-            <div className="min-h-[6.5rem]">
-              {isRegularized &&
-                displayedOutcome &&
-                normalOutcome &&
-                bestTriedRegularization &&
-                triedRegularizationsForCurrentSparsity.length > 1 && (
+            <div className="mt-6 hidden min-w-[220px] xl:block">
+              {normalOutcome && regularizedOutcome && (
+                <div className="space-y-2 text-sm text-gray-900">
                   <div>
-                    <h4 className="font-semibold mb-2">Best Tried Strength</h4>
-                    <div className="space-y-1 text-sm">
-                      <div>
-                        Best tried regularization strength for{" "}
-                        {sparsePercentage}% link removal:{" "}
-                        <strong>
-                          {bestTriedRegularization.strength.toFixed(2)}
-                        </strong>
-                      </div>
-                      <div>
-                        AMI:{" "}
-                        <strong>
-                          {formatAmi(
-                            bestTriedRegularization.run.outcome
-                              .adjustedMutualInformation,
-                          )}
-                        </strong>
-                      </div>
-                      <div>
-                        Assessment:{" "}
-                        <strong>
-                          {
-                            assessOutcome(
-                              bestTriedRegularization.run.outcome,
-                              "regularized",
-                              normalOutcome,
-                            ).label
-                          }
-                        </strong>
-                      </div>
-                    </div>
+                    Normal AMI{" "}
+                    <HelpTooltip
+                      content="Adjusted mutual information (AMI) compares the current non-isolated-node partition with the reference partition from the complete 0% network while correcting for agreement expected by chance. A value of 1 means the partitions match exactly up to relabeling, values near 0 mean no better agreement than random partitions with similar module sizes, and negative values mean worse-than-chance agreement."
+                    />
+                    :{" "}
+                    <strong>{formatAmi(normalOutcome.adjustedMutualInformation)}</strong>
                   </div>
-                )}
+                  <div>
+                    Regularized AMI:{" "}
+                    <strong>
+                      {formatAmi(regularizedOutcome.adjustedMutualInformation)}
+                    </strong>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
-        </div>
 
-        <div className="mt-6 xl:mt-0 xl:self-start xl:sticky xl:top-0">
-          <Network
-            network={network}
-            scheme={moduleScheme}
-            schemeAlt={moduleSchemeAlt}
-            showLabels={false}
-            showModules={true}
-            colorIntraModuleLinks={true}
-            baseLinkStrokeWidth={1}
-            showNodeId={true}
-            nodeIdPosition="middle"
-            nodeIdFontSize={10}
-            nodeStroke="#fff"
-            nodeStrokeWidth={1.5}
-            width={width}
-            height={height}
-            nodeScale={regularizedNodeScale}
-          />
+          <div className="space-y-2 xl:col-start-1 xl:row-start-1">
+            <h3 className="text-center text-sm font-semibold uppercase tracking-[0.12em] text-gray-600">
+              Normal Infomap
+            </h3>
+            <Network
+              network={normalNetwork}
+              scheme={normalModuleScheme}
+              schemeAlt={normalModuleSchemeAlt}
+              showLabels={false}
+              showModules={true}
+              colorIntraModuleLinks={true}
+              baseLinkStrokeWidth={1}
+              showNodeId={false}
+              nodeStroke="#fff"
+              nodeStrokeWidth={1.5}
+              width={networkWidth}
+              height={networkHeight}
+              nodeScale={regularizedNodeScale}
+            />
 
-          <div className="mt-4 space-y-4">
-            <div
-              className={
-                datasetState.status === "ready"
-                  ? "grid min-h-[2.75rem]"
-                  : "min-h-[2.75rem]"
-              }
-            >
-              {datasetState.status === "ready" && (
-                <div aria-hidden="true" className="invisible [grid-area:1/1]">
-                  <strong>
-                    {isRegularized ? "Regularized Infomap" : "Normal Infomap"}:
-                  </strong>{" "}
-                  {RUNNING_STATUS_MESSAGE}
-                </div>
-              )}
-              {datasetState.status === "loading" && (
+            {datasetState.status === "ready" &&
+              normalRunState.status === "loading" && (
                 <div className="text-blue-700">
-                  <strong>Dataset:</strong> loading{" "}
-                  <code>VII_network_complete.dat</code> and deriving the 0%
-                  normal-Infomap reference partition...
+                  <strong>Normal Infomap:</strong>{" "}
+                  {normalPrecomputeStatusMessage}
                 </div>
               )}
-              {datasetState.status === "error" && (
+            {datasetState.status === "ready" &&
+              normalRunState.status === "error" && (
                 <div className="text-red-700">
-                  <strong>Dataset:</strong> {datasetState.message}
+                  <strong>Normal Infomap:</strong> {normalRunState.message}
                 </div>
               )}
-              {datasetState.status === "ready" &&
-                activeRunState.status === "loading" && (
-                  <div className="text-blue-700 [grid-area:1/1]">
-                    <strong>
-                      {isRegularized ? "Regularized Infomap" : "Normal Infomap"}
-                      :
-                    </strong>{" "}
-                    {RUNNING_STATUS_MESSAGE}
-                  </div>
-                )}
-              {datasetState.status === "ready" &&
-                activeRunState.status === "error" && (
-                  <div className="text-red-700 [grid-area:1/1]">
-                    <strong>
-                      {isRegularized ? "Regularized Infomap" : "Normal Infomap"}
-                      :
-                    </strong>{" "}
-                    {activeRunState.message}
-                  </div>
-                )}
-            </div>
 
-            <div
-              className={
-                isRegularized ? "grid min-h-[4.5rem]" : "min-h-[4.5rem]"
-              }
-            >
-              {isRegularized && reservedRegularizedOutcome && (
+            <div className="min-h-[3.25rem]">
+              {normalOutcome && normalAssessment && (
+                <div className={normalAssessment.toneClassName}>
+                  {normalAssessment.label === "pass"
+                    ? "✓"
+                    : normalAssessment.label === "half-pass"
+                      ? "~"
+                      : "⚠"}{" "}
+                  <strong>Normal Infomap:</strong> {normalAssessment.label} (
+                  {normalAssessment.description} Modules{" "}
+                  {normalOutcome.moduleCount}/{normalOutcome.truthModuleCount}
+                  {normalOutcome.rawModuleCount !== normalOutcome.moduleCount && (
+                    <> - ignoring isolated node modules</>
+                  )}
+                  ).
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-2 xl:col-start-3 xl:row-start-1">
+            <h3 className="text-center text-sm font-semibold uppercase tracking-[0.12em] text-gray-600">
+              Regularized Infomap
+            </h3>
+            <Network
+              network={regularizedNetwork}
+              scheme={regularizedModuleScheme}
+              schemeAlt={regularizedModuleSchemeAlt}
+              showLabels={false}
+              showModules={true}
+              colorIntraModuleLinks={true}
+              baseLinkStrokeWidth={1}
+              showNodeId={false}
+              nodeStroke="#fff"
+              nodeStrokeWidth={1.5}
+              width={networkWidth}
+              height={networkHeight}
+              nodeScale={regularizedNodeScale}
+            />
+
+            {datasetState.status === "ready" &&
+              regularizedRunState.status === "loading" && (
+                <div className="text-blue-700">
+                  <strong>Regularized Infomap:</strong>{" "}
+                  {regularizedPrecomputeStatusMessage}
+                </div>
+              )}
+            {datasetState.status === "ready" &&
+              regularizedRunState.status === "error" && (
+                <div className="text-red-700">
+                  <strong>Regularized Infomap:</strong>{" "}
+                  {regularizedRunState.message}
+                </div>
+              )}
+
+            <div className="grid min-h-[3.25rem]">
+              {reservedRegularizedOutcome && (
                 <div aria-hidden="true" className="invisible [grid-area:1/1]">
                   ~ <strong>Regularized Infomap:</strong>{" "}
                   {REGULARIZED_RESERVED_ASSESSMENT_LABEL} at regularization
@@ -1774,31 +2019,23 @@ export default observer(function RegularizedInfomap({
                   ).
                 </div>
               )}
-              {displayedOutcome && displayedAssessment && (
+              {regularizedOutcome && regularizedAssessment && (
                 <div
-                  className={`${displayedAssessment.toneClassName}${isRegularized ? " [grid-area:1/1]" : ""}`}
+                  className={`${regularizedAssessment.toneClassName} [grid-area:1/1]`}
                 >
-                  {displayedAssessment.label === "pass"
+                  {regularizedAssessment.label === "pass"
                     ? "✓"
-                    : displayedAssessment.label === "half-pass"
+                    : regularizedAssessment.label === "half-pass"
                       ? "~"
                       : "⚠"}{" "}
-                  <strong>
-                    {isRegularized ? "Regularized Infomap" : "Normal Infomap"}:
-                  </strong>{" "}
-                  {displayedAssessment.label}
-                  {isRegularized && (
-                    <>
-                      {" "}
-                      at regularization strength{" "}
-                      {regularizationStrength.toFixed(2)}
-                    </>
-                  )}{" "}
-                  ({displayedAssessment.description} Modules{" "}
-                  {displayedOutcome.moduleCount}/
-                  {displayedOutcome.truthModuleCount}
-                  {displayedOutcome.rawModuleCount !==
-                    displayedOutcome.moduleCount && (
+                  <strong>Regularized Infomap:</strong>{" "}
+                  {regularizedAssessment.label} at regularization strength{" "}
+                  {regularizationStrength.toFixed(2)} (
+                  {regularizedAssessment.description} Modules{" "}
+                  {regularizedOutcome.moduleCount}/
+                  {regularizedOutcome.truthModuleCount}
+                  {regularizedOutcome.rawModuleCount !==
+                    regularizedOutcome.moduleCount && (
                     <> - ignoring isolated node modules</>
                   )}
                   ).
@@ -1806,43 +2043,18 @@ export default observer(function RegularizedInfomap({
               )}
             </div>
 
-            <div className="min-h-[7rem]">
-              {isolatedNodeIds.size > 0 && (
-                <div className="text-sky-900 space-y-2">
-                  <div className="font-semibold">Isolated Nodes</div>
-                  <div className="text-sm">
-                    {`${isolatedNodeIds.size} isolated node${isolatedNodeIds.size === 1 ? "" : "s"} detected.`}
-                  </div>
-                  <div className="text-sm">
-                    Isolated nodes have no links, so Infomap has no flow
-                    evidence connecting them to the reference partition.
-                    Regularization cannot recover missing information when a
-                    node has zero observed links, so isolated-only modules are
-                    excluded from pass/fail module counting.
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div
-              className={
-                isRegularized ? "grid min-h-[6.5rem]" : "min-h-[6.5rem]"
-              }
-            >
-              {isRegularized && (
-                <div
-                  aria-hidden="true"
-                  className="invisible space-y-2 [grid-area:1/1]"
-                >
-                  <div className="font-semibold">{COLLAPSE_WARNING_TITLE}</div>
-                  <div className="text-sm">{COLLAPSE_WARNING_DESCRIPTION}</div>
-                  <div className="text-sm">{COLLAPSE_WARNING_EXPLANATION}</div>
-                </div>
-              )}
-              {isRegularized &&
-                displayedOutcome &&
-                displayedOutcome.moduleCount === 1 &&
-                activeRunState.status === "ready" && (
+            <div className="grid min-h-[6.5rem]">
+              <div
+                aria-hidden="true"
+                className="invisible space-y-2 [grid-area:1/1]"
+              >
+                <div className="font-semibold">{COLLAPSE_WARNING_TITLE}</div>
+                <div className="text-sm">{COLLAPSE_WARNING_DESCRIPTION}</div>
+                <div className="text-sm">{COLLAPSE_WARNING_EXPLANATION}</div>
+              </div>
+              {regularizedOutcome &&
+                regularizedOutcome.moduleCount === 1 &&
+                regularizedRunState.status === "ready" && (
                   <div className="text-amber-900 space-y-2 [grid-area:1/1]">
                     <div className="font-semibold">
                       {COLLAPSE_WARNING_TITLE}
@@ -1858,30 +2070,137 @@ export default observer(function RegularizedInfomap({
             </div>
           </div>
         </div>
+
+        <div className="min-h-[7rem]">
+          {isolatedNodeIds.size > 0 && (
+            <div className="text-sky-900 space-y-2">
+              <div className="font-semibold">Isolated Nodes</div>
+              <div className="text-sm">
+                {`${isolatedNodeIds.size} isolated node${isolatedNodeIds.size === 1 ? "" : "s"} detected.`}
+              </div>
+              <div className="text-sm">
+                Isolated nodes have no links, so Infomap has no flow evidence
+                connecting them to the reference partition. Regularization
+                cannot recover missing information when a node has zero observed
+                links, so isolated-only modules are excluded from pass/fail
+                module counting.
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="xl:hidden min-h-[4rem]">
+            {normalOutcome && regularizedOutcome && (
+              <div className="space-y-2 text-sm text-gray-900">
+                <div>
+                  Normal AMI{" "}
+                  <HelpTooltip
+                    content="Adjusted mutual information (AMI) compares the current non-isolated-node partition with the reference partition from the complete 0% network while correcting for agreement expected by chance. A value of 1 means the partitions match exactly up to relabeling, values near 0 mean no better agreement than random partitions with similar module sizes, and negative values mean worse-than-chance agreement."
+                  />
+                  :{" "}
+                  <strong>{formatAmi(normalOutcome.adjustedMutualInformation)}</strong>
+                </div>
+                <div>
+                  Regularized AMI:{" "}
+                  <strong>
+                    {formatAmi(regularizedOutcome.adjustedMutualInformation)}
+                  </strong>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="min-h-[6.5rem]">
+            {regularizedOutcome &&
+              normalOutcome &&
+              bestTriedRegularization &&
+              triedRegularizationsForCurrentSparsity.length > 1 && (
+                <div>
+                  <h4 className="font-semibold mb-2">Best Tried Strength</h4>
+                  <div className="space-y-1 text-sm">
+                    <div>
+                      Best tried regularization strength for{" "}
+                      {sparsePercentage}% link removal:{" "}
+                      <strong>
+                        {bestTriedRegularization.strength.toFixed(2)}
+                      </strong>
+                    </div>
+                    <div>
+                      AMI:{" "}
+                      <strong>
+                        {formatAmi(
+                          bestTriedRegularization.run.outcome
+                            .adjustedMutualInformation,
+                        )}
+                      </strong>
+                    </div>
+                    <div>
+                      Assessment:{" "}
+                      <strong>
+                        {
+                          assessOutcome(
+                            bestTriedRegularization.run.outcome,
+                            "regularized",
+                            normalOutcome,
+                          ).label
+                        }
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+              )}
+          </div>
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
         <CollapsiblePanel title="Codelength">
-          <div className="space-y-1 font-mono text-sm">
-            <div>
-              total (Infomap API):{" "}
-              {activeRunState.status === "ready"
-                ? Number.isFinite(apiTotalCodelength)
-                  ? `${apiTotalCodelength.toFixed(9)} bits`
-                  : "unavailable from API"
-                : "running..."}
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-1 font-mono text-sm">
+              <div className="font-sans font-semibold text-gray-900">
+                Normal Infomap
+              </div>
+              <div>
+                total (Infomap API):{" "}
+                {normalRunState.status === "ready"
+                  ? Number.isFinite(normalApiTotalCodelength)
+                    ? `${normalApiTotalCodelength.toFixed(9)} bits`
+                    : "unavailable from API"
+                  : "running..."}
+              </div>
+              <div>
+                trials run:{" "}
+                {normalRunState.status === "ready"
+                  ? normalRunState.run.trials
+                  : NUM_TRIALS}{" "}
+                (best solution shown)
+              </div>
             </div>
-            <div>
-              trials run:{" "}
-              {activeRunState.status === "ready"
-                ? activeRunState.run.trials
-                : NUM_TRIALS}{" "}
-              (best solution shown)
+            <div className="space-y-1 font-mono text-sm">
+              <div className="font-sans font-semibold text-gray-900">
+                Regularized Infomap
+              </div>
+              <div>
+                total (Infomap API):{" "}
+                {regularizedRunState.status === "ready"
+                  ? Number.isFinite(regularizedApiTotalCodelength)
+                    ? `${regularizedApiTotalCodelength.toFixed(9)} bits`
+                    : "unavailable from API"
+                  : "running..."}
+              </div>
+              <div>
+                trials run:{" "}
+                {regularizedRunState.status === "ready"
+                  ? regularizedRunState.run.trials
+                  : NUM_TRIALS}{" "}
+                (best solution shown)
+              </div>
             </div>
-            <div className="font-sans text-gray-600">
-              Exact JS API output exposes the total codelength, but not the
-              exact module/index/one-level split.
-            </div>
+          </div>
+          <div className="mt-3 font-sans text-sm text-gray-600">
+            Exact JS API output exposes the total codelength, but not the exact
+            module/index/one-level split.
           </div>
         </CollapsiblePanel>
 
@@ -1910,32 +2229,85 @@ export default observer(function RegularizedInfomap({
         </CollapsiblePanel>
 
         <CollapsiblePanel title={'Tree Output (path flow "name" node_id)'}>
-          <div className="mb-2 flex items-center justify-end gap-2">
-            <button
-              type="button"
-              className="button text-xs py-1 px-2"
-              onClick={handleCopyTree}
-            >
-              Copy tree
-            </button>
-            <button
-              type="button"
-              className="button text-xs py-1 px-2"
-              onClick={handleDownloadTree}
-            >
-              Download .tree
-            </button>
-          </div>
-          <textarea
-            readOnly
-            spellCheck={false}
-            value={treeText}
-            className="font-mono text-xs text-gray-700 h-56 w-full border-0 bg-transparent p-0 resize-none outline-none"
-            onFocus={(e) => e.currentTarget.select()}
-          />
-          <div className="text-xs text-gray-500 mt-2">
-            Click in the box, then press Cmd+A and Cmd+C to copy all tree rows.
-            {treeCopyStatus ? ` ${treeCopyStatus}.` : ""}
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div>
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <h5 className="font-semibold">Normal Infomap</h5>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="button text-xs py-1 px-2"
+                    onClick={() => handleCopyTree("normal", normalTreeText)}
+                  >
+                    Copy tree
+                  </button>
+                  <button
+                    type="button"
+                    className="button text-xs py-1 px-2"
+                    onClick={() =>
+                      handleDownloadTree(normalTreeText, "network-normal.tree")
+                    }
+                  >
+                    Download .tree
+                  </button>
+                </div>
+              </div>
+              <textarea
+                readOnly
+                spellCheck={false}
+                value={normalTreeText}
+                className="font-mono text-xs text-gray-700 h-56 w-full border-0 bg-transparent p-0 resize-none outline-none"
+                onFocus={(e) => e.currentTarget.select()}
+              />
+              <div className="text-xs text-gray-500 mt-2">
+                Click in the box, then press Cmd+A and Cmd+C to copy all tree
+                rows.
+                {treeCopyStatus.normal ? ` ${treeCopyStatus.normal}.` : ""}
+              </div>
+            </div>
+
+            <div>
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <h5 className="font-semibold">Regularized Infomap</h5>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="button text-xs py-1 px-2"
+                    onClick={() =>
+                      handleCopyTree("regularized", regularizedTreeText)
+                    }
+                  >
+                    Copy tree
+                  </button>
+                  <button
+                    type="button"
+                    className="button text-xs py-1 px-2"
+                    onClick={() =>
+                      handleDownloadTree(
+                        regularizedTreeText,
+                        "network-regularized.tree",
+                      )
+                    }
+                  >
+                    Download .tree
+                  </button>
+                </div>
+              </div>
+              <textarea
+                readOnly
+                spellCheck={false}
+                value={regularizedTreeText}
+                className="font-mono text-xs text-gray-700 h-56 w-full border-0 bg-transparent p-0 resize-none outline-none"
+                onFocus={(e) => e.currentTarget.select()}
+              />
+              <div className="text-xs text-gray-500 mt-2">
+                Click in the box, then press Cmd+A and Cmd+C to copy all tree
+                rows.
+                {treeCopyStatus.regularized
+                  ? ` ${treeCopyStatus.regularized}.`
+                  : ""}
+              </div>
+            </div>
           </div>
         </CollapsiblePanel>
       </div>
@@ -1948,23 +2320,20 @@ export default observer(function RegularizedInfomap({
             <code>VII_network_complete.dat</code> and run normal Infomap at 0%
             link removal to get the reference partition.
           </li>
-          {isNormal ? (
-            <li>
-              <strong>Normal Infomap:</strong> Runs{" "}
-              <code>@mapequation/infomap</code> with two-level optimization and{" "}
-              <code>-N {NUM_TRIALS}</code> trials.
-            </li>
-          ) : (
-            <li>
-              <strong>Regularized Infomap:</strong> Runs the same API with
-              <code>
-                {" "}
-                --regularized --regularization-strength{" "}
-                {regularizationStrength.toFixed(2)}
-              </code>{" "}
-              and <code>-N {NUM_TRIALS}</code> trials.
-            </li>
-          )}
+          <li>
+            <strong>Normal Infomap:</strong> Runs{" "}
+            <code>@mapequation/infomap</code> with two-level optimization and{" "}
+            <code>-N {NUM_TRIALS}</code> trials.
+          </li>
+          <li>
+            <strong>Regularized Infomap:</strong> Runs the same API with
+            <code>
+              {" "}
+              --regularized --regularization-strength{" "}
+              {regularizationStrength.toFixed(2)}
+            </code>{" "}
+            and <code>-N {NUM_TRIALS}</code> trials.
+          </li>
           <li>
             <strong>Evaluation:</strong> A run passes only if it recovers
             exactly the reference partition from the complete network.
