@@ -557,17 +557,11 @@ function buildCodelengthRows(
 
 function CodelengthOverview({ rows }: { rows: CodelengthRow[] }) {
   const maxValue = Math.max(...rows.map((row) => row.value), 1);
-
-  return (
-    <div className="space-y-3">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <h3 className="m-0 text-lg font-bold text-gray-900">
-          Mini overview strip
-        </h3>
-        <div className="text-xs text-gray-500">
-          Codelength contribution by hierarchy level, with the flat two-level
-          alternative for comparison.
-        </div>
+  const detailedOverview = (
+    <>
+      <div className="text-xs text-gray-500">
+        Codelength contribution by hierarchy level, with the flat two-level
+        alternative for comparison.
       </div>
       <div className="grid gap-3 lg:grid-cols-4 xl:grid-cols-8">
         {rows.map((row) => (
@@ -597,6 +591,18 @@ function CodelengthOverview({ rows }: { rows: CodelengthRow[] }) {
             </div>
           </div>
         ))}
+      </div>
+    </>
+  );
+  void detailedOverview;
+
+  return (
+    <div className="space-y-3">
+      <div className="mb-3">
+        <h3 className="m-0 text-lg font-bold text-gray-900">
+          Mini overview strip
+        </h3>
+        <p className="m-0 mt-1 text-sm text-gray-600">Coming soon.</p>
       </div>
     </div>
   );
@@ -1427,6 +1433,19 @@ function CodebookComparison({
     () => buildCodebookPanelData(twoLevelNetwork, "two-level"),
     [twoLevelNetwork],
   );
+  const detailedComparison = (
+    <>
+      <p className="m-0 mt-1 text-sm text-gray-600">
+        Hierarchical coding splits the index across levels; two-level coding
+        keeps one index over all fine modules.
+      </p>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <CodebookPanel data={hierarchicalCodebooks} />
+        <CodebookPanel data={twoLevelCodebooks} />
+      </div>
+    </>
+  );
+  void detailedComparison;
 
   return (
     <div className="space-y-3">
@@ -1434,14 +1453,7 @@ function CodebookComparison({
         <h3 className="m-0 text-lg font-bold text-gray-900">
           Codebook comparison
         </h3>
-        <p className="m-0 mt-1 text-sm text-gray-600">
-          Hierarchical coding splits the index across levels; two-level coding
-          keeps one index over all fine modules.
-        </p>
-      </div>
-      <div className="grid gap-6 lg:grid-cols-2">
-        <CodebookPanel data={hierarchicalCodebooks} />
-        <CodebookPanel data={twoLevelCodebooks} />
+        <p className="m-0 mt-1 text-sm text-gray-600">Coming soon.</p>
       </div>
     </div>
   );

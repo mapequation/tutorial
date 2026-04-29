@@ -477,12 +477,12 @@ export default function Main() {
         </div>
       </section>
 
-      <HierarchicalCodebooks />
-
       {/* Regularized Infomap Section */}
       <div className="col-span-4 mb-48">
         <RegularizedInfomap width={700} height={300} />
       </div>
+
+      <HierarchicalCodebooks />
 
       {/* Performance Dashboard */}
       <PerformanceDashboard />
