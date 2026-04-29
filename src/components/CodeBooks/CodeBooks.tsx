@@ -38,6 +38,8 @@ interface FittedHeights {
 }
 
 const PULSE_FADE_STEPS = 5;
+const HEIGHT_WEIGHT_EXPONENT = 0.78;
+const PULSE_JITTER_X = [0, 1.6, -1.2, 0.8, 0];
 
 function createBandPath({
   startX,
@@ -142,15 +144,7 @@ function hexToRgb(hex: string) {
   };
 }
 
-function rgbToHex({
-  r,
-  g,
-  b,
-}: {
-  r: number;
-  g: number;
-  b: number;
-}) {
+function rgbToHex({ r, g, b }: { r: number; g: number; b: number }) {
   return `#${[r, g, b]
     .map((value) =>
       Math.max(0, Math.min(255, Math.round(value)))
@@ -188,14 +182,22 @@ function getPulseProgress(age: number | null) {
   return Math.max(0, Math.min(1, age / (PULSE_FADE_STEPS - 1)));
 }
 
-function getPulseFill(baseColor: string, activeColor: string, age: number | null) {
+function getPulseFill(
+  baseColor: string,
+  activeColor: string,
+  age: number | null,
+) {
   const progress = getPulseProgress(age);
 
   if (progress === null) {
     return baseColor;
   }
 
-  return interpolateHexColor(darkenHexColor(activeColor, 0.4), baseColor, progress);
+  return interpolateHexColor(
+    darkenHexColor(activeColor, 0.4),
+    baseColor,
+    progress,
+  );
 }
 
 function getPulseOpacity(
@@ -212,20 +214,16 @@ function getPulseOpacity(
   return activeOpacity + (baseOpacity - activeOpacity) * progress;
 }
 
-function getPulseScale(baseScale: number, age: number | null) {
-  if (age !== 0) {
-    return 1;
-  }
-
-  return baseScale;
-}
-
-function getPulseTranslateX(baseTranslateX: number, age: number | null) {
+function getPulseJitterX(age: number | null) {
   if (age !== 0) {
     return 0;
   }
 
-  return baseTranslateX;
+  return PULSE_JITTER_X;
+}
+
+function softenHeightWeight(weight: number) {
+  return Math.pow(weight, HEIGHT_WEIGHT_EXPONENT);
 }
 
 export default observer(function CodeBooks({ barWidth = 200, network }: Props) {
@@ -259,8 +257,6 @@ export default observer(function CodeBooks({ barWidth = 200, network }: Props) {
     transformBox: "fill-box" as const,
     transformOrigin: "left center" as const,
   };
-  const pulseScale = 1.03;
-  const pulseTranslateX = 1.5;
   const baseRibbonOpacity = 0.18;
   const pulseRibbonOpacity = 0.46;
 
@@ -270,7 +266,11 @@ export default observer(function CodeBooks({ barWidth = 200, network }: Props) {
   const trace = walker.trace;
   const firstRelevantTraceIndex = Math.max(trace.length - PULSE_FADE_STEPS, 0);
 
-  for (let traceIndex = trace.length - 1; traceIndex >= firstRelevantTraceIndex; traceIndex--) {
+  for (
+    let traceIndex = trace.length - 1;
+    traceIndex >= firstRelevantTraceIndex;
+    traceIndex--
+  ) {
     const nodeId = trace[traceIndex];
     const age = trace.length - 1 - traceIndex;
     const currentTreeNode = root.getLeaf(nodeId);
@@ -307,7 +307,7 @@ export default observer(function CodeBooks({ barWidth = 200, network }: Props) {
   // Layout modules on left side by enter flow
   const moduleAvailableHeight = availableHeight * moduleHeightRatio;
   const moduleWeights = modules.map((module) =>
-    Math.max(module.enterFlow, minFlow),
+    softenHeightWeight(Math.max(module.enterFlow, minFlow)),
   );
   const { heights: moduleHeights, gap: moduleGap } = fitHeights(
     moduleWeights,
@@ -339,8 +339,8 @@ export default observer(function CodeBooks({ barWidth = 200, network }: Props) {
     width: barWidth,
     height,
     fill: scheme[parent!.isRoot ? id : parent!.id],
-    stroke: schemeAlt[parent!.isRoot ? id : parent!.id],
-    strokeWidth: 2,
+    stroke: "none",
+    strokeWidth: 0,
   });
 
   // Create exit flow nodes (synthetic nodes for module exit events)
@@ -363,7 +363,9 @@ export default observer(function CodeBooks({ barWidth = 200, network }: Props) {
 
   // Layout nodes on right side by flow within each module
   currentTop = contentTop;
-  const nodeWeights = nodes.map((node) => Math.max(node.flow, minFlow));
+  const nodeWeights = nodes.map((node) =>
+    softenHeightWeight(Math.max(node.flow, minFlow)),
+  );
   const { heights: nodeHeights, gap: nodeGap } = fitHeights(
     nodeWeights,
     availableHeight,
@@ -495,7 +497,8 @@ export default observer(function CodeBooks({ barWidth = 200, network }: Props) {
       <g>
         <g id="modules">
           {modules.map((module) => {
-            const modulePulseAge = recentModuleEnterAgeById.get(module.id) ?? null;
+            const modulePulseAge =
+              recentModuleEnterAgeById.get(module.id) ?? null;
 
             return (
               <g key={`module-${module.id}`}>
@@ -512,23 +515,29 @@ export default observer(function CodeBooks({ barWidth = 200, network }: Props) {
                       schemeAlt[module.id],
                       modulePulseAge,
                     ),
-                    scale: getPulseScale(pulseScale, modulePulseAge),
-                    translateX: getPulseTranslateX(
-                      pulseTranslateX,
-                      modulePulseAge,
-                    ),
+                    scale: 1,
+                    translateX: getPulseJitterX(modulePulseAge),
                   }}
                   transition={{ duration }}
                   style={motionStyle}
                 />
-              <text
-                x={module.x + barWidth + 20}
-                y={module.y - module.height / 2}
-                dominantBaseline="middle"
-                fontSize={fontSize(module.height)}
-              >
-                {module.enterCode}
-              </text>
+                <motion.text
+                  x={module.x + barWidth + 20}
+                  y={module.y - module.height / 2}
+                  dominantBaseline="middle"
+                  fontSize={fontSize(module.height)}
+                  initial={{ fill: scheme[module.id] }}
+                  animate={{
+                    fill: getPulseFill(
+                      scheme[module.id],
+                      schemeAlt[module.id],
+                      modulePulseAge,
+                    ),
+                  }}
+                  transition={{ duration }}
+                >
+                  {module.enterCode}
+                </motion.text>
               </g>
             );
           })}
@@ -556,24 +565,26 @@ export default observer(function CodeBooks({ barWidth = 200, network }: Props) {
                   }}
                   animate={{
                     fill: getPulseFill(mainColor, altColor, pulseAge),
-                    scale: getPulseScale(pulseScale, pulseAge),
-                    translateX: getPulseTranslateX(
-                      pulseTranslateX,
-                      pulseAge,
-                    ),
+                    scale: 1,
+                    translateX: getPulseJitterX(pulseAge),
                   }}
                   transition={{ duration }}
                   style={motionStyle}
                 />
-                <text
+                <motion.text
                   x={node.x + barWidth + 40}
                   y={node.y - node.height / 2}
                   dominantBaseline="middle"
                   fontFamily="Helvetica, sans-serif"
                   fontSize={fontSize(node.height)}
+                  initial={{ fill: mainColor }}
+                  animate={{
+                    fill: getPulseFill(mainColor, altColor, pulseAge),
+                  }}
+                  transition={{ duration }}
                 >
                   {node.exitCode}
-                </text>
+                </motion.text>
               </g>
             ) : (
               // Regular node (within-module visit)
@@ -587,24 +598,26 @@ export default observer(function CodeBooks({ barWidth = 200, network }: Props) {
                   }}
                   animate={{
                     fill: getPulseFill(mainColor, altColor, pulseAge),
-                    scale: getPulseScale(pulseScale, pulseAge),
-                    translateX: getPulseTranslateX(
-                      pulseTranslateX,
-                      pulseAge,
-                    ),
+                    scale: 1,
+                    translateX: getPulseJitterX(pulseAge),
                   }}
                   transition={{ duration }}
                   style={motionStyle}
                 />
-                <text
+                <motion.text
                   x={node.x + barWidth + 40}
                   y={node.y - node.height / 2}
                   dominantBaseline="middle"
                   fontFamily="Helvetica, sans-serif"
                   fontSize={fontSize(node.height)}
+                  initial={{ fill: mainColor }}
+                  animate={{
+                    fill: getPulseFill(mainColor, altColor, pulseAge),
+                  }}
+                  transition={{ duration }}
                 >
                   {node.code}
-                </text>
+                </motion.text>
               </g>
             );
           })}

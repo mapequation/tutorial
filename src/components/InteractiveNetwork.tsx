@@ -17,13 +17,21 @@ interface Props {
   numCommunities: number;
   scheme: Record<number, string>;
   schemeAlt?: Record<number, string>;
+  activeCommunity?: number;
+  onActiveCommunityChange?: (community: number) => void;
+  showCommunitySelector?: boolean;
+  showFeedback?: boolean;
+  showInstructions?: boolean;
   showLabels?: boolean;
   showModules?: boolean;
+  nodeIdLayer?: "inline" | "top";
   showVisiting?: boolean;
   rate?: any;
   width?: number;
   height?: number;
   scaleLinksByWeight?: boolean;
+  getNodeIdFill?: (node: NodeModel, fill: string) => string;
+  underlayChildren?: React.ReactNode;
   children?: React.ReactNode;
 }
 
@@ -40,25 +48,47 @@ export default observer(function InteractiveNetwork({
   numCommunities,
   scheme,
   schemeAlt,
+  activeCommunity,
+  onActiveCommunityChange,
+  showCommunitySelector = true,
+  showFeedback = true,
+  showInstructions = true,
   showLabels = false,
   showModules = false,
+  nodeIdLayer = "inline",
   showVisiting = true,
   rate,
   width = 800,
   height = 800,
   scaleLinksByWeight = false,
+  getNodeIdFill,
+  underlayChildren,
   children,
 }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const lassoPointsRef = useRef<[number, number][]>([]);
-  const [activeCommunity, setActiveCommunity] = useState(0);
+  const [uncontrolledActiveCommunity, setUncontrolledActiveCommunity] =
+    useState(0);
   const [isDrawing, setIsDrawing] = useState(false);
   const [lassoPoints, setLassoPoints] = useState<[number, number][]>([]);
   const [selectedNodes, setSelectedNodes] = useState<Set<number>>(new Set());
   const [feedback, setFeedback] = useState<string>("");
+  const currentActiveCommunity = activeCommunity ?? uncontrolledActiveCommunity;
+  const setCurrentActiveCommunity = useCallback(
+    (community: number) => {
+      if (activeCommunity === undefined) {
+        setUncontrolledActiveCommunity(community);
+      }
+      onActiveCommunityChange?.(community);
+    },
+    [activeCommunity, onActiveCommunityChange],
+  );
 
   // Node radius scale (same as in Network component)
-  const nodeScale = useMemo(() => scaleSqrt().domain([0, 1]).range([10, 100]), []);
+  const nodeScale = useMemo(
+    () => scaleSqrt().domain([0, 1]).range([10, 100]),
+    [],
+  );
 
   // Use exact same radius calculation as Network component
   const getNodeRate = useMemo(() => getRate(rate), [rate]);
@@ -67,7 +97,7 @@ export default observer(function InteractiveNetwork({
     (node: NodeModel): number => {
       return nodeScale(getNodeRate(node));
     },
-    [nodeScale, getNodeRate]
+    [nodeScale, getNodeRate],
   );
 
   /**
@@ -98,7 +128,7 @@ export default observer(function InteractiveNetwork({
 
       return [x, y];
     },
-    []
+    [],
   );
 
   // Setup global mouse tracking
@@ -108,19 +138,23 @@ export default observer(function InteractiveNetwork({
     const handleGlobalMouseMove = (e: MouseEvent) => {
       // Prevent text selection while drawing
       e.preventDefault();
-      
+
       const coords = getSVGCoordinates(e.clientX, e.clientY);
       if (!coords) return;
 
       lassoPointsRef.current.push(coords);
-      
+
       if (lassoPointsRef.current.length % 3 === 0) {
         setLassoPoints([...lassoPointsRef.current]);
-        
+
         if (lassoPointsRef.current.length >= 3) {
           const nodesInLasso = network.nodes
-            .filter((node) => 
-              isCircleIntersectingPolygon([node.x, node.y], getNodeRadius(node), lassoPointsRef.current)
+            .filter((node) =>
+              isCircleIntersectingPolygon(
+                [node.x, node.y],
+                getNodeRadius(node),
+                lassoPointsRef.current,
+              ),
             )
             .map((node) => node.id);
           setSelectedNodes(new Set(nodesInLasso));
@@ -138,7 +172,11 @@ export default observer(function InteractiveNetwork({
       }
 
       const selectedNodes = network.nodes.filter((node) =>
-        isCircleIntersectingPolygon([node.x, node.y], getNodeRadius(node), lassoPointsRef.current)
+        isCircleIntersectingPolygon(
+          [node.x, node.y],
+          getNodeRadius(node),
+          lassoPointsRef.current,
+        ),
       );
 
       setLassoPoints([]);
@@ -152,12 +190,14 @@ export default observer(function InteractiveNetwork({
       }
 
       selectedNodes.forEach((node) => {
-        node.setTopModule(activeCommunity);
+        node.setTopModule(currentActiveCommunity);
       });
 
       network.finalize();
 
-      setFeedback(`✓ Assigned ${selectedNodes.length} node(s) to community ${activeCommunity}`);
+      setFeedback(
+        `✓ Assigned ${selectedNodes.length} node(s) to community ${currentActiveCommunity}`,
+      );
       setTimeout(() => setFeedback(""), 2000);
     };
 
@@ -174,14 +214,21 @@ export default observer(function InteractiveNetwork({
       document.removeEventListener("mouseup", handleGlobalMouseUp);
       document.removeEventListener("selectstart", handleSelectStart);
     };
-  }, [isDrawing, network, getNodeRadius, activeCommunity, getSVGCoordinates, getNodeRate]);
+  }, [
+    isDrawing,
+    network,
+    getNodeRadius,
+    currentActiveCommunity,
+    getSVGCoordinates,
+    getNodeRate,
+  ]);
 
   /**
    * Check if a point is inside a polygon using ray casting algorithm.
    */
   const isPointInPolygon = (
     point: [number, number],
-    polygon: [number, number][]
+    polygon: [number, number][],
   ): boolean => {
     const [x, y] = point;
     let inside = false;
@@ -190,10 +237,7 @@ export default observer(function InteractiveNetwork({
       const [xi, yi] = polygon[i];
       const [xj, yj] = polygon[j];
 
-      if (
-        yi > y !== yj > y &&
-        x < ((xj - xi) * (y - yi)) / (yj - yi) + xi
-      ) {
+      if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) {
         inside = !inside;
       }
     }
@@ -210,7 +254,7 @@ export default observer(function InteractiveNetwork({
   const isCircleIntersectingPolygon = (
     center: [number, number],
     radius: number,
-    polygon: [number, number][]
+    polygon: [number, number][],
   ): boolean => {
     const [cx, cy] = center;
     const radiusSq = radius * radius;
@@ -237,7 +281,10 @@ export default observer(function InteractiveNetwork({
       if (lengthSq === 0) continue; // Skip degenerate edges
 
       // Find closest point on edge to circle center
-      const t = Math.max(0, Math.min(1, ((cx - x1) * dx + (cy - y1) * dy) / lengthSq));
+      const t = Math.max(
+        0,
+        Math.min(1, ((cx - x1) * dx + (cy - y1) * dy) / lengthSq),
+      );
       const closestX = x1 + t * dx;
       const closestY = y1 + t * dy;
 
@@ -254,7 +301,10 @@ export default observer(function InteractiveNetwork({
    */
   const handleMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
     // Don't start selection if clicking on interactive elements
-    if ((e.target as SVGElement).tagName === "circle" || (e.target as SVGElement).tagName === "text") {
+    if (
+      (e.target as SVGElement).tagName === "circle" ||
+      (e.target as SVGElement).tagName === "text"
+    ) {
       return;
     }
 
@@ -270,53 +320,70 @@ export default observer(function InteractiveNetwork({
    */
   const getPathString = (points: [number, number][]): string => {
     if (points.length === 0) return "";
-    return (
-      "M " +
-      points.map(([x, y]) => `${x},${y}`).join(" L ") +
-      ` Z`
-    );
+    return "M " + points.map(([x, y]) => `${x},${y}`).join(" L ") + ` Z`;
   };
 
-  const getButtonStyle = useCallback((i: number) => ({
-    width: "2rem",
-    height: "2rem",
-    border: i === activeCommunity ? "3px solid #333" : "2px solid #ddd",
-    borderRadius: "0.25rem",
-    cursor: "pointer",
-    transition: "all 0.15s",
-    fontWeight: "bold" as const,
-    fontSize: "0.75rem",
-    color: "#fff",
-    backgroundColor: scheme[i],
-    boxShadow: i === activeCommunity ? "0 0 0 2px white, 0 0 0 4px #333" : "none",
-  }), [activeCommunity, scheme]);
+  const getButtonStyle = useCallback(
+    (i: number) => ({
+      width: "2rem",
+      height: "2rem",
+      border:
+        i === currentActiveCommunity ? "3px solid #333" : "2px solid #ddd",
+      borderRadius: "0.25rem",
+      cursor: "pointer",
+      transition: "all 0.15s",
+      fontWeight: "bold" as const,
+      fontSize: "0.75rem",
+      color: "#fff",
+      backgroundColor: scheme[i],
+      boxShadow:
+        i === currentActiveCommunity
+          ? "0 0 0 2px white, 0 0 0 4px #333"
+          : "none",
+    }),
+    [currentActiveCommunity, scheme],
+  );
 
   const getLabel = useCallback(
-    (node: NodeModel) => showModules && network.treeUpdateCounter ? (node.code ?? "") : (undefined as any),
-    [showModules, network.treeUpdateCounter]
+    (node: NodeModel) =>
+      showModules && network.treeUpdateCounter
+        ? (node.code ?? "")
+        : (undefined as any),
+    [showModules, network.treeUpdateCounter],
   ) as any;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
       {/* Community selector buttons */}
-      <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
-        <strong>Select Community:</strong>
-        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-          {Array.from({ length: numCommunities }).map((_, i) => (
-            <button
-              key={i}
-              style={getButtonStyle(i)}
-              onClick={() => setActiveCommunity(i)}
-              title={`Community ${i}`}
-            >
-              {i}
-            </button>
-          ))}
+      {showCommunitySelector && (
+        <div
+          style={{
+            display: "flex",
+            gap: "0.5rem",
+            flexWrap: "wrap",
+            alignItems: "center",
+          }}
+        >
+          <strong>Select Community:</strong>
+          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+            {Array.from({ length: numCommunities }).map((_, i) => (
+              <button
+                key={i}
+                style={getButtonStyle(i)}
+                onClick={() => setCurrentActiveCommunity(i)}
+                title={`Community ${i}`}
+              >
+                {i}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Network with selection overlay */}
-      <div style={{ position: "relative", display: "inline-block", width: "100%" }}>
+      <div
+        style={{ position: "relative", display: "inline-block", width: "100%" }}
+      >
         <svg
           ref={svgRef}
           style={{
@@ -353,13 +420,16 @@ export default observer(function InteractiveNetwork({
             rate={rate}
             showLabels={showLabels}
             showModules={showModules}
+            nodeIdLayer={nodeIdLayer}
             colorIntraModuleLinks={true}
             showVisiting={showVisiting}
             width={width}
             height={height}
             scaleLinksByWeight={scaleLinksByWeight}
             getLabel={getLabel}
+            getNodeIdFill={getNodeIdFill}
             selectedNodeIds={isDrawing ? selectedNodes : undefined}
+            underlayChildren={underlayChildren}
           >
             {children}
           </Network>
@@ -382,22 +452,27 @@ export default observer(function InteractiveNetwork({
       </div>
 
       {/* Feedback message */}
-      <div
-        aria-live="polite"
-        style={{
-          color: "#2d5f2e",
-          fontWeight: 500,
-          minHeight: "1.25rem",
-        }}
-      >
-        {feedback || "\u00A0"}
-      </div>
+      {showFeedback && (
+        <div
+          aria-live="polite"
+          style={{
+            color: "#2d5f2e",
+            fontWeight: 500,
+            minHeight: "1.25rem",
+          }}
+        >
+          {feedback || "\u00A0"}
+        </div>
+      )}
 
       {/* Instructions */}
-      <div style={{ color: "#666", fontSize: "0.8rem" }}>
-        Click and drag to draw a free-hand lasso around nodes. Release to complete the selection
-        and assign selected nodes to the active community.
-      </div>
+      {showInstructions && (
+        <div style={{ color: "#666", fontSize: "0.8rem" }}>
+          Click and drag to draw a free-hand lasso around nodes. Release to
+          complete the selection and assign selected nodes to the active
+          community.
+        </div>
+      )}
     </div>
   );
 });

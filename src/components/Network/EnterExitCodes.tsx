@@ -1,4 +1,5 @@
-import { Fragment, SVGProps } from "react";
+import { Fragment, type SVGProps } from "react";
+import { motion, type SVGMotionProps } from "framer-motion";
 import { observer } from "mobx-react";
 import type { Network } from "../../model";
 import { scheme, schemeAlt } from "../scheme";
@@ -53,8 +54,8 @@ export default observer(function EnterExitCodes({
     transformOrigin: "left center" as const,
   };
 
-  const CodeWord = (props: SVGProps<SVGTextElement>) => (
-    <text
+  const CodeWord = (props: SVGMotionProps<SVGTextElement>) => (
+    <motion.text
       dominantBaseline="middle"
       fontSize={fontSize}
       fontFamily={fontFamily}
@@ -73,6 +74,7 @@ export default observer(function EnterExitCodes({
   );
 
   const duration = Math.max(0.12, (0.35 * walker.interval) / 1000);
+  const vibrateX = [0, 1.6, -1.2, 0.8, 0];
 
   return (
     <g transform={`translate(${x}, ${y})`}>
@@ -93,7 +95,19 @@ export default observer(function EnterExitCodes({
 
         return (
           <Fragment key={module.id}>
-            <CodeWord x={-textOffset} y={textY} textAnchor="end" fontSize={12}>
+            <CodeWord
+              x={-textOffset}
+              y={textY}
+              textAnchor="end"
+              fontSize={12}
+              initial={{ fill: mainColor }}
+              animate={{
+                fill: changedFromModule
+                  ? [mainColor, altColor, mainColor]
+                  : mainColor,
+              }}
+              transition={{ duration }}
+            >
               {module.exitCode}
             </CodeWord>
             <ExitFlow
@@ -107,12 +121,12 @@ export default observer(function EnterExitCodes({
                 fill: changedFromModule
                   ? [mainColor, altColor, mainColor]
                   : mainColor,
-                scale: changedFromModule ? [1, 1.12, 1] : 1,
-                translateX: changedFromModule ? [0, 3, 0] : 0,
+                scale: 1,
+                translateX: changedFromModule ? vibrateX : 0,
               }}
               transition={{ duration }}
-              stroke={altColor}
-              strokeWidth={2}
+              stroke="none"
+              strokeWidth={0}
               pointerInside
               style={motionStyle}
               width={barWidth}
@@ -131,12 +145,12 @@ export default observer(function EnterExitCodes({
                 fill: changedToModule
                   ? [mainColor, altColor, mainColor]
                   : mainColor,
-                scale: changedToModule ? [1, 1.12, 1] : 1,
-                translateX: changedToModule ? [0, 3, 0] : 0,
+                scale: 1,
+                translateX: changedToModule ? vibrateX : 0,
               }}
               transition={{ duration, delay: 0.2 * duration }}
-              stroke={altColor}
-              strokeWidth={2}
+              stroke="none"
+              strokeWidth={0}
               style={motionStyle}
               width={barWidth}
               height={barHeight}
@@ -147,6 +161,13 @@ export default observer(function EnterExitCodes({
               x={enterX + barWidth + textOffset}
               y={textY}
               fontSize={12}
+              initial={{ fill: mainColor }}
+              animate={{
+                fill: changedToModule
+                  ? [mainColor, altColor, mainColor]
+                  : mainColor,
+              }}
+              transition={{ duration, delay: 0.2 * duration }}
             >
               {module.enterCode}
             </CodeWord>

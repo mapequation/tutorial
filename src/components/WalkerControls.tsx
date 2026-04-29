@@ -1,10 +1,4 @@
-import {
-  useEffect,
-  useId,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { observer } from "mobx-react";
 import { createPortal } from "react-dom";
 import { Network as NetworkModel, Rate } from "../model";

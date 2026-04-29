@@ -16,6 +16,7 @@ import {
   neutralNodeColorAlt,
   scheme,
   schemeAlt,
+  darkenHexColor,
 } from "./scheme";
 import HelpTooltip from "./HelpTooltip";
 import { CodelengthChart, InlineTrace } from "./Trace";
@@ -90,11 +91,27 @@ function formatRelativeCodelength(
     : `Two-level is ${relativeChange.toFixed(1)}% longer`;
 }
 
-const TWO_LEVEL_OVERLAY_PANEL_OFFSET = 64;
+const NUM_COMMUNITIES = 8;
+const NODE_ID_DARKEN_AMOUNT = 0.42;
 const INDEX_CODELENGTH_HELP =
   "Index codelength is the cost of telling the walker which module it enters next when it moves between modules.";
 const MODULE_CODELENGTH_HELP =
   "Module codelength is the cost of encoding what happens inside modules: node visits within a module plus the exit symbol when the walker leaves it.";
+
+function getDarkerNodeIdFill(_node: NodeModel, fill: string) {
+  return darkenHexColor(fill, NODE_ID_DARKEN_AMOUNT);
+}
+
+function getModuleTraceColor(moduleId: number) {
+  return scheme[moduleId] ?? neutralLinkColor;
+}
+
+function getModuleTraceStroke(source: NodeModel, target: NodeModel) {
+  return {
+    from: getModuleTraceColor(source.topModule),
+    to: getModuleTraceColor(target.topModule),
+  };
+}
 
 const OneLevelCodelengthOverlay = observer(function OneLevelCodelengthOverlay({
   network,
@@ -134,13 +151,14 @@ const TwoLevelCodelengthOverlay = observer(function TwoLevelCodelengthOverlay({
   // trigger `network.finalize()`, even though `Main` itself is not observed.
   network.treeUpdateCounter;
   const anchorNode = network.getNode(15);
+  const x = (anchorNode?.x ?? 500) - 120;
   const y = (anchorNode?.y ?? 700) + 54;
 
   return (
     <CodelengthOverlay
-      x={-118}
-      y={y - TWO_LEVEL_OVERLAY_PANEL_OFFSET}
-      width={252}
+      x={x}
+      y={y}
+      width={280}
       lines={[
         <span className="inline-flex items-center gap-1">
           <HelpTooltip content={INDEX_CODELENGTH_HELP} />
@@ -173,6 +191,7 @@ export default function Main() {
   const [showOptimized, setShowOptimized] = useState(true);
   const [showVisitRates, setShowVisitRates] = useState(false);
   const [showLinkWeights, setShowLinkWeights] = useState(false);
+  const [activeCommunity, setActiveCommunity] = useState(0);
   const firstNetworkRef = useRef<HTMLDivElement>(null);
 
   const setWalkerSpeed = (value: number) => {
@@ -307,7 +326,7 @@ export default function Main() {
         </h2>
       </div>
 
-      <div className="col-span-4">
+      <section id="huffman-coding" className="col-span-4 mb-48">
         <h2>Huffman coding</h2>
         <p>
           To understand the network, we need a compact way to describe how the
@@ -320,9 +339,9 @@ export default function Main() {
           Below we compare a <strong>one-level partition</strong> and a{" "}
           <strong>two-level partition</strong>. In the one-level partition, the
           walker uses one shared codebook for all nodes in the network. In the
-          two-level partition, the walker uses an <strong>index codebook</strong>{" "}
-          to say which community it is in and a separate local codebook inside
-          each community for the nodes there.
+          two-level partition, the walker uses an{" "}
+          <strong>index codebook</strong> to say which community it is in and a
+          separate local codebook inside each community for the nodes there.
         </p>
         <p className="mb-6 text-gray-700">
           When the walker stays inside the same community, it only prints the
@@ -345,92 +364,118 @@ export default function Main() {
           speed={speed}
           onSpeedChange={setWalkerSpeed}
         />
-      </div>
 
-      <div className="col-span-2 mb-10">
-        <h3 className="text-lg font-bold mb-4">One-Level Partition</h3>
-        <Network
-          network={network}
-          scheme={[neutralNodeColor]}
-          schemeAlt={[neutralNodeColorAlt]}
-          rate={showVisitRates ? Rate.Visits : Rate.Uniform}
-          showLabels={true}
-          showModules={false}
-          showNodeId={true}
-          showVisiting={showVisitRates}
-          scaleLinksByWeight={showLinkWeights}
-          width={800}
-          height={830}
-        >
-          <WalkTrace
-            walker={network.walker}
-            stroke={neutralLinkColor}
-            opacity={0.4}
-          />
-          <Walker walker={network.walker} r={12} fill={neutralNodeColorAlt} />
-          <OneLevelCodelengthOverlay network={network} />
-        </Network>
-      </div>
+        <div className="xl:grid xl:grid-cols-4 xl:items-start xl:gap-x-20">
+          <div className="min-w-0 xl:col-span-2">
+            <div className="mb-12">
+              <h3 className="text-lg font-bold mb-4">One-Level Partition</h3>
+              <Network
+                network={network}
+                scheme={[neutralNodeColor]}
+                schemeAlt={[neutralNodeColorAlt]}
+                rate={showVisitRates ? Rate.Visits : Rate.Uniform}
+                showLabels={true}
+                showModules={false}
+                showNodeId={true}
+                nodeIdLayer="top"
+                showVisiting={showVisitRates}
+                scaleLinksByWeight={showLinkWeights}
+                width={800}
+                height={830}
+                getNodeIdFill={getDarkerNodeIdFill}
+              >
+                <WalkTrace
+                  walker={network.walker}
+                  stroke={neutralLinkColor}
+                  opacity={0.58}
+                  minWidth={3.5}
+                  maxWidth={18}
+                  stableSegments
+                />
+                <Walker
+                  walker={network.walker}
+                  r={12}
+                  fill={neutralNodeColorAlt}
+                />
+                <OneLevelCodelengthOverlay network={network} />
+              </Network>
+            </div>
 
-      <div className="col-span-2 mb-10">
-        <h3 className="text-lg font-bold mb-4">Two-Level Partition</h3>
-        <InteractiveNetwork
-          network={network}
-          numCommunities={8}
-          scheme={scheme}
-          schemeAlt={schemeAlt}
-          showLabels={true}
-          showModules={true}
-          rate={showVisitRates ? Rate.Visits : Rate.Uniform}
-          showVisiting={showVisitRates}
-          scaleLinksByWeight={showLinkWeights}
-          width={800}
-          height={830}
-        >
-          <WalkTrace
-            walker={network.walker}
-            stroke={neutralLinkColor}
-            opacity={0.5}
-          />
-          <Walker walker={network.walker} r={12} fill={neutralNodeColorAlt} />
-          <EnterExitCodes network={network} x={200} y={660} />
-          <TwoLevelCodelengthOverlay network={network} />
-        </InteractiveNetwork>
-      </div>
+            <div className="mb-12">
+              <h3 className="text-lg font-bold mb-4">Running code printer</h3>
+              <p className="mb-4">
+                This trace prints the codewords emitted by the random walker in
+                real time. The first line shows the one-level code, where every
+                node uses a single shared codebook. The second line shows the
+                two-level code: when the walker crosses a community boundary it
+                prints an exit code, then an enter code, and then the node code
+                inside the new community.
+              </p>
+              <div className="space-y-2">
+                <div>
+                  <InlineTrace network={network} />
+                </div>
+                <div>
+                  <InlineTrace network={network} showModules />
+                </div>
+              </div>
+              <CodelengthChart network={network} />
+            </div>
 
-      <div className="col-span-4 mb-12">
-        <h3 className="text-lg font-bold mb-4">Running code printer</h3>
-        <p className="mb-4">
-          This trace prints the codewords emitted by the random walker in real
-          time. The first line shows the one-level code, where every node uses a
-          single shared codebook. The second line shows the two-level code: when
-          the walker crosses a community boundary it prints an exit code, then
-          an enter code, and then the node code inside the new community.
-        </p>
-        <div className="space-y-2">
-          <div>
-            <InlineTrace network={network} />
+            <div className="mb-16">
+              <Rates
+                network={network}
+                rate={Rate.Visits}
+                showModules
+                duration={network.walker.interval}
+              />
+            </div>
+
+            <div>
+              <CodeBooks network={network} />
+              <CodeBookLegend />
+            </div>
           </div>
-          <div>
-            <InlineTrace network={network} showModules />
-          </div>
+
+          <aside className="mt-10 xl:sticky xl:top-[10vh] xl:col-span-2 xl:mt-0 xl:w-[min(42vw,520px)] xl:justify-self-center">
+            <h3 className="text-lg font-bold mb-4">Two-Level Partition</h3>
+            <InteractiveNetwork
+              network={network}
+              numCommunities={NUM_COMMUNITIES}
+              scheme={scheme}
+              schemeAlt={schemeAlt}
+              activeCommunity={activeCommunity}
+              onActiveCommunityChange={setActiveCommunity}
+              showLabels={true}
+              showModules={true}
+              nodeIdLayer="top"
+              rate={showVisitRates ? Rate.Visits : Rate.Uniform}
+              showVisiting={showVisitRates}
+              scaleLinksByWeight={showLinkWeights}
+              width={800}
+              height={830}
+              getNodeIdFill={getDarkerNodeIdFill}
+            >
+              <WalkTrace
+                walker={network.walker}
+                stroke={neutralLinkColor}
+                opacity={0.66}
+                minWidth={3.5}
+                maxWidth={18}
+                stableSegments
+                getStableSegmentStroke={getModuleTraceStroke}
+              />
+              <Walker
+                walker={network.walker}
+                r={12}
+                fill={neutralNodeColorAlt}
+              />
+              <EnterExitCodes network={network} x={200} y={660} />
+              <TwoLevelCodelengthOverlay network={network} />
+            </InteractiveNetwork>
+          </aside>
         </div>
-        <CodelengthChart network={network} />
-      </div>
-
-      <div className="col-span-2 mb-48">
-        <Rates
-          network={network}
-          rate={Rate.Visits}
-          showModules
-          duration={network.walker.interval}
-        />
-      </div>
-
-      <div className="col-span-2 mb-48">
-        <CodeBooks network={network} />
-        <CodeBookLegend />
-      </div>
+      </section>
 
       <HierarchicalCodebooks />
 
