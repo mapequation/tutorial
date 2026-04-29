@@ -161,11 +161,11 @@ const NOTICEABLE_IMPROVEMENT = 0.01;
 const PASS_DESCRIPTION =
   "Exact recovery of the reference partition from the complete network.";
 const REGULARIZED_HALF_PASS_DESCRIPTION =
-  "Outperforms normal Infomap, but does not exactly recover the reference partition from the complete network.";
+  "Outperforms standard Infomap, but does not exactly recover the reference partition from the complete network.";
 const NORMAL_FAIL_DESCRIPTION =
   "Does not exactly recover the reference partition from the complete network.";
 const REGULARIZED_FAIL_DESCRIPTION =
-  "Does not recover the reference partition from the complete network and does not outperform normal Infomap.";
+  "Does not recover the reference partition from the complete network and does not outperform standard Infomap.";
 const REGULARIZED_RESERVED_ASSESSMENT_LABEL = "half-pass";
 const COLLAPSE_WARNING_TITLE = "Strong Regularization Collapses Modules";
 const COLLAPSE_WARNING_DESCRIPTION =
@@ -190,7 +190,7 @@ const treeLinePattern =
 const ISOLATED_MODULE_COLOR = isolatedModuleColor;
 const COLORBLIND_FRIENDLY_POOL = figColors;
 const LINK_REMOVAL_HELP =
-  "Removes the selected share of links at random to simulate incomplete data in both the normal and regularized networks.";
+  "Removes the selected share of links at random to simulate incomplete data in both the standard and regularized networks.";
 const REGULARIZATION_HELP =
   "Regularization strength controls how strongly Infomap uses the uniform prior when running with --regularized. The uniform prior acts like a weak background assumption that gently links all nodes together before the observed network is taken into account. Increasing this strength makes Infomap rely a bit less on sparse or noisy edge evidence and a bit more on that neutral baseline, instead of interpreting every missing link as strong evidence that nodes should be separated.";
 const AMI_HELP =
@@ -486,7 +486,7 @@ function SweepChart({
               className="h-2 w-4 rounded-sm"
               style={{ backgroundColor: NORMAL_CHART_COLOR }}
             />
-            Normal
+            Standard
           </span>
           <span className="inline-flex items-center gap-1.5">
             <span
@@ -592,7 +592,7 @@ function SweepChart({
             {renderMarker(
               point,
               point.normalValue,
-              "Normal",
+              "Standard",
               NORMAL_CHART_COLOR,
             )}
             {renderMarker(
@@ -827,9 +827,6 @@ const formatAmi = (value: number) => value.toFixed(3);
 const formatAmiTick = (value: number) => value.toFixed(2).replace(/\.00$/, "");
 
 const formatModuleCount = (value: number) => Math.round(value).toString();
-
-const formatRegularizationPercent = (value: number) =>
-  `${Math.round(value * 100)}%`;
 
 const moduleDistanceFromTruth = (outcome: PartitionOutcome) =>
   Math.abs(outcome.moduleCount - outcome.truthModuleCount);
@@ -1770,7 +1767,7 @@ export default observer(function RegularizedInfomap({
             status: "error",
             completedRuns,
             totalRuns: TOTAL_NORMAL_PRECOMPUTED_RUNS,
-            message: `Failed to precompute normal Infomap cache (${message})`,
+            message: `Failed to precompute standard Infomap cache (${message})`,
           });
         }
       }
@@ -1885,7 +1882,7 @@ export default observer(function RegularizedInfomap({
       ? { status: "error", message: regularizedPrecomputeState.message }
       : { status: "loading" };
   const normalPrecomputeStatusMessage = formatPrecomputeStatusMessage(
-    "normal Infomap runs",
+    "standard Infomap runs",
     normalPrecomputeState.completedRuns,
     normalPrecomputeState.totalRuns,
   );
@@ -2232,7 +2229,7 @@ export default observer(function RegularizedInfomap({
         className={`${className} invisible [grid-area:1/1]`}
       >
         <div>
-          Normal AMI ?: <strong>0.000</strong>
+          Standard AMI ?: <strong>0.000</strong>
         </div>
         <div>
           Regularized AMI: <strong>0.000</strong>
@@ -2241,7 +2238,7 @@ export default observer(function RegularizedInfomap({
       {amiSummaryIsVisible && normalOutcome && regularizedOutcome && (
         <div className={`${className} [grid-area:1/1]`}>
           <div>
-            Normal AMI <HelpTooltip content={AMI_HELP} />:{" "}
+            Standard AMI <HelpTooltip content={AMI_HELP} />:{" "}
             <strong>
               {formatAmi(normalOutcome.adjustedMutualInformation)}
             </strong>
@@ -2269,8 +2266,7 @@ export default observer(function RegularizedInfomap({
           underlying system.
         </p>
         <p>
-          This example uses the complete network in{" "}
-          <code>VII_network_complete.dat</code>
+          This example uses a complete network
           {completeNetworkNodeCount > 0 && (
             <>
               {" "}
@@ -2278,7 +2274,7 @@ export default observer(function RegularizedInfomap({
               {completeNetworkAvgLinksPerNode.toFixed(1)} links on average
             </>
           )}
-          . We first run normal Infomap on that full network and use the
+          . We first run standard Infomap on that complete network and use the
           resulting partition as the reference structure. We then remove a
           fraction of links at random to simulate incomplete data and ask
           Infomap to recover that reference partition.
@@ -2286,11 +2282,11 @@ export default observer(function RegularizedInfomap({
         <p>
           <strong>Regularized Infomap</strong> adds a weak structural prior that
           makes the partition less eager to overreact to missing links and noisy
-          evidence. When the observed network is sparse, that extra bias can
-          stabilize the solution by balancing the measured flow against a
-          simpler baseline model, instead of trusting every missing edge as a
-          strong signal. Here we use the <strong>Infomap API</strong> and
-          compare regularized and non-regularized solutions directly.
+          evidence. When the observed network is sparse, that incorporated prior
+          assumption can stabilize the solution by balancing the measured flow
+          against a simpler baseline model, instead of trusting every missing
+          edge as a strong signal. Here we use the <strong>Infomap API</strong>{" "}
+          and compare regularized and non-regularized solutions directly.
         </p>
       </div>
 
@@ -2327,7 +2323,7 @@ export default observer(function RegularizedInfomap({
               <input
                 type="range"
                 min="0"
-                max="1"
+                max="2"
                 step="0.05"
                 value={regularizationStrength}
                 onChange={(e) =>
@@ -2343,7 +2339,7 @@ export default observer(function RegularizedInfomap({
           <div className="text-blue-700">
             <strong>Dataset:</strong> loading{" "}
             <code>VII_network_complete.dat</code> and deriving the 0%
-            normal-Infomap reference partition...
+            standard-Infomap reference partition...
           </div>
         )}
         {datasetState.status === "error" && (
@@ -2389,7 +2385,7 @@ export default observer(function RegularizedInfomap({
                     <input
                       type="range"
                       min="0"
-                      max="1"
+                      max="2"
                       step="0.05"
                       value={regularizationStrength}
                       onChange={(e) =>
@@ -2415,7 +2411,7 @@ export default observer(function RegularizedInfomap({
 
           <div className="space-y-2 xl:col-start-1 xl:row-start-1">
             <h3 className="text-center text-sm font-semibold uppercase tracking-[0.12em] text-gray-600">
-              Normal Infomap
+              Standard Infomap
             </h3>
             <Network
               network={normalNetwork}
@@ -2436,14 +2432,14 @@ export default observer(function RegularizedInfomap({
             {datasetState.status === "ready" &&
               normalRunState.status === "loading" && (
                 <div className="text-blue-700">
-                  <strong>Normal Infomap:</strong>{" "}
+                  <strong>Standard Infomap:</strong>{" "}
                   {normalPrecomputeStatusMessage}
                 </div>
               )}
             {datasetState.status === "ready" &&
               normalRunState.status === "error" && (
                 <div className="text-red-700">
-                  <strong>Normal Infomap:</strong> {normalRunState.message}
+                  <strong>Standard Infomap:</strong> {normalRunState.message}
                 </div>
               )}
 
@@ -2455,7 +2451,7 @@ export default observer(function RegularizedInfomap({
                     : normalAssessment.label === "half-pass"
                       ? "~"
                       : "⚠"}{" "}
-                  <strong>Normal Infomap:</strong> {normalAssessment.label} (
+                  <strong>Standard Infomap:</strong> {normalAssessment.label} (
                   {normalAssessment.description} Modules{" "}
                   {normalOutcome.moduleCount}/{normalOutcome.truthModuleCount}
                   {normalOutcome.rawModuleCount !==
@@ -2547,9 +2543,9 @@ export default observer(function RegularizedInfomap({
 
         <div className="grid gap-4 lg:grid-cols-2">
           <SweepChart
-            title={`AMI / Link removal at ${formatRegularizationPercent(
-              regularizationStrength,
-            )} regularization`}
+            title={`AMI / Link removal at regularization strength ${regularizationStrength.toFixed(
+              2,
+            )}`}
             helpContent={AMI_HELP}
             yLabel="AMI"
             points={amiChartPoints}
@@ -2561,9 +2557,9 @@ export default observer(function RegularizedInfomap({
             targetLabel="Exact recovery"
           />
           <SweepChart
-            title={`Modules / Link removal at ${formatRegularizationPercent(
-              regularizationStrength,
-            )} regularization`}
+            title={`Modules / Link removal at regularization strength ${regularizationStrength.toFixed(
+              2,
+            )}`}
             helpContent={MODULE_COUNT_HELP}
             yLabel="Modules"
             points={moduleChartPoints}
@@ -2641,7 +2637,7 @@ export default observer(function RegularizedInfomap({
           className="button text-xs py-1 px-2"
           onClick={() => handleCopyTree("normal", normalTreeText)}
         >
-          Copy tree output (normal)
+          Copy tree output (standard)
         </button>
         <button
           type="button"
@@ -2670,11 +2666,11 @@ export default observer(function RegularizedInfomap({
         <ol>
           <li>
             <strong>Complete Network:</strong> We load the edge list from{" "}
-            <code>VII_network_complete.dat</code> and run normal Infomap at 0%
+            <code>VII_network_complete.dat</code> and run standard Infomap at 0%
             link removal to get the reference partition.
           </li>
           <li>
-            <strong>Normal Infomap:</strong> Runs{" "}
+            <strong>Standard Infomap:</strong> Runs{" "}
             <code>@mapequation/infomap</code> with two-level optimization and{" "}
             <code>-N {NUM_TRIALS}</code> trials.
           </li>
