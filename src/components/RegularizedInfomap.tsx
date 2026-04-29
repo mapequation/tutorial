@@ -30,12 +30,6 @@ interface Props {
   height?: number;
 }
 
-interface CollapsiblePanelProps {
-  title: string;
-  children: ReactNode;
-  defaultOpen?: boolean;
-}
-
 type NetworkState = "normal" | "regularized";
 type Partition = Map<number, number>;
 type NodePositionById = Map<number, { x: number; y: number }>;
@@ -66,7 +60,6 @@ interface TreeRow {
 interface InfomapRun {
   outcome: PartitionOutcome;
   treeText: string;
-  apiCodelength: number;
   trials: number;
 }
 
@@ -79,6 +72,33 @@ interface TriedRegularizationRun {
 interface TriedNormalRun {
   sparsePercentage: number;
   run: InfomapRun;
+}
+
+interface SweepChartPoint {
+  sparsePercentage: number;
+  normalValue: number | null;
+  regularizedValue: number | null;
+  targetValue?: number | null;
+}
+
+interface HoveredSweepPoint {
+  sparsePercentage: number;
+  value: number;
+  seriesLabel: string;
+  color: string;
+}
+
+interface SweepChartProps {
+  title: string;
+  helpContent?: ReactNode;
+  yLabel: string;
+  points: SweepChartPoint[];
+  yDomain: [number, number];
+  yTicks: number[];
+  currentSparsePercentage: number;
+  formatYTick: (value: number) => string;
+  formatValue: (value: number) => string;
+  targetLabel?: string;
 }
 
 type RunState =
@@ -127,7 +147,6 @@ interface InfomapTreeNodeLike {
 }
 
 interface InfomapJsonLike {
-  codelength?: number;
   nodes?: InfomapTreeNodeLike[];
 }
 
@@ -174,11 +193,33 @@ const LINK_REMOVAL_HELP =
   "Removes the selected share of links at random to simulate incomplete data in both the normal and regularized networks.";
 const REGULARIZATION_HELP =
   "Regularization strength controls how strongly Infomap uses the uniform prior when running with --regularized. The uniform prior acts like a weak background assumption that gently links all nodes together before the observed network is taken into account. Increasing this strength makes Infomap rely a bit less on sparse or noisy edge evidence and a bit more on that neutral baseline, instead of interpreting every missing link as strong evidence that nodes should be separated.";
+const AMI_HELP =
+  "Adjusted mutual information (AMI) compares the current non-isolated-node partition with the reference partition from the complete 0% network while correcting for agreement expected by chance. A value of 1 means the partitions match exactly up to relabeling, values near 0 mean no better agreement than random partitions with similar module sizes, and negative values mean worse-than-chance agreement.";
+const MODULE_COUNT_HELP =
+  "Module count is measured on the non-isolated nodes used for pass/fail evaluation. Isolated-only modules are ignored because there is no observed flow evidence connecting those nodes to the reference partition.";
 const SPARSE_PERCENTAGES = Array.from({ length: 17 }, (_, index) => index * 5);
-const MAX_SPARSE_PERCENTAGE =
-  SPARSE_PERCENTAGES[SPARSE_PERCENTAGES.length - 1];
+const MAX_SPARSE_PERCENTAGE = SPARSE_PERCENTAGES[SPARSE_PERCENTAGES.length - 1];
 const TOTAL_NORMAL_PRECOMPUTED_RUNS = SPARSE_PERCENTAGES.length;
 const TOTAL_REGULARIZED_PRECOMPUTED_RUNS = SPARSE_PERCENTAGES.length;
+const CHART_WIDTH = 520;
+const CHART_HEIGHT = 230;
+const CHART_MARGIN = {
+  top: 18,
+  right: 18,
+  bottom: 42,
+  left: 48,
+};
+const CHART_X_TICKS = SPARSE_PERCENTAGES.filter(
+  (value) => value % 20 === 0 || value === MAX_SPARSE_PERCENTAGE,
+);
+const NORMAL_CHART_COLOR = COLORBLIND_FRIENDLY_POOL[1];
+const REGULARIZED_CHART_COLOR = COLORBLIND_FRIENDLY_POOL[2];
+const TARGET_CHART_COLOR = ISOLATED_MODULE_COLOR;
+const CONTROL_LABEL_CLASS = "grid grid-cols-[9.5rem_8rem] items-center gap-2";
+const CONTROL_TEXT_CLASS =
+  "inline-grid w-[9.5rem] grid-cols-[1rem_1fr] items-center gap-1 text-xs font-semibold";
+const CONTROL_VALUE_CLASS = "whitespace-nowrap tabular-nums";
+const CONTROL_RANGE_CLASS = "h-1 w-32 flex-none";
 
 const formatPrecomputeStatusMessage = (
   label: string,
@@ -212,27 +253,418 @@ const resolveInfomapConstructor = (moduleValue?: unknown) => {
     : undefined;
 };
 
-function CollapsiblePanel({
+const clampNumber = (value: number, min: number, max: number) =>
+  Math.max(min, Math.min(max, value));
+
+const getSweepChartValues = (points: SweepChartPoint[]) =>
+  points.flatMap((point) =>
+    [point.normalValue, point.regularizedValue, point.targetValue].filter(
+      (value): value is number =>
+        typeof value === "number" && Number.isFinite(value),
+    ),
+  );
+
+const getAmiChartDomain = (points: SweepChartPoint[]): [number, number] => {
+  const values = getSweepChartValues(points);
+  const minValue = values.length > 0 ? Math.min(...values) : 0;
+  const minTick =
+    minValue < 0 ? Math.max(-1, Math.floor(minValue * 10) / 10) : 0;
+
+  return [minTick, 1];
+};
+
+const getAmiChartTicks = ([minValue]: [number, number]) => {
+  const baseTicks = [0, 0.25, 0.5, 0.75, 1];
+
+  return minValue < 0
+    ? [minValue, ...baseTicks.filter((tick) => tick > minValue)]
+    : baseTicks;
+};
+
+const getModuleChartDomain = (points: SweepChartPoint[]): [number, number] => {
+  const values = getSweepChartValues(points);
+  const maxValue = values.length > 0 ? Math.max(...values) : 1;
+
+  return [0, Math.max(1, Math.ceil(maxValue + 1))];
+};
+
+const getModuleChartTicks = ([, maxValue]: [number, number]) => {
+  const step = maxValue <= 8 ? 1 : Math.ceil(maxValue / 5);
+  const ticks: number[] = [];
+
+  for (let value = 0; value <= maxValue; value += step) {
+    ticks.push(value);
+  }
+
+  if (ticks[ticks.length - 1] !== maxValue) {
+    ticks.push(maxValue);
+  }
+
+  return ticks;
+};
+
+const buildLineSegments = (
+  points: SweepChartPoint[],
+  getValue: (point: SweepChartPoint) => number | null | undefined,
+  getSvgPoint: (sparsePercentage: number, value: number) => string,
+) => {
+  const segments: string[][] = [];
+  let currentSegment: string[] = [];
+
+  points.forEach((point) => {
+    const value = getValue(point);
+
+    if (typeof value === "number" && Number.isFinite(value)) {
+      currentSegment.push(getSvgPoint(point.sparsePercentage, value));
+      return;
+    }
+
+    if (currentSegment.length > 0) {
+      segments.push(currentSegment);
+      currentSegment = [];
+    }
+  });
+
+  if (currentSegment.length > 0) {
+    segments.push(currentSegment);
+  }
+
+  return segments;
+};
+
+function SweepChart({
   title,
-  children,
-  defaultOpen = false,
-}: CollapsiblePanelProps) {
-  const [isOpen, setIsOpen] = useState(defaultOpen);
+  helpContent,
+  yLabel,
+  points,
+  yDomain,
+  yTicks,
+  currentSparsePercentage,
+  formatYTick,
+  formatValue,
+  targetLabel,
+}: SweepChartProps) {
+  const plotWidth = CHART_WIDTH - CHART_MARGIN.left - CHART_MARGIN.right;
+  const plotHeight = CHART_HEIGHT - CHART_MARGIN.top - CHART_MARGIN.bottom;
+  const [minY, maxY] = yDomain;
+  const ySpan = Math.max(maxY - minY, SUCCESS_EPSILON);
+  const xSpan = Math.max(MAX_SPARSE_PERCENTAGE, SUCCESS_EPSILON);
+  const scaleX = (value: number) =>
+    CHART_MARGIN.left + (value / xSpan) * plotWidth;
+  const scaleY = (value: number) =>
+    CHART_MARGIN.top +
+    ((maxY - clampNumber(value, minY, maxY)) / ySpan) * plotHeight;
+  const getSvgPoint = (sparsePercentage: number, value: number) =>
+    `${scaleX(sparsePercentage)},${scaleY(value)}`;
+  const normalSegments = buildLineSegments(
+    points,
+    (point) => point.normalValue,
+    getSvgPoint,
+  );
+  const regularizedSegments = buildLineSegments(
+    points,
+    (point) => point.regularizedValue,
+    getSvgPoint,
+  );
+  const targetSegments = buildLineSegments(
+    points,
+    (point) => point.targetValue,
+    getSvgPoint,
+  );
+  const currentX = scaleX(currentSparsePercentage);
+  const [hoveredPoint, setHoveredPoint] = useState<HoveredSweepPoint | null>(
+    null,
+  );
+
+  const renderSegments = (
+    segments: string[][],
+    stroke: string,
+    strokeDasharray?: string,
+  ) =>
+    segments.map((segment, index) => (
+      <polyline
+        key={`${stroke}-${index}`}
+        points={segment.join(" ")}
+        fill="none"
+        stroke={stroke}
+        strokeWidth={2.5}
+        strokeDasharray={strokeDasharray}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    ));
+
+  const renderMarker = (
+    point: SweepChartPoint,
+    value: number | null,
+    seriesLabel: string,
+    color: string,
+  ) => {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      return null;
+    }
+
+    const markerLabel = `${seriesLabel} ${yLabel}: ${formatValue(
+      value,
+    )}, ${point.sparsePercentage}% link removal`;
+    const showTooltip = () =>
+      setHoveredPoint({
+        sparsePercentage: point.sparsePercentage,
+        value,
+        seriesLabel,
+        color,
+      });
+    const hideTooltip = () => setHoveredPoint(null);
+
+    return (
+      <g key={`${seriesLabel}-${point.sparsePercentage}`}>
+        <circle
+          cx={scaleX(point.sparsePercentage)}
+          cy={scaleY(value)}
+          r={9}
+          fill="transparent"
+          className="cursor-pointer"
+          pointerEvents="all"
+          tabIndex={0}
+          aria-label={markerLabel}
+          onMouseEnter={showTooltip}
+          onMouseOver={showTooltip}
+          onPointerEnter={showTooltip}
+          onClick={showTooltip}
+          onMouseLeave={hideTooltip}
+          onPointerLeave={hideTooltip}
+          onFocus={showTooltip}
+          onBlur={hideTooltip}
+        />
+        <circle
+          cx={scaleX(point.sparsePercentage)}
+          cy={scaleY(value)}
+          r={point.sparsePercentage === currentSparsePercentage ? 4 : 2.75}
+          fill={color}
+          stroke="#fff"
+          strokeWidth={1.25}
+          pointerEvents="none"
+        />
+      </g>
+    );
+  };
+
+  const tooltipWidth = yLabel === "AMI" ? 154 : 166;
+  const tooltipHeight = 44;
+  const tooltipAnchorX =
+    hoveredPoint !== null ? scaleX(hoveredPoint.sparsePercentage) : 0;
+  const tooltipAnchorY = hoveredPoint !== null ? scaleY(hoveredPoint.value) : 0;
+  const tooltipX =
+    hoveredPoint !== null
+      ? clampNumber(
+          tooltipAnchorX + tooltipWidth + 12 > CHART_WIDTH
+            ? tooltipAnchorX - tooltipWidth - 10
+            : tooltipAnchorX + 10,
+          CHART_MARGIN.left,
+          CHART_WIDTH - CHART_MARGIN.right - tooltipWidth,
+        )
+      : 0;
+  const tooltipY =
+    hoveredPoint !== null
+      ? clampNumber(
+          tooltipAnchorY - tooltipHeight - 10,
+          CHART_MARGIN.top,
+          CHART_HEIGHT - CHART_MARGIN.bottom - tooltipHeight,
+        )
+      : 0;
 
   return (
     <div className="space-y-2">
-      <button
-        type="button"
-        className="flex w-full items-center justify-between gap-4 py-2 text-left"
-        onClick={() => setIsOpen((open) => !open)}
-        aria-expanded={isOpen}
+      <div className="mb-1 space-y-1 text-center">
+        <h4 className="m-0 flex items-center justify-center gap-1 text-sm font-semibold text-gray-900">
+          {title}
+          {helpContent && <HelpTooltip content={helpContent} />}
+        </h4>
+        <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-xs text-gray-600">
+          <span className="inline-flex items-center gap-1.5">
+            <span
+              className="h-2 w-4 rounded-sm"
+              style={{ backgroundColor: NORMAL_CHART_COLOR }}
+            />
+            Normal
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span
+              className="h-2 w-4 rounded-sm"
+              style={{ backgroundColor: REGULARIZED_CHART_COLOR }}
+            />
+            Regularized
+          </span>
+          {targetLabel && (
+            <span className="inline-flex items-center gap-1.5">
+              <span
+                className="h-0 w-4 border-t border-dashed"
+                style={{ borderColor: TARGET_CHART_COLOR }}
+              />
+              {targetLabel}
+            </span>
+          )}
+        </div>
+      </div>
+      <svg
+        role="img"
+        aria-label={`${title} across link removal percentage`}
+        className="h-auto w-full overflow-visible"
+        viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
       >
-        <h4 className="font-semibold">{title}</h4>
-        <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-          {isOpen ? "Hide" : "Show"}
-        </span>
-      </button>
-      {isOpen && <div>{children}</div>}
+        {yTicks.map((tick) => {
+          const y = scaleY(tick);
+
+          return (
+            <g key={`y-${tick}`}>
+              <line
+                x1={CHART_MARGIN.left}
+                x2={CHART_WIDTH - CHART_MARGIN.right}
+                y1={y}
+                y2={y}
+                stroke="#4b5563"
+                strokeOpacity={0.18}
+                strokeWidth={1}
+              />
+              <text
+                x={CHART_MARGIN.left - 8}
+                y={y}
+                textAnchor="end"
+                dominantBaseline="middle"
+                fill="#6b7280"
+                fontSize={11}
+              >
+                {formatYTick(tick)}
+              </text>
+            </g>
+          );
+        })}
+        {CHART_X_TICKS.map((tick) => {
+          const x = scaleX(tick);
+
+          return (
+            <g key={`x-${tick}`}>
+              <text
+                x={x}
+                y={CHART_HEIGHT - 18}
+                textAnchor="middle"
+                fill="#6b7280"
+                fontSize={11}
+              >
+                {tick}
+              </text>
+            </g>
+          );
+        })}
+        <line
+          x1={CHART_MARGIN.left}
+          x2={CHART_MARGIN.left}
+          y1={CHART_MARGIN.top}
+          y2={CHART_HEIGHT - CHART_MARGIN.bottom}
+          stroke="#9ca3af"
+          strokeOpacity={0.7}
+          strokeWidth={1}
+        />
+        <line
+          x1={CHART_MARGIN.left}
+          x2={CHART_WIDTH - CHART_MARGIN.right}
+          y1={CHART_HEIGHT - CHART_MARGIN.bottom}
+          y2={CHART_HEIGHT - CHART_MARGIN.bottom}
+          stroke="#9ca3af"
+          strokeOpacity={0.7}
+          strokeWidth={1}
+        />
+        <line
+          x1={currentX}
+          x2={currentX}
+          y1={CHART_MARGIN.top}
+          y2={CHART_HEIGHT - CHART_MARGIN.bottom}
+          stroke="#111827"
+          strokeOpacity={0.55}
+          strokeDasharray="3 5"
+          strokeWidth={1.25}
+        />
+        {renderSegments(targetSegments, TARGET_CHART_COLOR, "5 5")}
+        {renderSegments(normalSegments, NORMAL_CHART_COLOR)}
+        {renderSegments(regularizedSegments, REGULARIZED_CHART_COLOR)}
+        {points.map((point) => (
+          <g key={`markers-${point.sparsePercentage}`}>
+            {renderMarker(
+              point,
+              point.normalValue,
+              "Normal",
+              NORMAL_CHART_COLOR,
+            )}
+            {renderMarker(
+              point,
+              point.regularizedValue,
+              "Regularized",
+              REGULARIZED_CHART_COLOR,
+            )}
+          </g>
+        ))}
+        {hoveredPoint && (
+          <g pointerEvents="none">
+            <line
+              x1={tooltipAnchorX}
+              x2={tooltipX}
+              y1={tooltipAnchorY}
+              y2={tooltipY + tooltipHeight / 2}
+              stroke={hoveredPoint.color}
+              strokeWidth={1}
+              strokeOpacity={0.5}
+            />
+            <rect
+              x={tooltipX}
+              y={tooltipY}
+              width={tooltipWidth}
+              height={tooltipHeight}
+              rx={4}
+              fill="#111827"
+              opacity={0.92}
+            />
+            <text
+              x={tooltipX + tooltipWidth / 2}
+              y={tooltipY + 16}
+              textAnchor="middle"
+              fill="#fff"
+              fontSize={11}
+              fontWeight={700}
+            >
+              {hoveredPoint.seriesLabel} {yLabel}:{" "}
+              {formatValue(hoveredPoint.value)}
+            </text>
+            <text
+              x={tooltipX + tooltipWidth / 2}
+              y={tooltipY + 32}
+              textAnchor="middle"
+              fill="#d1d5db"
+              fontSize={11}
+            >
+              {hoveredPoint.sparsePercentage}% link removal
+            </text>
+          </g>
+        )}
+        <text
+          x={CHART_MARGIN.left + plotWidth / 2}
+          y={CHART_HEIGHT - 2}
+          textAnchor="middle"
+          fill="#4b5563"
+          fontSize={11}
+        >
+          Link removal (%)
+        </text>
+        <text
+          x={14}
+          y={CHART_MARGIN.top + plotHeight / 2}
+          textAnchor="middle"
+          fill="#4b5563"
+          fontSize={11}
+          transform={`rotate(-90 14 ${CHART_MARGIN.top + plotHeight / 2})`}
+        >
+          {yLabel}
+        </text>
+      </svg>
     </div>
   );
 }
@@ -268,7 +700,10 @@ const buildModuleSchemes = (
   partition: Partition,
   isolatedNodeIds: Set<number>,
 ) => {
-  const moduleStats = new Map<number, { isolated: number; nonIsolated: number }>();
+  const moduleStats = new Map<
+    number,
+    { isolated: number; nonIsolated: number }
+  >();
 
   data.nodes.forEach(({ id }) => {
     const moduleId = partition.get(id) ?? 0;
@@ -389,8 +824,12 @@ const getIsolatedNodeIds = (data: NetworkData) => {
 
 const formatAmi = (value: number) => value.toFixed(3);
 
-const formatSignedAmiDifference = (value: number) =>
-  `${value >= 0 ? "+" : ""}${value.toFixed(3)}`;
+const formatAmiTick = (value: number) => value.toFixed(2).replace(/\.00$/, "");
+
+const formatModuleCount = (value: number) => Math.round(value).toString();
+
+const formatRegularizationPercent = (value: number) =>
+  `${Math.round(value * 100)}%`;
 
 const moduleDistanceFromTruth = (outcome: PartitionOutcome) =>
   Math.abs(outcome.moduleCount - outcome.truthModuleCount);
@@ -1017,29 +1456,6 @@ const buildTreeText = (rows: TreeRow[]) =>
     })
     .join("\n");
 
-const parseTreeHeaderCodelength = (treeText: string | undefined) => {
-  if (!treeText) {
-    return Number.NaN;
-  }
-
-  const line = treeText
-    .split(/\r?\n/)
-    .find((candidate) => /codelength/i.test(candidate));
-  if (!line) {
-    return Number.NaN;
-  }
-
-  const match = line.match(
-    /codelength(?:\s*[:=])?\s*([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)/i,
-  );
-  if (!match) {
-    return Number.NaN;
-  }
-
-  const value = Number(match[1]);
-  return Number.isFinite(value) ? value : Number.NaN;
-};
-
 const runInfomap = async ({
   data,
   truthByNodeId,
@@ -1131,15 +1547,9 @@ const runInfomap = async ({
     isolatedNodeIds,
   );
 
-  const jsonCodelength = result.json?.codelength;
-  const apiCodelength = Number.isFinite(jsonCodelength)
-    ? (jsonCodelength as number)
-    : parseTreeHeaderCodelength(result.tree);
-
   return {
     outcome,
     treeText: buildTreeText(rows),
-    apiCodelength,
     trials: NUM_TRIALS,
   };
 };
@@ -1168,7 +1578,7 @@ export default observer(function RegularizedInfomap({
 }: Props) {
   const [sparsePercentage, setSparsePercentage] = useState(0);
   const [regularizationStrength, setRegularizationStrength] = useState(0.7);
-  const [copyStatus, setCopyStatus] = useState("");
+  const [linksCopyStatus, setLinksCopyStatus] = useState("");
   const [treeCopyStatus, setTreeCopyStatus] = useState<
     Record<NetworkState, string>
   >({
@@ -1457,7 +1867,12 @@ export default observer(function RegularizedInfomap({
     return () => {
       cancelled = true;
     };
-  }, [completeData, datasetState.status, regularizationStrength, truthByNodeId]);
+  }, [
+    completeData,
+    datasetState.status,
+    regularizationStrength,
+    truthByNodeId,
+  ]);
 
   const normalRunState: RunState = cachedNormalRun
     ? { status: "ready", run: cachedNormalRun }
@@ -1505,10 +1920,7 @@ export default observer(function RegularizedInfomap({
     );
 
     return new Map(
-      referenceNetwork.nodes.map((node) => [
-        node.id,
-        { x: node.x, y: node.y },
-      ]),
+      referenceNetwork.nodes.map((node) => [node.id, { x: node.x, y: node.y }]),
     );
   }, [
     completeData,
@@ -1531,17 +1943,18 @@ export default observer(function RegularizedInfomap({
         : fallbackPartition,
     [fallbackPartition, regularizedRunState],
   );
-  const { moduleScheme: normalModuleScheme, moduleSchemeAlt: normalModuleSchemeAlt } =
-    useMemo(
-      () => buildModuleSchemes(data, normalPartition, isolatedNodeIds),
-      [data, isolatedNodeIds, normalPartition],
-    );
+  const {
+    moduleScheme: normalModuleScheme,
+    moduleSchemeAlt: normalModuleSchemeAlt,
+  } = useMemo(
+    () => buildModuleSchemes(data, normalPartition, isolatedNodeIds),
+    [data, isolatedNodeIds, normalPartition],
+  );
   const {
     moduleScheme: regularizedModuleScheme,
     moduleSchemeAlt: regularizedModuleSchemeAlt,
   } = useMemo(
-    () =>
-      buildModuleSchemes(data, regularizedPartition, isolatedNodeIds),
+    () => buildModuleSchemes(data, regularizedPartition, isolatedNodeIds),
     [data, isolatedNodeIds, regularizedPartition],
   );
 
@@ -1594,14 +2007,9 @@ export default observer(function RegularizedInfomap({
     const edges = [...data.links]
       .sort(
         (a, b) =>
-          a.source - b.source ||
-          a.target - b.target ||
-          a.weight - b.weight,
+          a.source - b.source || a.target - b.target || a.weight - b.weight,
       )
-      .map(
-        (link) =>
-          `${link.source} ${link.target} ${link.weight.toFixed(6)}`,
-      );
+      .map((link) => `${link.source} ${link.target} ${link.weight.toFixed(6)}`);
 
     return [
       `*Vertices ${data.nodes.length}`,
@@ -1631,12 +2039,12 @@ export default observer(function RegularizedInfomap({
   const handleCopyLinks = useCallback(async () => {
     try {
       await navigator.clipboard.writeText(allLinksText);
-      setCopyStatus("Copied");
+      setLinksCopyStatus("Links copied");
     } catch {
-      setCopyStatus("Copy failed");
+      setLinksCopyStatus("Link copy failed");
     }
 
-    setTimeout(() => setCopyStatus(""), 1500);
+    setTimeout(() => setLinksCopyStatus(""), 1500);
   }, [allLinksText]);
 
   const handleCopyTree = useCallback(
@@ -1665,20 +2073,6 @@ export default observer(function RegularizedInfomap({
     },
     [],
   );
-
-  const handleDownloadTree = useCallback((value: string, filename: string) => {
-    const blob = new Blob([`${value}\n`], {
-      type: "text/plain;charset=utf-8",
-    });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = filename;
-    document.body.appendChild(anchor);
-    anchor.click();
-    document.body.removeChild(anchor);
-    URL.revokeObjectURL(url);
-  }, []);
 
   const triedRegularizationsForCurrentSparsity = useMemo(
     () =>
@@ -1722,20 +2116,76 @@ export default observer(function RegularizedInfomap({
         : null;
   const reservedRegularizedOutcome =
     regularizedOutcome ?? latestTriedRegularization?.run.outcome ?? null;
-  const currentRegularizedComparison =
-    normalOutcome && regularizedOutcome
-      ? regularizedOutcome.adjustedMutualInformation -
-        normalOutcome.adjustedMutualInformation
-      : null;
+  const sweepOutcomePoints = useMemo(
+    () =>
+      SPARSE_PERCENTAGES.map((sparseValue) => ({
+        sparsePercentage: sparseValue,
+        normalOutcome:
+          normalHistory.find((entry) => entry.sparsePercentage === sparseValue)
+            ?.run.outcome ?? null,
+        regularizedOutcome:
+          regularizedHistory.find(
+            (entry) =>
+              entry.sparsePercentage === sparseValue &&
+              Math.abs(entry.strength - regularizationStrength) <=
+                SUCCESS_EPSILON,
+          )?.run.outcome ?? null,
+      })),
+    [normalHistory, regularizationStrength, regularizedHistory],
+  );
+  const amiChartPoints = useMemo(
+    () =>
+      sweepOutcomePoints.map(
+        ({
+          sparsePercentage: sparseValue,
+          normalOutcome,
+          regularizedOutcome,
+        }) => ({
+          sparsePercentage: sparseValue,
+          normalValue: normalOutcome?.adjustedMutualInformation ?? null,
+          regularizedValue:
+            regularizedOutcome?.adjustedMutualInformation ?? null,
+          targetValue: 1,
+        }),
+      ),
+    [sweepOutcomePoints],
+  );
+  const moduleChartPoints = useMemo(
+    () =>
+      sweepOutcomePoints.map(
+        ({
+          sparsePercentage: sparseValue,
+          normalOutcome,
+          regularizedOutcome,
+        }) => ({
+          sparsePercentage: sparseValue,
+          normalValue: normalOutcome?.moduleCount ?? null,
+          regularizedValue: regularizedOutcome?.moduleCount ?? null,
+          targetValue:
+            normalOutcome?.truthModuleCount ??
+            regularizedOutcome?.truthModuleCount ??
+            null,
+        }),
+      ),
+    [sweepOutcomePoints],
+  );
+  const amiChartDomain = useMemo(
+    () => getAmiChartDomain(amiChartPoints),
+    [amiChartPoints],
+  );
+  const moduleChartDomain = useMemo(
+    () => getModuleChartDomain(moduleChartPoints),
+    [moduleChartPoints],
+  );
+  const amiChartTicks = useMemo(
+    () => getAmiChartTicks(amiChartDomain),
+    [amiChartDomain],
+  );
+  const moduleChartTicks = useMemo(
+    () => getModuleChartTicks(moduleChartDomain),
+    [moduleChartDomain],
+  );
 
-  const normalApiTotalCodelength =
-    normalRunState.status === "ready"
-      ? normalRunState.run.apiCodelength
-      : Number.NaN;
-  const regularizedApiTotalCodelength =
-    regularizedRunState.status === "ready"
-      ? regularizedRunState.run.apiCodelength
-      : Number.NaN;
   const completeNetworkNodeCount = completeData.nodes.length;
   const completeNetworkUniqueLinkCount = new Set(
     completeData.links.map(({ source, target }) => {
@@ -1750,6 +2200,62 @@ export default observer(function RegularizedInfomap({
           ((2 * completeNetworkUniqueLinkCount) / completeNetworkNodeCount) * 2,
         ) / 2
       : 0;
+  const isolatedNodeNotice =
+    isolatedNodeIds.size > 0 ? (
+      <div className="mx-auto max-w-[240px] space-y-1 text-center text-xs text-sky-900">
+        <div className="font-semibold">Isolated Nodes</div>
+        <div>
+          {`${isolatedNodeIds.size} isolated node${isolatedNodeIds.size === 1 ? "" : "s"} detected.`}
+        </div>
+        <div>
+          Isolated nodes have no links, so isolated-only modules are excluded
+          from pass/fail module counting.
+        </div>
+      </div>
+    ) : null;
+  const collapseWarningNotice =
+    regularizedOutcome &&
+    regularizedOutcome.moduleCount === 1 &&
+    regularizedRunState.status === "ready" ? (
+      <div className="mx-auto max-w-[240px] space-y-1 text-center text-xs text-amber-900">
+        <div className="font-semibold">{COLLAPSE_WARNING_TITLE}</div>
+        <div>{COLLAPSE_WARNING_DESCRIPTION}</div>
+        <div>{COLLAPSE_WARNING_EXPLANATION}</div>
+      </div>
+    ) : null;
+  const amiSummaryIsVisible =
+    normalOutcome !== null && regularizedOutcome !== null;
+  const renderAmiSummary = (className: string) => (
+    <div className="grid">
+      <div
+        aria-hidden="true"
+        className={`${className} invisible [grid-area:1/1]`}
+      >
+        <div>
+          Normal AMI ?: <strong>0.000</strong>
+        </div>
+        <div>
+          Regularized AMI: <strong>0.000</strong>
+        </div>
+      </div>
+      {amiSummaryIsVisible && normalOutcome && regularizedOutcome && (
+        <div className={`${className} [grid-area:1/1]`}>
+          <div>
+            Normal AMI <HelpTooltip content={AMI_HELP} />:{" "}
+            <strong>
+              {formatAmi(normalOutcome.adjustedMutualInformation)}
+            </strong>
+          </div>
+          <div>
+            Regularized AMI:{" "}
+            <strong>
+              {formatAmi(regularizedOutcome.adjustedMutualInformation)}
+            </strong>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <div className="space-y-6">
@@ -1791,10 +2297,12 @@ export default observer(function RegularizedInfomap({
       <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-gray-700 xl:hidden">
           <div className="space-y-1">
-            <label className="flex items-center gap-1.5">
-              <strong className="inline-flex min-w-[116px] items-center gap-1 text-xs font-semibold">
+            <label className={CONTROL_LABEL_CLASS}>
+              <strong className={CONTROL_TEXT_CLASS}>
                 <HelpTooltip content={LINK_REMOVAL_HELP} />
-                <span>Link Removal: {sparsePercentage}%</span>
+                <span className={CONTROL_VALUE_CLASS}>
+                  Link Removal: {sparsePercentage}%
+                </span>
               </strong>
               <input
                 type="range"
@@ -1803,16 +2311,16 @@ export default observer(function RegularizedInfomap({
                 step="5"
                 value={sparsePercentage}
                 onChange={(e) => setSparsePercentage(Number(e.target.value))}
-                className="h-1 w-24 flex-none md:w-28 lg:w-32"
+                className={CONTROL_RANGE_CLASS}
               />
             </label>
           </div>
 
           <div className="space-y-1">
-            <label className="flex items-center gap-1.5">
-              <strong className="inline-flex min-w-[116px] items-center gap-1 text-xs font-semibold">
+            <label className={CONTROL_LABEL_CLASS}>
+              <strong className={CONTROL_TEXT_CLASS}>
                 <HelpTooltip content={REGULARIZATION_HELP} />
-                <span>
+                <span className={CONTROL_VALUE_CLASS}>
                   Regularization: {regularizationStrength.toFixed(2)}
                 </span>
               </strong>
@@ -1825,7 +2333,7 @@ export default observer(function RegularizedInfomap({
                 onChange={(e) =>
                   setRegularizationStrength(Number(e.target.value))
                 }
-                className="h-1 w-24 flex-none md:w-28 lg:w-32"
+                className={CONTROL_RANGE_CLASS}
               />
             </label>
           </div>
@@ -1849,10 +2357,12 @@ export default observer(function RegularizedInfomap({
             <div className="hidden xl:block">
               <div className="flex flex-col items-center gap-3 text-xs text-gray-700">
                 <div className="space-y-1">
-                  <label className="flex items-center gap-1.5">
-                    <strong className="inline-flex min-w-[116px] items-center gap-1 text-xs font-semibold">
+                  <label className={CONTROL_LABEL_CLASS}>
+                    <strong className={CONTROL_TEXT_CLASS}>
                       <HelpTooltip content={LINK_REMOVAL_HELP} />
-                      <span>Link Removal: {sparsePercentage}%</span>
+                      <span className={CONTROL_VALUE_CLASS}>
+                        Link Removal: {sparsePercentage}%
+                      </span>
                     </strong>
                     <input
                       type="range"
@@ -1863,16 +2373,16 @@ export default observer(function RegularizedInfomap({
                       onChange={(e) =>
                         setSparsePercentage(Number(e.target.value))
                       }
-                      className="h-1 w-24 flex-none md:w-28 lg:w-32"
+                      className={CONTROL_RANGE_CLASS}
                     />
                   </label>
                 </div>
 
                 <div className="space-y-1">
-                  <label className="flex items-center gap-1.5">
-                    <strong className="inline-flex min-w-[116px] items-center gap-1 text-xs font-semibold">
+                  <label className={CONTROL_LABEL_CLASS}>
+                    <strong className={CONTROL_TEXT_CLASS}>
                       <HelpTooltip content={REGULARIZATION_HELP} />
-                      <span>
+                      <span className={CONTROL_VALUE_CLASS}>
                         Regularization: {regularizationStrength.toFixed(2)}
                       </span>
                     </strong>
@@ -1885,7 +2395,7 @@ export default observer(function RegularizedInfomap({
                       onChange={(e) =>
                         setRegularizationStrength(Number(e.target.value))
                       }
-                      className="h-1 w-24 flex-none md:w-28 lg:w-32"
+                      className={CONTROL_RANGE_CLASS}
                     />
                   </label>
                 </div>
@@ -1893,24 +2403,13 @@ export default observer(function RegularizedInfomap({
             </div>
 
             <div className="mt-6 hidden min-w-[220px] xl:block">
-              {normalOutcome && regularizedOutcome && (
-                <div className="space-y-2 text-sm text-gray-900">
-                  <div>
-                    Normal AMI{" "}
-                    <HelpTooltip
-                      content="Adjusted mutual information (AMI) compares the current non-isolated-node partition with the reference partition from the complete 0% network while correcting for agreement expected by chance. A value of 1 means the partitions match exactly up to relabeling, values near 0 mean no better agreement than random partitions with similar module sizes, and negative values mean worse-than-chance agreement."
-                    />
-                    :{" "}
-                    <strong>{formatAmi(normalOutcome.adjustedMutualInformation)}</strong>
-                  </div>
-                  <div>
-                    Regularized AMI:{" "}
-                    <strong>
-                      {formatAmi(regularizedOutcome.adjustedMutualInformation)}
-                    </strong>
-                  </div>
-                </div>
-              )}
+              <div className="space-y-4">
+                {renderAmiSummary(
+                  "space-y-2 text-center text-sm text-gray-900",
+                )}
+                {isolatedNodeNotice}
+                {collapseWarningNotice}
+              </div>
             </div>
           </div>
 
@@ -1959,7 +2458,8 @@ export default observer(function RegularizedInfomap({
                   <strong>Normal Infomap:</strong> {normalAssessment.label} (
                   {normalAssessment.description} Modules{" "}
                   {normalOutcome.moduleCount}/{normalOutcome.truthModuleCount}
-                  {normalOutcome.rawModuleCount !== normalOutcome.moduleCount && (
+                  {normalOutcome.rawModuleCount !==
+                    normalOutcome.moduleCount && (
                     <> - ignoring isolated node modules</>
                   )}
                   ).
@@ -2042,73 +2542,47 @@ export default observer(function RegularizedInfomap({
                 </div>
               )}
             </div>
-
-            <div className="grid min-h-[6.5rem]">
-              <div
-                aria-hidden="true"
-                className="invisible space-y-2 [grid-area:1/1]"
-              >
-                <div className="font-semibold">{COLLAPSE_WARNING_TITLE}</div>
-                <div className="text-sm">{COLLAPSE_WARNING_DESCRIPTION}</div>
-                <div className="text-sm">{COLLAPSE_WARNING_EXPLANATION}</div>
-              </div>
-              {regularizedOutcome &&
-                regularizedOutcome.moduleCount === 1 &&
-                regularizedRunState.status === "ready" && (
-                  <div className="text-amber-900 space-y-2 [grid-area:1/1]">
-                    <div className="font-semibold">
-                      {COLLAPSE_WARNING_TITLE}
-                    </div>
-                    <div className="text-sm">
-                      {COLLAPSE_WARNING_DESCRIPTION}
-                    </div>
-                    <div className="text-sm">
-                      {COLLAPSE_WARNING_EXPLANATION}
-                    </div>
-                  </div>
-                )}
-            </div>
           </div>
         </div>
 
-        <div className="min-h-[7rem]">
-          {isolatedNodeIds.size > 0 && (
-            <div className="text-sky-900 space-y-2">
-              <div className="font-semibold">Isolated Nodes</div>
-              <div className="text-sm">
-                {`${isolatedNodeIds.size} isolated node${isolatedNodeIds.size === 1 ? "" : "s"} detected.`}
-              </div>
-              <div className="text-sm">
-                Isolated nodes have no links, so Infomap has no flow evidence
-                connecting them to the reference partition. Regularization
-                cannot recover missing information when a node has zero observed
-                links, so isolated-only modules are excluded from pass/fail
-                module counting.
-              </div>
-            </div>
-          )}
+        <div className="grid gap-4 lg:grid-cols-2">
+          <SweepChart
+            title={`AMI / Link removal at ${formatRegularizationPercent(
+              regularizationStrength,
+            )} regularization`}
+            helpContent={AMI_HELP}
+            yLabel="AMI"
+            points={amiChartPoints}
+            yDomain={amiChartDomain}
+            yTicks={amiChartTicks}
+            currentSparsePercentage={sparsePercentage}
+            formatYTick={formatAmiTick}
+            formatValue={formatAmi}
+            targetLabel="Exact recovery"
+          />
+          <SweepChart
+            title={`Modules / Link removal at ${formatRegularizationPercent(
+              regularizationStrength,
+            )} regularization`}
+            helpContent={MODULE_COUNT_HELP}
+            yLabel="Modules"
+            points={moduleChartPoints}
+            yDomain={moduleChartDomain}
+            yTicks={moduleChartTicks}
+            currentSparsePercentage={sparsePercentage}
+            formatYTick={formatModuleCount}
+            formatValue={formatModuleCount}
+            targetLabel="Reference"
+          />
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">
           <div className="xl:hidden min-h-[4rem]">
-            {normalOutcome && regularizedOutcome && (
-              <div className="space-y-2 text-sm text-gray-900">
-                <div>
-                  Normal AMI{" "}
-                  <HelpTooltip
-                    content="Adjusted mutual information (AMI) compares the current non-isolated-node partition with the reference partition from the complete 0% network while correcting for agreement expected by chance. A value of 1 means the partitions match exactly up to relabeling, values near 0 mean no better agreement than random partitions with similar module sizes, and negative values mean worse-than-chance agreement."
-                  />
-                  :{" "}
-                  <strong>{formatAmi(normalOutcome.adjustedMutualInformation)}</strong>
-                </div>
-                <div>
-                  Regularized AMI:{" "}
-                  <strong>
-                    {formatAmi(regularizedOutcome.adjustedMutualInformation)}
-                  </strong>
-                </div>
-              </div>
-            )}
+            <div className="space-y-4">
+              {renderAmiSummary("space-y-2 text-sm text-gray-900")}
+              {isolatedNodeNotice}
+              {collapseWarningNotice}
+            </div>
           </div>
 
           <div className="min-h-[6.5rem]">
@@ -2120,8 +2594,8 @@ export default observer(function RegularizedInfomap({
                   <h4 className="font-semibold mb-2">Best Tried Strength</h4>
                   <div className="space-y-1 text-sm">
                     <div>
-                      Best tried regularization strength for{" "}
-                      {sparsePercentage}% link removal:{" "}
+                      Best tried regularization strength for {sparsePercentage}%
+                      link removal:{" "}
                       <strong>
                         {bestTriedRegularization.strength.toFixed(2)}
                       </strong>
@@ -2154,162 +2628,41 @@ export default observer(function RegularizedInfomap({
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <CollapsiblePanel title="Codelength">
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-1 font-mono text-sm">
-              <div className="font-sans font-semibold text-gray-900">
-                Normal Infomap
-              </div>
-              <div>
-                total (Infomap API):{" "}
-                {normalRunState.status === "ready"
-                  ? Number.isFinite(normalApiTotalCodelength)
-                    ? `${normalApiTotalCodelength.toFixed(9)} bits`
-                    : "unavailable from API"
-                  : "running..."}
-              </div>
-              <div>
-                trials run:{" "}
-                {normalRunState.status === "ready"
-                  ? normalRunState.run.trials
-                  : NUM_TRIALS}{" "}
-                (best solution shown)
-              </div>
-            </div>
-            <div className="space-y-1 font-mono text-sm">
-              <div className="font-sans font-semibold text-gray-900">
-                Regularized Infomap
-              </div>
-              <div>
-                total (Infomap API):{" "}
-                {regularizedRunState.status === "ready"
-                  ? Number.isFinite(regularizedApiTotalCodelength)
-                    ? `${regularizedApiTotalCodelength.toFixed(9)} bits`
-                    : "unavailable from API"
-                  : "running..."}
-              </div>
-              <div>
-                trials run:{" "}
-                {regularizedRunState.status === "ready"
-                  ? regularizedRunState.run.trials
-                  : NUM_TRIALS}{" "}
-                (best solution shown)
-              </div>
-            </div>
-          </div>
-          <div className="mt-3 font-sans text-sm text-gray-600">
-            Exact JS API output exposes the total codelength, but not the exact
-            module/index/one-level split.
-          </div>
-        </CollapsiblePanel>
-
-        <CollapsiblePanel title="Current Links (Pajek format)">
-          <div className="mb-2 flex items-center justify-end gap-2">
-            <button
-              type="button"
-              className="button text-xs py-1 px-2"
-              onClick={handleCopyLinks}
-            >
-              Copy Pajek
-            </button>
-          </div>
-          <textarea
-            readOnly
-            spellCheck={false}
-            value={allLinksText}
-            className="font-mono text-xs text-gray-700 h-56 w-full border-0 bg-transparent p-0 resize-none outline-none"
-            onFocus={(e) => e.currentTarget.select()}
-          />
-          <div className="text-xs text-gray-500 mt-2">
-            Click in the box, then press Cmd+A and Cmd+C to copy the full Pajek
-            output.
-            {copyStatus ? ` ${copyStatus}.` : ""}
-          </div>
-        </CollapsiblePanel>
-
-        <CollapsiblePanel title={'Tree Output (path flow "name" node_id)'}>
-          <div className="grid gap-4 lg:grid-cols-2">
-            <div>
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <h5 className="font-semibold">Normal Infomap</h5>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    className="button text-xs py-1 px-2"
-                    onClick={() => handleCopyTree("normal", normalTreeText)}
-                  >
-                    Copy tree
-                  </button>
-                  <button
-                    type="button"
-                    className="button text-xs py-1 px-2"
-                    onClick={() =>
-                      handleDownloadTree(normalTreeText, "network-normal.tree")
-                    }
-                  >
-                    Download .tree
-                  </button>
-                </div>
-              </div>
-              <textarea
-                readOnly
-                spellCheck={false}
-                value={normalTreeText}
-                className="font-mono text-xs text-gray-700 h-56 w-full border-0 bg-transparent p-0 resize-none outline-none"
-                onFocus={(e) => e.currentTarget.select()}
-              />
-              <div className="text-xs text-gray-500 mt-2">
-                Click in the box, then press Cmd+A and Cmd+C to copy all tree
-                rows.
-                {treeCopyStatus.normal ? ` ${treeCopyStatus.normal}.` : ""}
-              </div>
-            </div>
-
-            <div>
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <h5 className="font-semibold">Regularized Infomap</h5>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    className="button text-xs py-1 px-2"
-                    onClick={() =>
-                      handleCopyTree("regularized", regularizedTreeText)
-                    }
-                  >
-                    Copy tree
-                  </button>
-                  <button
-                    type="button"
-                    className="button text-xs py-1 px-2"
-                    onClick={() =>
-                      handleDownloadTree(
-                        regularizedTreeText,
-                        "network-regularized.tree",
-                      )
-                    }
-                  >
-                    Download .tree
-                  </button>
-                </div>
-              </div>
-              <textarea
-                readOnly
-                spellCheck={false}
-                value={regularizedTreeText}
-                className="font-mono text-xs text-gray-700 h-56 w-full border-0 bg-transparent p-0 resize-none outline-none"
-                onFocus={(e) => e.currentTarget.select()}
-              />
-              <div className="text-xs text-gray-500 mt-2">
-                Click in the box, then press Cmd+A and Cmd+C to copy all tree
-                rows.
-                {treeCopyStatus.regularized
-                  ? ` ${treeCopyStatus.regularized}.`
-                  : ""}
-              </div>
-            </div>
-          </div>
-        </CollapsiblePanel>
+      <div className="flex flex-wrap items-center justify-center gap-3">
+        <button
+          type="button"
+          className="button text-xs py-1 px-2"
+          onClick={handleCopyLinks}
+        >
+          Copy links (Pajek format)
+        </button>
+        <button
+          type="button"
+          className="button text-xs py-1 px-2"
+          onClick={() => handleCopyTree("normal", normalTreeText)}
+        >
+          Copy tree output (normal)
+        </button>
+        <button
+          type="button"
+          className="button text-xs py-1 px-2"
+          onClick={() => handleCopyTree("regularized", regularizedTreeText)}
+        >
+          Copy tree output (regularized)
+        </button>
+        {(linksCopyStatus ||
+          treeCopyStatus.normal ||
+          treeCopyStatus.regularized) && (
+          <span className="text-xs text-gray-500">
+            {[
+              linksCopyStatus,
+              treeCopyStatus.normal,
+              treeCopyStatus.regularized,
+            ]
+              .filter(Boolean)
+              .join(" ")}
+          </span>
+        )}
       </div>
 
       <div className="prose max-w-none">
