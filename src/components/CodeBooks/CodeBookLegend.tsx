@@ -4,8 +4,8 @@ import Flow from "./Flow";
 
 const exampleStyle = {
   fill: "#111827",
-  stroke: "#111827",
-  strokeWidth: 1.5,
+  stroke: "none",
+  strokeWidth: 0,
 };
 
 const examples = [

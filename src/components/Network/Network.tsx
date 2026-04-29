@@ -1,4 +1,4 @@
-import { SVGProps } from "react";
+import { ReactNode, SVGProps } from "react";
 import { observer } from "mobx-react";
 import { useMemo, useCallback } from "react";
 import { scaleSqrt } from "d3";
@@ -16,7 +16,7 @@ import {
 } from "../scheme";
 import ArrowMarker from "./ArrowMarker";
 import Link from "./Link";
-import Node from "./Node";
+import Node, { NodeId } from "./Node";
 
 // A scale used to map a node's visit-rate to a visual radius. The domain
 // and range are tuned for the demo but can be configured if networks grow.
@@ -24,12 +24,13 @@ const defaultNodeScale = scaleSqrt().domain([0, 1]).range([10, 100]);
 
 interface Props {
   network: NetworkModel;
-  scheme?: string[],
-  schemeAlt?: string[],
+  scheme?: string[];
+  schemeAlt?: string[];
   rate?: Rate;
   showLabels?: boolean;
   showModules?: boolean;
   showNodeId?: boolean;
+  nodeIdLayer?: "inline" | "top";
   nodeIdPosition?: "top" | "middle";
   nodeIdFontSize?: number;
   showVisiting?: boolean;
@@ -37,15 +38,17 @@ interface Props {
   interModuleLinkColor?: string;
   nodeStroke?: string;
   nodeStrokeWidth?: number;
-  modules?: "topModule",
-  width?: number,
-  height?: number,
+  modules?: "topModule";
+  width?: number;
+  height?: number;
   getLabel?: (node: NodeModel) => string | number;
+  getNodeIdFill?: (node: NodeModel, fill: string) => string;
   labelPosition?: "top" | "bottom" | "middle";
   selectedNodeIds?: Set<number>;
   nodeScale?: (value: number) => number;
   scaleLinksByWeight?: boolean;
   baseLinkStrokeWidth?: number;
+  underlayChildren?: ReactNode;
 }
 
 /**
@@ -65,6 +68,7 @@ function Network({
   showLabels = false,
   showModules = false,
   showNodeId = true,
+  nodeIdLayer = "inline",
   nodeIdPosition = "middle",
   nodeIdFontSize = 12,
   showVisiting = true,
@@ -76,17 +80,19 @@ function Network({
   width = 800,
   height = 800,
   getLabel: customGetLabel,
+  getNodeIdFill,
   labelPosition = "top",
   selectedNodeIds,
   nodeScale = defaultNodeScale,
   scaleLinksByWeight = false,
   baseLinkStrokeWidth = 3,
+  underlayChildren,
   children,
   style,
   ...props
 }: Props & SVGProps<SVGSVGElement>) {
   // Mark render start
-  performanceMonitor.mark('network-render');
+  performanceMonitor.mark("network-render");
 
   const arrowId = "arrow";
   const markerEnd = network.directed ? `url(#${arrowId})` : undefined;
@@ -96,12 +102,12 @@ function Network({
   // Memoize the nodeRadius function
   const nodeRadius = useCallback(
     (node: NodeModel): number => nodeScale(getNodeRate(node)),
-    [getNodeRate, nodeScale]
+    [getNodeRate, nodeScale],
   );
 
   const schemeIndex = useCallback(
     (node: NodeModel) => (showModules ? node[modules] : 0),
-    [showModules, modules]
+    [showModules, modules],
   );
 
   const nodeFill = useCallback(
@@ -111,7 +117,7 @@ function Network({
         ? schemeAlt[i >= schemeAlt.length ? 0 : i]
         : scheme[i >= scheme.length ? 0 : i];
     },
-    [showVisiting, scheme, schemeAlt, schemeIndex, network.walker]
+    [showVisiting, scheme, schemeAlt, schemeIndex, network.walker],
   );
 
   const linkStroke = useCallback(
@@ -130,7 +136,7 @@ function Network({
 
       return interModuleLinkColor;
     },
-    [colorIntraModuleLinks, showModules, interModuleLinkColor, modules, scheme]
+    [colorIntraModuleLinks, showModules, interModuleLinkColor, modules, scheme],
   );
 
   const maxLinkWeight = network.links.reduce(
@@ -144,12 +150,17 @@ function Network({
 
       return 1.5 + (12 * link.weight) / maxLinkWeight;
     },
-    [baseLinkStrokeWidth, maxLinkWeight, scaleLinksByWeight]
+    [baseLinkStrokeWidth, maxLinkWeight, scaleLinksByWeight],
   );
 
   const getLabel = useCallback(
-    (node: NodeModel) => customGetLabel ? customGetLabel(node) : (showModules ? node.code : node.oneLevelCode),
-    [showModules, customGetLabel, network.treeUpdateCounter]
+    (node: NodeModel) =>
+      customGetLabel
+        ? customGetLabel(node)
+        : showModules
+          ? node.code
+          : node.oneLevelCode,
+    [showModules, customGetLabel, network.treeUpdateCounter],
   );
 
   const svgElement = (
@@ -157,7 +168,7 @@ function Network({
       xmlns="http://www.w3.org/2000/svg"
       className="network"
       viewBox={`0 0 ${width} ${height}`}
-      onLoad={() => performanceMonitor.measure('network-render')}
+      onLoad={() => performanceMonitor.measure("network-render")}
       style={{ overflow: "visible", ...style }}
       {...props}
     >
@@ -179,37 +190,65 @@ function Network({
         />
       ))}
 
+      {/* Optional overlays that should sit below nodes, such as walk traces. */}
+      {underlayChildren}
+
       {/* Render nodes on top of links. Pass animation duration from the
           network walker so node transitions sync with the walker updates. */}
-      {network.nodes.map((node, i) => (
-        <Node
-          node={node}
-          key={i}
-          r={nodeRadius(node)}
-          x={node.x}
-          y={node.y}
-          fill={nodeFill(node)}
-          stroke={nodeStroke}
-          strokeWidth={nodeStrokeWidth}
-          duration={network.walker.interval}
-          showLabel={showLabels}
-          getLabel={showLabels ? getLabel : undefined}
-          labelPosition={labelPosition}
-          showNodeId={showNodeId}
-          nodeIdPosition={nodeIdPosition}
-          nodeIdFontSize={nodeIdFontSize}
-          isSelected={selectedNodeIds?.has(node.id)}
-        />
-      ))}
+      {network.nodes.map((node, i) => {
+        const fill = nodeFill(node);
+
+        return (
+          <Node
+            node={node}
+            key={i}
+            r={nodeRadius(node)}
+            x={node.x}
+            y={node.y}
+            fill={fill}
+            stroke={nodeStroke}
+            strokeWidth={nodeStrokeWidth}
+            duration={network.walker.interval}
+            showLabel={showLabels}
+            getLabel={showLabels ? getLabel : undefined}
+            labelPosition={labelPosition}
+            showNodeId={showNodeId && nodeIdLayer === "inline"}
+            nodeIdPosition={nodeIdPosition}
+            nodeIdFontSize={nodeIdFontSize}
+            nodeIdFill={getNodeIdFill?.(node, fill)}
+            isSelected={selectedNodeIds?.has(node.id)}
+          />
+        );
+      })}
 
       {/* Render children overlays (walkers, traces, annotations) */}
       {children}
+
+      {showNodeId &&
+        nodeIdLayer === "top" &&
+        network.nodes.map((node, i) => {
+          const fill = nodeFill(node);
+
+          return (
+            <NodeId
+              node={node}
+              key={`node-id-${i}`}
+              x={node.x}
+              y={node.y}
+              r={nodeRadius(node)}
+              duration={network.walker.interval}
+              nodeIdPosition={nodeIdPosition}
+              nodeIdFontSize={nodeIdFontSize}
+              nodeIdFill={getNodeIdFill?.(node, fill)}
+            />
+          );
+        })}
     </svg>
   );
 
   // Measure performance after render
-  performanceMonitor.measure('network-render');
-  
+  performanceMonitor.measure("network-render");
+
   return svgElement;
 }
 

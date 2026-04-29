@@ -16,7 +16,19 @@ interface Props {
   showNodeId?: boolean;
   nodeIdPosition?: "top" | "middle";
   nodeIdFontSize?: number;
+  nodeIdFill?: string;
   isSelected?: boolean;
+}
+
+interface NodeIdProps {
+  node: NodeModel;
+  x: number;
+  y: number;
+  r: number;
+  duration?: number;
+  nodeIdPosition?: "top" | "middle";
+  nodeIdFontSize?: number;
+  nodeIdFill?: string;
 }
 
 /**
@@ -26,95 +38,125 @@ interface Props {
  * and color changes smoothly when visit rates or module assignments
  * change. Labels are optional and can be positioned above, below or in the
  * middle of the node.
- * 
+ *
  * Wrapped with `observer` to react to MobX changes in node properties like
  * codes, which are computed values. This ensures labels update correctly
  * when module assignments change and codes are recalculated.
  */
-const Node = memo(observer(function Node({
-  node,
-  r,
-  x,
-  y,
-  fill,
-  duration = 100,
-  showLabel,
-  labelPosition = "top",
-  getLabel = (node: NodeModel) => node.oneLevelCode,
-  showNodeId = false,
-  nodeIdPosition = "middle",
-  nodeIdFontSize = 12,
-  isSelected = false,
-  ...props
-}: Props & SVGMotionProps<SVGCircleElement>) {
-  let labelOffset = 0;
-  if (showLabel && labelPosition !== "middle") {
-    labelOffset = labelPosition === "top" ? -r - 5 : r + 5;
-  }
-  const nodeIdY = nodeIdPosition === "top" ? y - r - 4 : y;
+const Node = memo(
+  observer(function Node({
+    node,
+    r,
+    x,
+    y,
+    fill,
+    duration = 100,
+    showLabel,
+    labelPosition = "top",
+    getLabel = (node: NodeModel) => node.oneLevelCode,
+    showNodeId = false,
+    nodeIdPosition = "middle",
+    nodeIdFontSize = 12,
+    nodeIdFill = "#393939",
+    isSelected = false,
+    ...props
+  }: Props & SVGMotionProps<SVGCircleElement>) {
+    let labelOffset = 0;
+    if (showLabel && labelPosition !== "middle") {
+      labelOffset = labelPosition === "top" ? -r - 5 : r + 5;
+    }
 
-  return (
-    <>
-      {/* Animate the circle's radius and fill for smooth visual updates. */}
-      {/* @ts-ignore */}
-      <motion.circle
-        initial={false}
-        animate={{ r, fill }}
-        transition={{ duration: duration / 1000 }}
-        className="node"
-        cx={x}
-        cy={y}
-        {...props}
-      />
-      {/* Darker overlay when node is selected */}
-      {isSelected && (
-        <circle
+    return (
+      <>
+        {/* Animate the circle's radius and fill for smooth visual updates. */}
+        {/* @ts-ignore */}
+        <motion.circle
+          initial={false}
+          animate={{ r, fill }}
+          transition={{ duration: duration / 1000 }}
+          className="node"
           cx={x}
           cy={y}
-          r={r}
-          fill="#000"
-          opacity={0.25}
-          pointerEvents="none"
+          {...props}
         />
-      )}
-      {showLabel && (
-        <motion.text
-          initial={false}
-          animate={{ attrY: y + labelOffset }}
-          transition={{ duration: duration / 1000 }}
-          x={x}
-          fontFamily="Helvetica, sans-serif"
-          fontSize={16}
-          fontWeight={800}
-          textAnchor="middle"
-          dominantBaseline="middle"
-          fill="#393939"
-          stroke="#fff"
-          strokeWidth={5}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          paintOrder="stroke"
-        >
-          {getLabel(node)}
-        </motion.text>
-      )}
-      {showNodeId && (
-        <motion.text
-          initial={false}
-          animate={{ attrY: nodeIdY }}
-          transition={{ duration: duration / 1000 }}
-          x={x}
-          fontFamily="Helvetica, sans-serif"
-          fontSize={nodeIdFontSize}
-          fontWeight={600}
-          textAnchor="middle"
-          dominantBaseline="middle"
-          fill="#393939"
-        >
-          {node.id}
-        </motion.text>
-      )}
-    </>
-  );
-}));
+        {/* Darker overlay when node is selected */}
+        {isSelected && (
+          <circle
+            cx={x}
+            cy={y}
+            r={r}
+            fill="#000"
+            opacity={0.25}
+            pointerEvents="none"
+          />
+        )}
+        {showLabel && (
+          <motion.text
+            initial={false}
+            animate={{ attrY: y + labelOffset }}
+            transition={{ duration: duration / 1000 }}
+            x={x}
+            fontFamily="Helvetica, sans-serif"
+            fontSize={16}
+            fontWeight={800}
+            textAnchor="middle"
+            dominantBaseline="middle"
+            fill="#393939"
+            stroke="#fff"
+            strokeWidth={5}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            paintOrder="stroke"
+          >
+            {getLabel(node)}
+          </motion.text>
+        )}
+        {showNodeId && (
+          <NodeId
+            node={node}
+            x={x}
+            y={y}
+            r={r}
+            duration={duration}
+            nodeIdPosition={nodeIdPosition}
+            nodeIdFontSize={nodeIdFontSize}
+            nodeIdFill={nodeIdFill}
+          />
+        )}
+      </>
+    );
+  }),
+);
+
+export const NodeId = memo(
+  observer(function NodeId({
+    node,
+    x,
+    y,
+    r,
+    duration = 100,
+    nodeIdPosition = "middle",
+    nodeIdFontSize = 12,
+    nodeIdFill = "#393939",
+  }: NodeIdProps) {
+    const nodeIdY = nodeIdPosition === "top" ? y - r - 4 : y;
+
+    return (
+      <motion.text
+        initial={false}
+        animate={{ attrY: nodeIdY, fill: nodeIdFill }}
+        transition={{ duration: duration / 1000 }}
+        x={x}
+        fontFamily="Helvetica, sans-serif"
+        fontSize={nodeIdFontSize}
+        fontWeight={600}
+        textAnchor="middle"
+        dominantBaseline="middle"
+      >
+        {node.id}
+      </motion.text>
+    );
+  }),
+);
+
 export default Node;
