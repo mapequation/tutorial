@@ -27,7 +27,7 @@ function InlineTrace({ network, showModules = false }: Props) {
   return (
     <>
       <div
-        className="px-4 py-2 w-full overflow-y-auto overscroll-contain leading-snug text-sm font-mono -word-spacing-7"
+        className="px-4 py-2 w-full min-h-[3.75rem] overflow-y-auto overscroll-contain leading-snug text-sm font-mono -word-spacing-7"
       >
         {trace.map((node, i, nodes) => (
           <CodeWord

@@ -160,19 +160,17 @@ const TwoLevelCodelengthOverlay = observer(function TwoLevelCodelengthOverlay({
       y={y}
       width={280}
       lines={[
-        <span className="inline-flex items-center gap-1">
+        <span>
           <HelpTooltip content={INDEX_CODELENGTH_HELP} />
-          <span>
-            Index codelength {network.mapequation.indexCodelength.toFixed(3)}{" "}
-            bits
-          </span>
+          {" "}
+          Index codelength {network.mapequation.indexCodelength.toFixed(3)}{" "}
+          bits
         </span>,
-        <span className="inline-flex items-center gap-1">
+        <span>
           <HelpTooltip content={MODULE_CODELENGTH_HELP} />
-          <span>
-            Module codelength {network.mapequation.moduleCodelength.toFixed(3)}{" "}
-            bits
-          </span>
+          {" "}
+          Module codelength {network.mapequation.moduleCodelength.toFixed(3)}{" "}
+          bits
         </span>,
         `Total codelength ${network.mapequation.codelength.toFixed(3)} bits`,
       ]}
@@ -403,14 +401,6 @@ export default function Main() {
 
             <div className="mb-12">
               <h3 className="text-lg font-bold mb-4">Running code printer</h3>
-              <p className="mb-4">
-                This trace prints the codewords emitted by the random walker in
-                real time. The first line shows the one-level code, where every
-                node uses a single shared codebook. The second line shows the
-                two-level code: when the walker crosses a community boundary it
-                prints an exit code, then an enter code, and then the node code
-                inside the new community.
-              </p>
               <div className="space-y-2">
                 <div>
                   <InlineTrace network={network} />
@@ -419,6 +409,14 @@ export default function Main() {
                   <InlineTrace network={network} showModules />
                 </div>
               </div>
+              <p className="mt-4 mb-4">
+                This trace prints the codewords emitted by the random walker in
+                real time. The first line shows the one-level code, where every
+                node uses a single shared codebook. The second line shows the
+                two-level code: when the walker crosses a community boundary it
+                prints an exit code, then an enter code, and then the node code
+                inside the new community.
+              </p>
               <CodelengthChart network={network} />
             </div>
 

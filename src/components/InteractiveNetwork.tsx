@@ -324,24 +324,25 @@ export default observer(function InteractiveNetwork({
   };
 
   const getButtonStyle = useCallback(
-    (i: number) => ({
-      width: "2rem",
-      height: "2rem",
-      border:
-        i === currentActiveCommunity ? "3px solid #333" : "2px solid #ddd",
-      borderRadius: "0.25rem",
-      cursor: "pointer",
-      transition: "all 0.15s",
-      fontWeight: "bold" as const,
-      fontSize: "0.75rem",
-      color: "#fff",
-      backgroundColor: scheme[i],
-      boxShadow:
-        i === currentActiveCommunity
-          ? "0 0 0 2px white, 0 0 0 4px #333"
-          : "none",
-    }),
-    [currentActiveCommunity, scheme],
+    (i: number) => {
+      const isSelected = i === currentActiveCommunity;
+      const selectedBorderColor = schemeAlt?.[i] ?? scheme[i];
+
+      return {
+        width: "2rem",
+        height: "2rem",
+        border: `3px solid ${isSelected ? selectedBorderColor : "transparent"}`,
+        borderRadius: "0.25rem",
+        cursor: "pointer",
+        transition: "border-color 0.15s",
+        fontWeight: "bold" as const,
+        fontSize: "0.75rem",
+        color: "#fff",
+        backgroundColor: scheme[i],
+        boxShadow: "none",
+      };
+    },
+    [currentActiveCommunity, scheme, schemeAlt],
   );
 
   const getLabel = useCallback(

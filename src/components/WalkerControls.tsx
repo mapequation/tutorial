@@ -142,10 +142,33 @@ const WalkerControls = observer(function WalkerControls({
   onSpeedChange,
 }: Props) {
   const { walker } = network;
-  const [helpEnabled, setHelpEnabled] = useState(false);
+  const [helpEnabled, setHelpEnabled] = useState(true);
   const compactButtonStyle = {
     padding: "0.4rem 0.8rem",
     fontSize: "0.9rem",
+    textAlign: "center",
+    justifyContent: "center",
+  } as const;
+  const helpButtonStyle = {
+    ...compactButtonStyle,
+    width: "5.9rem",
+  } as const;
+  const walkButtonStyle = { ...compactButtonStyle, width: "6.8rem" } as const;
+  const visitsButtonStyle = {
+    ...compactButtonStyle,
+    width: "7.1rem",
+  } as const;
+  const linkFlowButtonStyle = {
+    ...compactButtonStyle,
+    width: "8.5rem",
+  } as const;
+  const teleportationButtonStyle = {
+    ...compactButtonStyle,
+    width: "9.2rem",
+  } as const;
+  const solutionButtonStyle = {
+    ...compactButtonStyle,
+    width: "8.9rem",
   } as const;
 
   return (
@@ -157,10 +180,10 @@ const WalkerControls = observer(function WalkerControls({
         >
           <Button
             className={`button whitespace-nowrap shrink-0 ${helpEnabled ? "button--primary" : ""}`}
-            style={compactButtonStyle}
+            style={helpButtonStyle}
             onClick={() => setHelpEnabled((value) => !value)}
           >
-            {helpEnabled ? "Help on" : "Help off"}
+            {helpEnabled ? "Help off" : "Help on"}
           </Button>
         </ControlHint>
         <ControlHint
@@ -197,7 +220,7 @@ const WalkerControls = observer(function WalkerControls({
         >
           <Button
             className={`button whitespace-nowrap shrink-0 ${!walker.isStarted ? "button--primary" : ""}`}
-            style={compactButtonStyle}
+            style={walkButtonStyle}
             onClick={() => (walker.isStarted ? walker.stop() : onStartWalk())}
           >
             {walker.isStarted ? "Stop Walk" : "Start Walk"}
@@ -213,7 +236,7 @@ const WalkerControls = observer(function WalkerControls({
         >
           <Button
             className={`button whitespace-nowrap shrink-0 ${rate === Rate.Visits ? "button--primary" : ""}`}
-            style={compactButtonStyle}
+            style={visitsButtonStyle}
             onClick={onToggleRate}
           >
             {rate === Rate.Visits ? "Hide Visits" : "Show Visits"}
@@ -229,7 +252,7 @@ const WalkerControls = observer(function WalkerControls({
         >
           <Button
             className={`button whitespace-nowrap shrink-0 ${showLinkWeights ? "button--primary" : ""}`}
-            style={compactButtonStyle}
+            style={linkFlowButtonStyle}
             onClick={onToggleLinkWeights}
           >
             {showLinkWeights ? "Uniform Links" : "Show Link Flow"}
@@ -245,12 +268,12 @@ const WalkerControls = observer(function WalkerControls({
         >
           <Button
             className={`button whitespace-nowrap shrink-0 ${walker.teleportationEnabled ? "button--primary" : ""}`}
-            style={compactButtonStyle}
+            style={teleportationButtonStyle}
             onClick={() => walker.toggleRandomTeleportation()}
           >
             {walker.teleportationEnabled
-              ? "Teleportation on"
-              : "Teleportation off"}
+              ? "Teleportation off"
+              : "Teleportation on"}
           </Button>
         </ControlHint>
         <ControlHint
@@ -263,7 +286,7 @@ const WalkerControls = observer(function WalkerControls({
         >
           <Button
             className="button whitespace-nowrap shrink-0"
-            style={compactButtonStyle}
+            style={solutionButtonStyle}
             onClick={onToggleSolution}
           >
             {showOptimized ? "Bad Solution" : "Optimal Solution"}

@@ -1,6 +1,6 @@
 import { ReactNode, SVGProps } from "react";
 import { observer } from "mobx-react";
-import { useMemo, useCallback } from "react";
+import { useMemo, useCallback, useId } from "react";
 import { scaleSqrt } from "d3";
 import type {
   Network as NetworkModel,
@@ -21,6 +21,29 @@ import Node, { NodeId } from "./Node";
 // A scale used to map a node's visit-rate to a visual radius. The domain
 // and range are tuned for the demo but can be configured if networks grow.
 const defaultNodeScale = scaleSqrt().domain([0, 1]).range([10, 100]);
+
+const linkEndpointPosition = (
+  link: LinkModel,
+  sourceRadius: number,
+  targetRadius: number,
+) => {
+  const x1 = link.source.x || 0;
+  const y1 = link.source.y || 0;
+  const x2 = link.target.x || 0;
+  const y2 = link.target.y || 0;
+  const dx = x2 - x1 || 1e-6;
+  const dy = y2 - y1 || 1e-6;
+  const length = Math.sqrt(dx * dx + dy * dy);
+  const unitX = dx / length;
+  const unitY = dy / length;
+
+  return {
+    x1: x1 + sourceRadius * unitX,
+    y1: y1 + sourceRadius * unitY,
+    x2: x2 - targetRadius * unitX,
+    y2: y2 - targetRadius * unitY,
+  };
+};
 
 interface Props {
   network: NetworkModel;
@@ -96,6 +119,7 @@ function Network({
 
   const arrowId = "arrow";
   const markerEnd = network.directed ? `url(#${arrowId})` : undefined;
+  const linkGradientIdPrefix = useId().replace(/[^a-zA-Z0-9_-]/g, "");
 
   const getNodeRate = useMemo(() => getRate(rate), [rate]);
 
@@ -120,6 +144,63 @@ function Network({
     [showVisiting, scheme, schemeAlt, schemeIndex, network.walker],
   );
 
+  const moduleColor = useCallback(
+    (moduleId: number) => {
+      const i = moduleId >= scheme.length ? 0 : moduleId;
+      return scheme[i];
+    },
+    [scheme],
+  );
+
+  const interModuleLinkGradients = useMemo(() => {
+    const gradients = new Map<
+      LinkModel,
+      {
+        id: string;
+        x1: number;
+        y1: number;
+        x2: number;
+        y2: number;
+        sourceColor: string;
+        targetColor: string;
+      }
+    >();
+
+    if (!colorIntraModuleLinks || !showModules) {
+      return gradients;
+    }
+
+    network.links.forEach((link, index) => {
+      const sourceModule = link.source[modules];
+      const targetModule = link.target[modules];
+
+      if (sourceModule === targetModule) {
+        return;
+      }
+
+      gradients.set(link, {
+        id: `inter-module-link-${linkGradientIdPrefix}-${index}`,
+        ...linkEndpointPosition(
+          link,
+          nodeRadius(link.source),
+          nodeRadius(link.target),
+        ),
+        sourceColor: moduleColor(sourceModule),
+        targetColor: moduleColor(targetModule),
+      });
+    });
+
+    return gradients;
+  }, [
+    colorIntraModuleLinks,
+    linkGradientIdPrefix,
+    moduleColor,
+    modules,
+    network.links,
+    nodeRadius,
+    showModules,
+  ]);
+
   const linkStroke = useCallback(
     (link: LinkModel) => {
       if (!colorIntraModuleLinks || !showModules) {
@@ -130,13 +211,20 @@ function Network({
       const targetModule = link.target[modules];
 
       if (sourceModule === targetModule) {
-        const i = sourceModule >= scheme.length ? 0 : sourceModule;
-        return scheme[i];
+        return moduleColor(sourceModule);
       }
 
-      return interModuleLinkColor;
+      const gradient = interModuleLinkGradients.get(link);
+      return gradient ? `url(#${gradient.id})` : interModuleLinkColor;
     },
-    [colorIntraModuleLinks, showModules, interModuleLinkColor, modules, scheme],
+    [
+      colorIntraModuleLinks,
+      interModuleLinkColor,
+      interModuleLinkGradients,
+      moduleColor,
+      modules,
+      showModules,
+    ],
   );
 
   const maxLinkWeight = network.links.reduce(
@@ -174,6 +262,21 @@ function Network({
     >
       <defs>
         <ArrowMarker id={arrowId} fill={interModuleLinkColor} />
+        {[...interModuleLinkGradients.values()].map((gradient) => (
+          <linearGradient
+            key={gradient.id}
+            id={gradient.id}
+            x1={gradient.x1}
+            y1={gradient.y1}
+            x2={gradient.x2}
+            y2={gradient.y2}
+            gradientUnits="userSpaceOnUse"
+          >
+            <stop offset="0%" stopColor={gradient.sourceColor} />
+            <stop offset="50%" stopColor={interModuleLinkColor} />
+            <stop offset="100%" stopColor={gradient.targetColor} />
+          </linearGradient>
+        ))}
       </defs>
 
       {/* Render links first so nodes appear above them. Optionally scale
