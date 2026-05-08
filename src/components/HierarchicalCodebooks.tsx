@@ -1,38 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import type { Network as NetworkModel } from "../model";
-import type { TreeNode } from "../model/algorithms/Tree";
+import { type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Network } from "../model";
-import { EnterFlow, ExitFlow } from "./CodeBooks";
-import Flow from "./CodeBooks/Flow";
-import { darkenHexColor, scheme, schemeAlt } from "./scheme";
 import {
   hierarchical_paper_toy,
-  paperToyDefaultCoarseByFine,
+  hierarchicalPaperToyTopology,
   paperToyFineModules,
 } from "../networks";
-
-type CoarseByFine = Record<number, number>;
-
-interface FineModuleStat {
-  id: number;
-  coarseId: number;
-  label: string;
-  localIndex: number;
-  nodeIds: number[];
-  flow: number;
-  x: number;
-  y: number;
-  radius: number;
-}
-
-interface CoarseModuleStat {
-  id: number;
-  flow: number;
-  x: number;
-  y: number;
-  radius: number;
-  fineModules: FineModuleStat[];
-}
+import { EnterFlow, ExitFlow } from "./CodeBooks";
+import Flow from "./CodeBooks/Flow";
+import { darkenHexColor, scheme } from "./scheme";
 
 interface SvgViewBox {
   x: number;
@@ -41,383 +16,210 @@ interface SvgViewBox {
   height: number;
 }
 
+interface PositionedNode {
+  id: number;
+  name: string;
+  x: number;
+  y: number;
+}
+
+interface FineModuleVisual {
+  key: string;
+  topIndex: number;
+  localIndex: number;
+  label: string;
+  nodeIds: [number, number, number];
+  color: string;
+}
+
+interface TopModuleVisual {
+  key: string;
+  topIndex: number;
+  label: string;
+  cornerNodeIds: [number, number, number];
+  color: string;
+}
+
 interface CodelengthRow {
-  group: "Multilevel" | "Two-level";
+  key: string;
   label: string;
   value: number;
   color: string;
-  muted?: boolean;
 }
 
-interface CodebookEntry {
-  key: string;
-  kind: "enter" | "exit" | "visit";
-  label: string;
-  code: string;
-  flow: number;
-  color: string;
-}
-
-interface CodebookSection {
+interface CodelengthGroup {
   key: string;
   title: string;
-  entries: CodebookEntry[];
+  total: number;
+  rows: CodelengthRow[];
 }
 
-interface CodebookPanelData {
-  title: string;
-  indexOneSections: CodebookSection[];
-  indexTwoSections: CodebookSection[];
-  moduleSections: CodebookSection[];
+interface TrianglePoint {
+  x: number;
+  y: number;
 }
 
-const paperToyFineByNodeId = new Map<number, number>();
-const paperToyFineById = new Map(
-  paperToyFineModules.map((module_) => [module_.id, module_]),
-);
-const defaultCoarseByFine: CoarseByFine = {};
+interface RecursiveTriangleModule {
+  key: string;
+  path: number[];
+  level: number;
+  corners: [TrianglePoint, TrianglePoint, TrianglePoint];
+}
 
-paperToyFineModules.forEach((module_) => {
-  defaultCoarseByFine[module_.id] =
-    paperToyDefaultCoarseByFine.get(module_.id) ?? module_.coarseId;
-
-  module_.nodeIds.forEach((nodeId) => {
-    paperToyFineByNodeId.set(nodeId, module_.id);
-  });
-});
+type NetworkViewVariant = "multilevel" | "two-level";
+type CodebookBlockKind = "enter" | "exit" | "node";
+type HoverTarget =
+  | { variant: NetworkViewVariant; kind: "top"; topIndex: number }
+  | { variant: NetworkViewVariant; kind: "fine"; fineIndex: number }
+  | { variant: NetworkViewVariant; kind: "node"; nodeId: number };
 
 const VIEWBOX = {
   width: 800,
-  height: 560,
+  height: 390,
 } as const;
-
-const ROOT_MODULE_RADIUS = 78;
-const FINE_MODULE_RADIUS = 18;
-const LEAF_MODULE_RADIUS = 5.2;
-const TOP_VIEW_FINE_RADIUS = 12;
-const TOP_VIEW_LEAF_RADIUS = 2.4;
-const COARSE_VIEW_LEAF_RADIUS = 3.2;
-const LINK_STROKE_WIDTH = 1.15;
-const ZOOM_VIEWBOX_PADDING = 2.35;
-const ZOOM_DURATION_MS = 1450;
-const VIEWBOX_ASPECT = VIEWBOX.width / VIEWBOX.height;
 
 const ROOT_VIEWBOX: SvgViewBox = {
   x: 0,
-  y: 0,
+  y: 24,
   width: VIEWBOX.width,
   height: VIEWBOX.height,
 };
 
-const rootModuleCenters: Record<number, { x: number; y: number }> = {
-  1: { x: 96, y: 90 },
-  2: { x: 704, y: 90 },
-  3: { x: 400, y: 470 },
-};
+const NODE_RADIUS = 6.8;
+const LINK_STROKE_WIDTH = 1.15;
+const LINK_STROKE = "#9ca3af";
+const TRIANGLE_EDGE_LENGTH = 52;
+const TRIANGLE_HEIGHT = (Math.sqrt(3) / 2) * TRIANGLE_EDGE_LENGTH;
+const TOP_TRIANGLE_ANCHOR = { x: 400, y: 66 } as const;
+const ROMAN_MODULE_LABELS = ["I", "II", "III"] as const;
+const FINE_MODULE_LABELS = ["a", "b", "c"] as const;
+const TWO_LEVEL_MODULE_LABELS = [
+  "a",
+  "b",
+  "c",
+  "d",
+  "e",
+  "f",
+  "g",
+  "h",
+  "i",
+] as const;
+const MODULE_COLOR_INDEXES = [
+  [0, 3, 7],
+  [1, 8, 6],
+  [2, 5, 4],
+] as const;
+const CODEBOOK_BLOCK = {
+  width: 40,
+  height: 9,
+  gap: 1,
+  pointer: 6.4,
+} as const;
+const CODEBOOK_STACK_HEIGHT = 230;
+const RECURSIVE_TRIANGLE_LEVELS = 6;
+const RECURSIVE_ZOOM_DURATION_MS = 1700;
+const RECURSIVE_LEVEL_LABELS = [
+  ["I", "II", "III"],
+  ["a", "b", "c"],
+  ["1", "2", "3"],
+  ["A", "B", "C"],
+  ["x", "y", "z"],
+] as const;
+const RECURSIVE_COLOR_FAMILIES = [
+  [
+    ["#efab6a", "#e78c6e", "#f3aa92"],
+    ["#d7be92", "#d2a251", "#ae8635"],
+    ["#ceaa9e", "#c29669", "#a68679"],
+    ["#d7be61", "#b2a24d", "#a28a5d"],
+    ["#c67551", "#aea282", "#9a9a61"],
+  ],
+  [
+    ["#b2ce75", "#82d79e", "#79d7be"],
+    ["#aacac2", "#79b696", "#55c2ba"],
+    ["#aecaa6", "#9aae96", "#719a82"],
+    ["#a6b65d", "#8a9a45", "#82a26d"],
+    ["#8ebaba", "#69aaaa", "#55a26d"],
+  ],
+  [
+    ["#75a6d7", "#79d2df", "#8acaf3"],
+    ["#a6aaef", "#8e8ace", "#a6a2c2"],
+    ["#aec2ef", "#9eb6c6", "#838eab"],
+    ["#8aa2ba", "#7592ca", "#7596a2"],
+    ["#69b6ca", "#419eb2", "#8aa29e"],
+  ],
+] as const;
+const RECURSIVE_VIEWBOX = {
+  width: 460,
+  height: 400,
+} as const;
+const RECURSIVE_ROOT_CORNERS: [TrianglePoint, TrianglePoint, TrianglePoint] = [
+  { x: 230, y: 42 },
+  { x: 100, y: 267 },
+  { x: 360, y: 267 },
+];
 
-const TWO_LEVEL_INTER_LINK_COLOR = "#9ca3af";
-
-const fineModuleOffsets = [
-  { x: -30, y: -18 },
-  { x: 30, y: -16 },
-  { x: 0, y: 34 },
+const bigTriangleAnchors = [
+  TOP_TRIANGLE_ANCHOR,
+  {
+    x: TOP_TRIANGLE_ANCHOR.x - TRIANGLE_EDGE_LENGTH * 2,
+    y: TOP_TRIANGLE_ANCHOR.y + TRIANGLE_HEIGHT * 4,
+  },
+  {
+    x: TOP_TRIANGLE_ANCHOR.x + TRIANGLE_EDGE_LENGTH * 2,
+    y: TOP_TRIANGLE_ANCHOR.y + TRIANGLE_HEIGHT * 4,
+  },
 ] as const;
 
-const leafModuleOffsets = [
-  { x: -8.5, y: 6.2 },
-  { x: 8.5, y: 6.2 },
-  { x: 0, y: -9.3 },
+const bigTriangleOffsets = [
+  { x: 0, y: 0 },
+  { x: TRIANGLE_EDGE_LENGTH / 2, y: TRIANGLE_HEIGHT },
+  { x: -TRIANGLE_EDGE_LENGTH / 2, y: TRIANGLE_HEIGHT },
+  { x: -TRIANGLE_EDGE_LENGTH, y: TRIANGLE_HEIGHT * 2 },
+  { x: -TRIANGLE_EDGE_LENGTH / 2, y: TRIANGLE_HEIGHT * 3 },
+  { x: -TRIANGLE_EDGE_LENGTH * 1.5, y: TRIANGLE_HEIGHT * 3 },
+  { x: TRIANGLE_EDGE_LENGTH, y: TRIANGLE_HEIGHT * 2 },
+  { x: TRIANGLE_EDGE_LENGTH * 1.5, y: TRIANGLE_HEIGHT * 3 },
+  { x: TRIANGLE_EDGE_LENGTH / 2, y: TRIANGLE_HEIGHT * 3 },
 ] as const;
 
-function cloneCoarseByFine(source: CoarseByFine): CoarseByFine {
-  return { ...source };
-}
+const topModules: TopModuleVisual[] = ROMAN_MODULE_LABELS.map(
+  (label, topIndex) => {
+    const firstNodeId = topIndex * 9 + 1;
+    const color =
+      scheme[MODULE_COLOR_INDEXES[topIndex]?.[0] ?? topIndex] ?? scheme[0];
 
-function createDemoNetwork(): NetworkModel {
-  return Network.parse(hierarchical_paper_toy).setNodeExtents(
-    [90, 710],
-    [80, 500],
-  );
-}
+    return {
+      key: `top-module-${label}`,
+      topIndex,
+      label,
+      cornerNodeIds: [firstNodeId, firstNodeId + 5, firstNodeId + 7],
+      color,
+    };
+  },
+);
 
-function createTwoLevelNetwork(): NetworkModel {
-  const network = Network.parse(hierarchical_paper_toy);
+const fineModules: FineModuleVisual[] = Array.from(
+  { length: 9 },
+  (_, fineIndex) => {
+    const topIndex = Math.floor(fineIndex / 3);
+    const localIndex = fineIndex % 3;
+    const firstNodeId = fineIndex * 3 + 1;
+    const colorIndex =
+      MODULE_COLOR_INDEXES[topIndex]?.[localIndex] ?? fineIndex;
 
-  paperToyFineModules.forEach((module_) => {
-    module_.nodeIds.forEach((nodeId) => {
-      network.getNode(nodeId)?.setPath([module_.id]);
-    });
-  });
-
-  network.finalize();
-
-  return network.setNodeExtents([90, 710], [80, 500]);
-}
-
-function getFineIdsForCoarse(coarseId: number, coarseByFine: CoarseByFine) {
-  return Object.entries(coarseByFine)
-    .filter(([, currentCoarseId]) => currentCoarseId === coarseId)
-    .map(([fineId]) => Number(fineId))
-    .sort((a, b) => a - b);
-}
-
-function getFineLabel(fineId: number, coarseByFine: CoarseByFine) {
-  const coarseId = coarseByFine[fineId];
-  const fineIds = getFineIdsForCoarse(coarseId, coarseByFine);
-  const localIndex = Math.max(1, fineIds.indexOf(fineId) + 1);
-
-  return `${coarseId}.${localIndex}`;
-}
-
-function getFineModuleStat(
-  network: NetworkModel,
-  fineId: number,
-  coarseByFine: CoarseByFine,
-): FineModuleStat {
-  const module_ = paperToyFineById.get(fineId)!;
-  const nodes = module_.nodeIds
-    .map((nodeId) => network.getNode(nodeId))
-    .filter((node): node is NonNullable<typeof node> => node !== null);
-  const flow =
-    nodes.length > 0 ? nodes.reduce((total, node) => total + node.flow, 0) : 0;
-  const x =
-    nodes.length > 0
-      ? nodes.reduce((total, node) => total + node.x, 0) / nodes.length
-      : 0;
-  const y =
-    nodes.length > 0
-      ? nodes.reduce((total, node) => total + node.y, 0) / nodes.length
-      : 0;
-  const radius =
-    nodes.length > 0
-      ? Math.max(...nodes.map((node) => Math.hypot(node.x - x, node.y - y))) +
-        34
-      : 40;
-
-  return {
-    ...module_,
-    coarseId: coarseByFine[fineId],
-    flow,
-    x,
-    y,
-    radius,
-    label: getFineLabel(fineId, coarseByFine),
-  };
-}
-
-function buildFineModuleStats(
-  network: NetworkModel,
-  coarseByFine: CoarseByFine,
-) {
-  return paperToyFineModules
-    .map((module_) => getFineModuleStat(network, module_.id, coarseByFine))
-    .sort((a, b) => a.id - b.id);
-}
-
-function buildCoarseModuleStats(fineModules: FineModuleStat[]) {
-  const grouped = new Map<number, FineModuleStat[]>();
-
-  fineModules.forEach((module_) => {
-    if (!grouped.has(module_.coarseId)) {
-      grouped.set(module_.coarseId, []);
-    }
-
-    grouped.get(module_.coarseId)!.push(module_);
-  });
-
-  return Array.from(grouped.entries())
-    .map(([id, modules]) => {
-      const totalFlow = modules.reduce((sum, module_) => sum + module_.flow, 0);
-      const x =
-        totalFlow > 0
-          ? modules.reduce(
-              (sum, module_) => sum + module_.x * module_.flow,
-              0,
-            ) / totalFlow
-          : modules.reduce((sum, module_) => sum + module_.x, 0) /
-            modules.length;
-      const y =
-        totalFlow > 0
-          ? modules.reduce(
-              (sum, module_) => sum + module_.y * module_.flow,
-              0,
-            ) / totalFlow
-          : modules.reduce((sum, module_) => sum + module_.y, 0) /
-            modules.length;
-      const radius =
-        Math.max(
-          ...modules.map(
-            (module_) =>
-              Math.hypot(module_.x - x, module_.y - y) + module_.radius,
-          ),
-        ) + 36;
-
-      return {
-        id,
-        flow: totalFlow,
-        x,
-        y,
-        radius,
-        fineModules: modules.sort((a, b) => a.id - b.id),
-      };
-    })
-    .sort((a, b) => a.id - b.id);
-}
-
-function getRadialOffset(index: number, total: number, radius: number) {
-  const angle = -Math.PI / 2 + (index / Math.max(1, total)) * Math.PI * 2;
-
-  return {
-    x: Math.cos(angle) * radius,
-    y: Math.sin(angle) * radius,
-  };
-}
-
-function getCoarseDisplayCenter(coarseId: number) {
-  return (
-    rootModuleCenters[coarseId] ?? {
-      x: VIEWBOX.width / 2,
-      y: VIEWBOX.height / 2,
-    }
-  );
-}
-
-function getFineDisplayCenter(
-  module_: FineModuleStat,
-  coarseByFine: CoarseByFine,
-) {
-  const coarseCenter = getCoarseDisplayCenter(module_.coarseId);
-  const fineIds = getFineIdsForCoarse(module_.coarseId, coarseByFine);
-  const index = Math.max(0, fineIds.indexOf(module_.id));
-  const offset =
-    fineModuleOffsets[index] ??
-    getRadialOffset(index, fineIds.length, ROOT_MODULE_RADIUS * 0.48);
-
-  return {
-    x: coarseCenter.x + offset.x,
-    y: coarseCenter.y + offset.y,
-  };
-}
-
-function getLeafDisplayCenter(
-  module_: FineModuleStat,
-  nodeId: number,
-  coarseByFine: CoarseByFine,
-) {
-  const fineCenter = getFineDisplayCenter(module_, coarseByFine);
-  const index = Math.max(0, module_.nodeIds.indexOf(nodeId));
-  const offset =
-    leafModuleOffsets[index] ??
-    getRadialOffset(index, module_.nodeIds.length, FINE_MODULE_RADIUS * 0.52);
-
-  return {
-    x: fineCenter.x + offset.x,
-    y: fineCenter.y + offset.y,
-  };
-}
-
-function getTwoLevelFineDisplayCenter(module_: FineModuleStat) {
-  return getFineDisplayCenter(module_, defaultCoarseByFine);
-}
-
-function getTwoLevelLeafDisplayCenter(module_: FineModuleStat, nodeId: number) {
-  return getLeafDisplayCenter(module_, nodeId, defaultCoarseByFine);
-}
-
-function hexToRgb(hexColor: string) {
-  const parsed = Number.parseInt(hexColor.replace("#", ""), 16);
-
-  return {
-    r: (parsed >> 16) & 255,
-    g: (parsed >> 8) & 255,
-    b: parsed & 255,
-  };
-}
-
-function rgbToHex({ r, g, b }: { r: number; g: number; b: number }) {
-  return `#${[r, g, b]
-    .map((value) =>
-      Math.max(0, Math.min(255, Math.round(value)))
-        .toString(16)
-        .padStart(2, "0"),
-    )
-    .join("")}`;
-}
-
-function mixHexColor(color: string, target: string, amount: number) {
-  const from = hexToRgb(color);
-  const to = hexToRgb(target);
-  const clampedAmount = Math.max(0, Math.min(1, amount));
-
-  return rgbToHex({
-    r: from.r + (to.r - from.r) * clampedAmount,
-    g: from.g + (to.g - from.g) * clampedAmount,
-    b: from.b + (to.b - from.b) * clampedAmount,
-  });
-}
-
-function getModuleBaseColor(moduleId: number) {
-  return scheme[moduleId % scheme.length] ?? scheme[0];
-}
-
-function getLevelColor(moduleId: number, level: 1 | 2 | 3) {
-  const base = getModuleBaseColor(moduleId);
-
-  if (level === 1) {
-    return base;
-  }
-
-  if (level === 2) {
-    return mixHexColor(base, "#ffffff", 0.24);
-  }
-
-  return darkenHexColor(base, 0.14);
-}
-
-function getLevelStrokeColor(moduleId: number, level: 1 | 2 | 3) {
-  const base = schemeAlt[moduleId % schemeAlt.length] ?? schemeAlt[0];
-
-  return level === 3 ? darkenHexColor(base, 0.08) : base;
-}
-
-function edgePoint(
-  from: { x: number; y: number },
-  to: { x: number; y: number },
-  radius: number,
-) {
-  const dx = to.x - from.x;
-  const dy = to.y - from.y;
-  const distance = Math.hypot(dx, dy) || 1;
-
-  return {
-    x: from.x + (dx / distance) * radius,
-    y: from.y + (dy / distance) * radius,
-  };
-}
-
-function getFocusViewBox(
-  center: { x: number; y: number },
-  radius: number,
-): SvgViewBox {
-  const height = radius * ZOOM_VIEWBOX_PADDING;
-  const width = height * VIEWBOX_ASPECT;
-
-  return {
-    x: center.x - width / 2,
-    y: center.y - height / 2,
-    width,
-    height,
-  };
-}
+    return {
+      key: `fine-module-${topIndex}-${localIndex}`,
+      topIndex,
+      localIndex,
+      label: FINE_MODULE_LABELS[localIndex] ?? String(localIndex + 1),
+      nodeIds: [firstNodeId, firstNodeId + 1, firstNodeId + 2],
+      color: scheme[colorIndex] ?? scheme[fineIndex] ?? scheme[0],
+    };
+  },
+);
 
 function formatViewBox(viewBox: SvgViewBox) {
   return `${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`;
-}
-
-function easeInOutCubic(value: number) {
-  return value < 0.5
-    ? 4 * value * value * value
-    : 1 - Math.pow(-2 * value + 2, 3) / 2;
 }
 
 function interpolateViewBox(
@@ -433,7 +235,13 @@ function interpolateViewBox(
   };
 }
 
-function useAnimatedViewBox(target: SvgViewBox) {
+function easeInOutCubic(value: number) {
+  return value < 0.5
+    ? 4 * value * value * value
+    : 1 - Math.pow(-2 * value + 2, 3) / 2;
+}
+
+function useAnimatedViewBox(target: SvgViewBox, durationMs = 1500) {
   const [animatedViewBox, setAnimatedViewBox] = useState(target);
   const currentViewBox = useRef(target);
   const frame = useRef<number | null>(null);
@@ -447,10 +255,12 @@ function useAnimatedViewBox(target: SvgViewBox) {
     const startTime = window.performance.now();
 
     const animate = (time: number) => {
-      const elapsed = time - startTime;
-      const progress = Math.min(1, elapsed / ZOOM_DURATION_MS);
-      const easedProgress = easeInOutCubic(progress);
-      const nextViewBox = interpolateViewBox(start, target, easedProgress);
+      const progress = Math.min(1, (time - startTime) / durationMs);
+      const nextViewBox = interpolateViewBox(
+        start,
+        target,
+        easeInOutCubic(progress),
+      );
 
       currentViewBox.current = nextViewBox;
       setAnimatedViewBox(nextViewBox);
@@ -472,22 +282,515 @@ function useAnimatedViewBox(target: SvgViewBox) {
         window.cancelAnimationFrame(frame.current);
       }
     };
-  }, [target.x, target.y, target.width, target.height]);
+  }, [durationMs, target.x, target.y, target.width, target.height]);
 
   return animatedViewBox;
 }
 
-function buildCodelengthRows(
-  hierarchicalNetwork: NetworkModel,
-  twoLevelNetwork: NetworkModel,
-): CodelengthRow[] {
-  let topIndex = 0;
-  let subIndex = 0;
-  let leafCodebooks = 0;
+function buildPositionedNodes(): PositionedNode[] {
+  return hierarchicalPaperToyTopology.nodes
+    .map((node) => {
+      const anchor = bigTriangleAnchors[Math.floor((node.id - 1) / 9)] ?? {
+        x: VIEWBOX.width / 2,
+        y: VIEWBOX.height / 2,
+      };
+      const offset = bigTriangleOffsets[(node.id - 1) % 9] ?? { x: 0, y: 0 };
 
-  for (const module_ of hierarchicalNetwork.tree.depthFirstModules()) {
+      return {
+        id: node.id,
+        name: (((node.id - 1) % 3) + 1).toString(),
+        x: anchor.x + offset.x,
+        y: anchor.y + offset.y,
+      };
+    })
+    .sort((left, right) => left.id - right.id);
+}
+
+function getFineModuleIndexForNodeId(nodeId: number) {
+  return Math.floor((nodeId - 1) / 3);
+}
+
+function getTopModuleIndexForNodeId(nodeId: number) {
+  return Math.floor((nodeId - 1) / 9);
+}
+
+function getFineModuleForNodeId(nodeId: number) {
+  return fineModules[getFineModuleIndexForNodeId(nodeId)] ?? fineModules[0];
+}
+
+function getTrianglePoints(
+  nodeById: Map<number, PositionedNode>,
+  nodeIds: [number, number, number],
+) {
+  return nodeIds
+    .map((nodeId) => nodeById.get(nodeId))
+    .filter((node): node is PositionedNode => node !== undefined);
+}
+
+function formatPolygonPoints(points: PositionedNode[]) {
+  return points.map((point) => `${point.x},${point.y}`).join(" ");
+}
+
+function getCentroid(points: PositionedNode[]) {
+  const total = points.reduce(
+    (sum, point) => ({
+      x: sum.x + point.x,
+      y: sum.y + point.y,
+    }),
+    { x: 0, y: 0 },
+  );
+
+  return {
+    x: total.x / Math.max(1, points.length),
+    y: total.y / Math.max(1, points.length),
+  };
+}
+
+function getTriangleCentroid(
+  corners: [TrianglePoint, TrianglePoint, TrianglePoint],
+) {
+  return {
+    x: (corners[0].x + corners[1].x + corners[2].x) / 3,
+    y: (corners[0].y + corners[1].y + corners[2].y) / 3,
+  };
+}
+
+function formatTrianglePoints(
+  points: [TrianglePoint, TrianglePoint, TrianglePoint],
+) {
+  return points.map((point) => `${point.x},${point.y}`).join(" ");
+}
+
+function getTriangleHeight(
+  corners: [TrianglePoint, TrianglePoint, TrianglePoint],
+) {
+  const yValues = corners.map((point) => point.y);
+
+  return Math.max(...yValues) - Math.min(...yValues);
+}
+
+function getRecursiveModuleLabel(path: number[]) {
+  if (path.length === 0) {
+    return "";
+  }
+
+  const levelLabels = RECURSIVE_LEVEL_LABELS[path.length - 1];
+  const localIndex = path[path.length - 1] ?? 0;
+
+  return levelLabels?.[localIndex] ?? String(localIndex + 1);
+}
+
+function getRecursivePathLabel(path: number[]) {
+  return path
+    .map((_, index) => getRecursiveModuleLabel(path.slice(0, index + 1)))
+    .join(".");
+}
+
+function getRecursiveModuleColor(path: number[]) {
+  if (path.length === 0) {
+    return "#111827";
+  }
+
+  const familyIndex = path[0] ?? 0;
+  const localIndex = path[path.length - 1] ?? 0;
+  const family =
+    RECURSIVE_COLOR_FAMILIES[familyIndex % RECURSIVE_COLOR_FAMILIES.length] ??
+    RECURSIVE_COLOR_FAMILIES[0];
+  const levelPalette =
+    family[Math.min(path.length - 1, family.length - 1)] ?? family[0];
+
+  return levelPalette[localIndex % levelPalette.length] ?? levelPalette[0];
+}
+
+function getRecursiveModuleFillOpacity(module_: RecursiveTriangleModule) {
+  if (module_.path.length === 0) {
+    return 0;
+  }
+
+  return Math.min(0.24, 0.09 + module_.level * 0.025);
+}
+
+function getRecursiveLabelOpacity(module_: RecursiveTriangleModule) {
+  return Math.max(0.52, 0.95 - module_.level * 0.08);
+}
+
+function isPointInsideTriangle(
+  point: TrianglePoint,
+  corners: [TrianglePoint, TrianglePoint, TrianglePoint],
+) {
+  const [first, second, third] = corners;
+  const sign = (
+    current: TrianglePoint,
+    left: TrianglePoint,
+    right: TrianglePoint,
+  ) =>
+    (current.x - right.x) * (left.y - right.y) -
+    (left.x - right.x) * (current.y - right.y);
+  const firstSign = sign(point, first, second);
+  const secondSign = sign(point, second, third);
+  const thirdSign = sign(point, third, first);
+  const hasNegative = firstSign < 0 || secondSign < 0 || thirdSign < 0;
+  const hasPositive = firstSign > 0 || secondSign > 0 || thirdSign > 0;
+
+  return !(hasNegative && hasPositive);
+}
+
+function midpoint(left: TrianglePoint, right: TrianglePoint): TrianglePoint {
+  return {
+    x: (left.x + right.x) / 2,
+    y: (left.y + right.y) / 2,
+  };
+}
+
+function getRecursiveTriangleChildren(
+  module_: RecursiveTriangleModule,
+): RecursiveTriangleModule[] {
+  const [top, left, right] = module_.corners;
+  const topLeft = midpoint(top, left);
+  const topRight = midpoint(top, right);
+  const bottom = midpoint(left, right);
+  const nextLevel = module_.level + 1;
+
+  return [
+    {
+      key: [...module_.path, 0].join("."),
+      path: [...module_.path, 0],
+      level: nextLevel,
+      corners: [top, topLeft, topRight],
+    },
+    {
+      key: [...module_.path, 1].join("."),
+      path: [...module_.path, 1],
+      level: nextLevel,
+      corners: [topLeft, left, bottom],
+    },
+    {
+      key: [...module_.path, 2].join("."),
+      path: [...module_.path, 2],
+      level: nextLevel,
+      corners: [topRight, bottom, right],
+    },
+  ];
+}
+
+function buildRecursiveTriangleModules() {
+  const root: RecursiveTriangleModule = {
+    key: "root",
+    path: [],
+    level: 0,
+    corners: RECURSIVE_ROOT_CORNERS,
+  };
+  const modules: RecursiveTriangleModule[] = [];
+
+  function visit(module_: RecursiveTriangleModule) {
+    modules.push(module_);
+
+    if (module_.level >= RECURSIVE_TRIANGLE_LEVELS - 1) {
+      return;
+    }
+
+    getRecursiveTriangleChildren(module_).forEach(visit);
+  }
+
+  visit(root);
+
+  return modules;
+}
+
+function samePath(left: number[], right: number[]) {
+  return (
+    left.length === right.length &&
+    left.every((segment, index) => segment === right[index])
+  );
+}
+
+function isDirectChild(path: number[], selectedPath: number[]) {
+  return (
+    path.length === selectedPath.length + 1 &&
+    selectedPath.every((segment, index) => path[index] === segment)
+  );
+}
+
+function getTriangleViewBox(
+  corners: [TrianglePoint, TrianglePoint, TrianglePoint],
+): SvgViewBox {
+  const xValues = corners.map((point) => point.x);
+  const yValues = corners.map((point) => point.y);
+  const minX = Math.min(...xValues);
+  const maxX = Math.max(...xValues);
+  const minY = Math.min(...yValues);
+  const maxY = Math.max(...yValues);
+  const rawWidth = maxX - minX;
+  const rawHeight = maxY - minY;
+  const aspect = RECURSIVE_VIEWBOX.width / RECURSIVE_VIEWBOX.height;
+  const horizontalPadding = rawWidth * 0.022;
+  const topPadding = rawHeight * 0.035;
+  const bottomPadding = rawHeight * 0.035;
+  const requestedWidth = rawWidth + horizontalPadding * 2;
+  const requestedHeight = rawHeight + topPadding + bottomPadding;
+  const width =
+    requestedWidth / requestedHeight > aspect
+      ? requestedWidth
+      : requestedHeight * aspect;
+  const height = width / aspect;
+  const extraHeight = Math.max(0, height - requestedHeight);
+  const center = {
+    x: (minX + maxX) / 2,
+    y: minY - topPadding - extraHeight * 0.08 + height / 2,
+  };
+
+  return {
+    x: center.x - width / 2,
+    y: center.y - height / 2,
+    width,
+    height,
+  };
+}
+
+function pointKey(point: TrianglePoint) {
+  return `${point.x.toFixed(5)}:${point.y.toFixed(5)}`;
+}
+
+function buildRecursiveLeafNetwork(modules: RecursiveTriangleModule[]) {
+  const leafModules = modules.filter(
+    (module_) => module_.level === RECURSIVE_TRIANGLE_LEVELS - 1,
+  );
+  const nodeByPoint = new Map<
+    string,
+    { id: number; x: number; y: number; paths: string[] }
+  >();
+  const links = new Map<string, { source: number; target: number }>();
+
+  leafModules.forEach((module_) => {
+    const nodeIds = module_.corners.map((point) => {
+      const key = pointKey(point);
+      const existing = nodeByPoint.get(key);
+
+      if (existing) {
+        existing.paths.push(module_.key);
+        return existing.id;
+      }
+
+      const next = {
+        id: nodeByPoint.size + 1,
+        x: point.x,
+        y: point.y,
+        paths: [module_.key],
+      };
+
+      nodeByPoint.set(key, next);
+      return next.id;
+    });
+
+    [
+      [nodeIds[0], nodeIds[1]],
+      [nodeIds[1], nodeIds[2]],
+      [nodeIds[2], nodeIds[0]],
+    ].forEach(([source, target]) => {
+      const key =
+        source < target ? `${source}-${target}` : `${target}-${source}`;
+      links.set(key, { source, target });
+    });
+  });
+
+  return {
+    nodes: Array.from(nodeByPoint.values()),
+    links: Array.from(links.values()),
+  };
+}
+
+function serializeRecursiveNetworkToPajek(
+  leafNetwork: ReturnType<typeof buildRecursiveLeafNetwork>,
+) {
+  const vertices = leafNetwork.nodes
+    .slice()
+    .sort((left, right) => left.id - right.id)
+    .map((node) => `${node.id} "${node.id}"`);
+  const edges = leafNetwork.links
+    .slice()
+    .sort((left, right) =>
+      left.source === right.source
+        ? left.target - right.target
+        : left.source - right.source,
+    )
+    .map((link) => `${link.source} ${link.target} 1`);
+
+  return [
+    `*Vertices ${leafNetwork.nodes.length}`,
+    ...vertices,
+    "*Edges",
+    ...edges,
+  ].join("\n");
+}
+
+function serializeNetworkToPajek(network: typeof hierarchicalPaperToyTopology) {
+  const vertices = network.nodes
+    .slice()
+    .sort((left, right) => left.id - right.id)
+    .map((node) => `${node.id} "${node.name ?? node.id}"`);
+  const edges = network.links
+    .slice()
+    .sort((left, right) =>
+      left.source === right.source
+        ? left.target - right.target
+        : left.source - right.source,
+    )
+    .map((link) => `${link.source} ${link.target} ${link.weight}`);
+
+  return [
+    `*Vertices ${network.nodes.length}`,
+    ...vertices,
+    "*Edges",
+    ...edges,
+  ].join("\n");
+}
+
+function parseRecursivePathKey(pathKey: string) {
+  return pathKey
+    .split(".")
+    .map((segment) => Number(segment))
+    .filter((segment) => Number.isFinite(segment));
+}
+
+function getRecursiveNodePath(paths: string[]) {
+  const selectedPath = [...paths].sort()[0] ?? "";
+
+  return parseRecursivePathKey(selectedPath).map((segment) => segment + 1);
+}
+
+function getRecursiveLeafModuleId(paths: string[]) {
+  const selectedPath = [...paths].sort()[0] ?? "";
+
+  return (
+    parseRecursivePathKey(selectedPath).reduce(
+      (moduleId, segment) => moduleId * 3 + segment,
+      0,
+    ) + 1
+  );
+}
+
+function getRecursiveNodeColor(paths: string[]) {
+  const selectedPath = [...paths].sort()[0] ?? "";
+
+  return getRecursiveModuleColor(parseRecursivePathKey(selectedPath));
+}
+
+function createRecursiveCodelengthNetwork(
+  leafNetwork: ReturnType<typeof buildRecursiveLeafNetwork>,
+  mode: "multilevel" | "two-level",
+) {
+  return Network.parse({
+    flowModel: "undirected",
+    nodes: leafNetwork.nodes.map((node) => ({
+      id: node.id,
+      name: node.id.toString(),
+      x: node.x,
+      y: node.y,
+      path:
+        mode === "multilevel"
+          ? getRecursiveNodePath(node.paths)
+          : [getRecursiveLeafModuleId(node.paths)],
+    })),
+    links: leafNetwork.links.map((link) => ({
+      source: link.source,
+      target: link.target,
+      weight: 1,
+    })),
+  });
+}
+
+function buildRecursiveCodelengthGroups(
+  leafNetwork: ReturnType<typeof buildRecursiveLeafNetwork>,
+): CodelengthGroup[] {
+  const multilevelNetwork = createRecursiveCodelengthNetwork(
+    leafNetwork,
+    "multilevel",
+  );
+  const twoLevelNetwork = createRecursiveCodelengthNetwork(
+    leafNetwork,
+    "two-level",
+  );
+  const levelCodelengths = Array.from(
+    { length: RECURSIVE_TRIANGLE_LEVELS - 1 },
+    () => 0,
+  );
+  let nodeModuleCodelength = 0;
+
+  for (const module_ of multilevelNetwork.tree.depthFirstModules()) {
     if (module_.isLeafModule) {
-      leafCodebooks += module_.codelength;
+      nodeModuleCodelength += module_.codelength;
+      continue;
+    }
+
+    levelCodelengths[module_.depth] += module_.codelength;
+  }
+
+  return [
+    {
+      key: "recursive-multilevel",
+      title: "Multilevel codelength",
+      total: multilevelNetwork.mapequation.codelength,
+      rows: [
+        ...levelCodelengths.map((value, levelIndex) => ({
+          key: `recursive-level-${levelIndex + 1}`,
+          label: `Level ${levelIndex + 1} index (${RECURSIVE_LEVEL_LABELS[
+            levelIndex
+          ].join(", ")})`,
+          value,
+          color: getRecursiveModuleColor([levelIndex % 3]),
+        })),
+        {
+          key: "recursive-node-modules",
+          label: "Bottom node modules",
+          value: nodeModuleCodelength,
+          color: "#111827",
+        },
+      ],
+    },
+    {
+      key: "recursive-two-level",
+      title: "Two-level codelength",
+      total: twoLevelNetwork.mapequation.codelength,
+      rows: [
+        {
+          key: "recursive-two-level-index",
+          label: "Index (smallest triangles)",
+          value: twoLevelNetwork.mapequation.indexCodelength,
+          color: "#4b5563",
+        },
+        {
+          key: "recursive-two-level-modules",
+          label: "Node modules",
+          value: twoLevelNetwork.mapequation.moduleCodelength,
+          color: "#111827",
+        },
+      ],
+    },
+  ];
+}
+
+function createTwoLevelNetwork() {
+  const network = Network.parse(hierarchical_paper_toy);
+
+  paperToyFineModules.forEach((module_) => {
+    module_.nodeIds.forEach((nodeId) => {
+      network.getNode(nodeId)?.setPath([module_.id]);
+    });
+  });
+
+  return network.finalize();
+}
+
+function buildCodelengthGroups(): CodelengthGroup[] {
+  const multilevelNetwork = Network.parse(hierarchical_paper_toy);
+  const twoLevelNetwork = createTwoLevelNetwork();
+  let topIndex = 0;
+  let submoduleIndex = 0;
+  let multilevelModules = 0;
+
+  for (const module_ of multilevelNetwork.tree.depthFirstModules()) {
+    if (module_.isLeafModule) {
+      multilevelModules += module_.codelength;
       continue;
     }
 
@@ -496,990 +799,1204 @@ function buildCodelengthRows(
       continue;
     }
 
-    subIndex += module_.codelength;
+    submoduleIndex += module_.codelength;
   }
 
   return [
     {
-      group: "Multilevel",
-      label: "Index codebook 1",
-      value: topIndex,
-      color: getLevelColor(1, 1),
+      key: "multilevel",
+      title: "Multilevel codelength",
+      total: multilevelNetwork.mapequation.codelength,
+      rows: [
+        {
+          key: "top-index",
+          label: "Level 1 index (I-III)",
+          value: topIndex,
+          color: topModules[0].color,
+        },
+        {
+          key: "submodule-index",
+          label: "Level 2 index (a-c)",
+          value: submoduleIndex,
+          color: topModules[1].color,
+        },
+        {
+          key: "multilevel-modules",
+          label: "Node modules (1-3)",
+          value: multilevelModules,
+          color: topModules[2].color,
+        },
+      ],
     },
     {
-      group: "Multilevel",
-      label: "Index codebook 2",
-      value: subIndex,
-      color: getLevelColor(2, 2),
-    },
-    {
-      group: "Multilevel",
-      label: "Module codebook",
-      value: leafCodebooks,
-      color: getLevelColor(3, 3),
-    },
-    {
-      group: "Multilevel",
-      label: "Multilevel total",
-      value: hierarchicalNetwork.mapequation.codelength,
-      color: "#1f2937",
-    },
-    {
-      group: "Two-level",
-      label: "Index codebook 1",
-      value: twoLevelNetwork.mapequation.indexCodelength,
-      color: TWO_LEVEL_INTER_LINK_COLOR,
-      muted: true,
-    },
-    {
-      group: "Two-level",
-      label: "Index codebook 2",
-      value: 0,
-      color: getLevelColor(4, 2),
-      muted: true,
-    },
-    {
-      group: "Two-level",
-      label: "Module codebook",
-      value: twoLevelNetwork.mapequation.moduleCodelength,
-      color: getLevelColor(4, 3),
-      muted: true,
-    },
-    {
-      group: "Two-level",
-      label: "Two-level total",
-      value: twoLevelNetwork.mapequation.codelength,
-      color: getLevelColor(4, 1),
-      muted: true,
+      key: "two-level",
+      title: "Two-level codelength",
+      total: twoLevelNetwork.mapequation.codelength,
+      rows: [
+        {
+          key: "two-level-index",
+          label: "Index (a-i)",
+          value: twoLevelNetwork.mapequation.indexCodelength,
+          color: scheme[0],
+        },
+        {
+          key: "two-level-modules",
+          label: "Node modules (1-3)",
+          value: twoLevelNetwork.mapequation.moduleCodelength,
+          color: scheme[2],
+        },
+      ],
     },
   ];
 }
 
-function CodelengthOverview({ rows }: { rows: CodelengthRow[] }) {
-  const maxValue = Math.max(...rows.map((row) => row.value), 1);
-  const detailedOverview = (
-    <>
-      <div className="text-xs text-gray-500">
-        Codelength contribution by hierarchy level, with the flat two-level
-        alternative for comparison.
+function formatBits(value: number) {
+  return `${value.toFixed(3)} bits`;
+}
+
+function CodelengthGroupView({ group }: { group: CodelengthGroup }) {
+  return (
+    <div className="p-1">
+      <div className="mb-3 flex items-baseline justify-between gap-3">
+        <h3 className="m-0 text-base font-bold text-gray-900">{group.title}</h3>
+        <div className="text-sm font-black text-gray-900">
+          {formatBits(group.total)}
+        </div>
       </div>
-      <div className="grid gap-3 lg:grid-cols-4 xl:grid-cols-8">
-        {rows.map((row) => (
-          <div key={row.label} className="min-w-0 py-2">
-            <div className="mb-2 flex items-baseline justify-between gap-3">
-              <div className="min-w-0">
-                <div className="truncate text-sm font-semibold text-gray-900">
-                  {row.label}
-                </div>
-                <div className="text-[11px] font-semibold text-gray-500">
-                  {row.group}
-                </div>
-              </div>
-              <div className="text-xs font-semibold text-gray-600">
-                {row.value.toFixed(3)} bits
-              </div>
-            </div>
-            <div className="h-2 overflow-hidden rounded-full bg-gray-200">
-              <div
-                className="h-full rounded-full"
-                style={{
-                  width: `${Math.max(2, (row.value / maxValue) * 100)}%`,
-                  backgroundColor: row.color,
-                  opacity: row.muted ? 0.72 : 1,
-                }}
-              />
-            </div>
+      <div className="space-y-1.5">
+        {group.rows.map((row) => (
+          <div
+            key={row.key}
+            className="grid grid-cols-[0.65rem_minmax(0,1fr)_auto] items-center gap-2 text-sm"
+          >
+            <span
+              className="h-2.5 w-2.5 rounded-full"
+              style={{ backgroundColor: row.color }}
+            />
+            <span className="truncate font-semibold text-gray-700">
+              {row.label}
+            </span>
+            <span className="font-mono text-xs font-bold text-gray-900">
+              {formatBits(row.value)}
+            </span>
           </div>
         ))}
       </div>
-    </>
-  );
-  void detailedOverview;
-
-  return (
-    <div className="space-y-3">
-      <div className="mb-3">
-        <h3 className="m-0 text-lg font-bold text-gray-900">
-          Mini overview strip
-        </h3>
-        <p className="m-0 mt-1 text-sm text-gray-600">Coming soon.</p>
-      </div>
     </div>
   );
 }
 
-function getCurrentLevelLabel(
-  selectedCoarse: CoarseModuleStat | null,
-  selectedFine: FineModuleStat | null,
-) {
-  if (selectedFine) {
-    return `Current level: level 3 nodes in submodule ${selectedFine.label}`;
-  }
-
-  if (selectedCoarse) {
-    return `Current level: level 2 modules inside module ${selectedCoarse.id}`;
-  }
-
-  return "Current level: level 1 top modules";
-}
-
-function HierarchyMap({
-  network,
-  coarseByFine,
-  zoomPath,
-  fineModules,
-  coarseModules,
-  onZoomPathChange,
-}: {
-  network: NetworkModel;
-  coarseByFine: CoarseByFine;
-  zoomPath: number[];
-  fineModules: FineModuleStat[];
-  coarseModules: CoarseModuleStat[];
-  onZoomPathChange: (path: number[]) => void;
-}) {
-  const zoomedCoarseId = zoomPath[0] ?? null;
-  const zoomedFineId = zoomPath[1] ?? null;
-  const selectedFine = zoomedFineId
-    ? (fineModules.find((module_) => module_.id === zoomedFineId) ?? null)
-    : null;
-  const selectedCoarse = zoomedCoarseId
-    ? (coarseModules.find((module_) => module_.id === zoomedCoarseId) ?? null)
-    : null;
-  const targetViewBox = selectedFine
-    ? getFocusViewBox(
-        getFineDisplayCenter(selectedFine, coarseByFine),
-        FINE_MODULE_RADIUS,
-      )
-    : selectedCoarse
-      ? getFocusViewBox(
-          getCoarseDisplayCenter(selectedCoarse.id),
-          ROOT_MODULE_RADIUS,
-        )
-      : ROOT_VIEWBOX;
-  const viewBox = useAnimatedViewBox(targetViewBox);
-  const fineModuleById = useMemo(
-    () => new Map(fineModules.map((module_) => [module_.id, module_])),
-    [fineModules],
-  );
-  const visibleFineModules = selectedCoarse
-    ? selectedCoarse.fineModules
-    : fineModules;
-  const getFineRadius = () =>
-    selectedCoarse ? FINE_MODULE_RADIUS : TOP_VIEW_FINE_RADIUS;
-  const getLeafRadius = (module_: FineModuleStat) =>
-    selectedFine?.id === module_.id
-      ? LEAF_MODULE_RADIUS
-      : selectedCoarse
-        ? COARSE_VIEW_LEAF_RADIUS
-        : TOP_VIEW_LEAF_RADIUS;
+function CodelengthBreakdown() {
+  const groups = useMemo(() => buildCodelengthGroups(), []);
 
   return (
-    <div className="space-y-3">
-      <div className="mb-3 flex flex-col gap-2">
-        <div>
-          <h3 className="m-0 text-base font-bold text-gray-900">
-            Multilevel network view
-          </h3>
-          <p className="m-0 mt-1 text-sm text-gray-600">
-            Three levels of nested modules.
-          </p>
-        </div>
-        <div>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              className="rounded-md px-2 py-1 text-sm font-semibold text-gray-800 underline-offset-4 hover:underline disabled:cursor-default disabled:text-gray-400 disabled:no-underline"
-              disabled={zoomPath.length === 0}
-              onClick={() =>
-                onZoomPathChange(zoomPath.length === 2 ? [zoomPath[0]] : [])
-              }
-            >
-              Zoom out
-            </button>
-            <button
-              type="button"
-              className="rounded-md px-2 py-1 text-sm font-semibold text-gray-800 underline-offset-4 hover:underline disabled:cursor-default disabled:text-gray-400 disabled:no-underline"
-              disabled={zoomPath.length === 0}
-              onClick={() => onZoomPathChange([])}
-            >
-              Home
-            </button>
-          </div>
-          <div className="mt-1 text-xs font-semibold text-gray-500">
-            {getCurrentLevelLabel(selectedCoarse, selectedFine)}
-          </div>
-        </div>
-      </div>
-      <svg
-        viewBox={formatViewBox(viewBox)}
-        className="block w-full overflow-hidden"
-        style={{ aspectRatio: `${VIEWBOX.width} / ${VIEWBOX.height}` }}
-      >
-        {network.links.map((link, index) => {
-          const sourceFineId = paperToyFineByNodeId.get(link.source.id);
-          const targetFineId = paperToyFineByNodeId.get(link.target.id);
-
-          if (!sourceFineId || !targetFineId) {
-            return null;
-          }
-
-          const sourceModule = fineModuleById.get(sourceFineId);
-          const targetModule = fineModuleById.get(targetFineId);
-
-          if (!sourceModule || !targetModule) {
-            return null;
-          }
-
-          const sourceCoarseId = coarseByFine[sourceFineId];
-          const targetCoarseId = coarseByFine[targetFineId];
-          const linkLevel = selectedFine ? 3 : selectedCoarse ? 2 : 1;
-          const visible =
-            linkLevel === 1
-              ? sourceCoarseId !== targetCoarseId
-              : linkLevel === 2
-                ? sourceFineId !== targetFineId &&
-                  (sourceCoarseId === selectedCoarse?.id ||
-                    targetCoarseId === selectedCoarse?.id)
-                : sourceFineId === selectedFine?.id ||
-                  targetFineId === selectedFine?.id;
-
-          if (!visible) {
-            return null;
-          }
-
-          const sourceCenter =
-            linkLevel === 1
-              ? getCoarseDisplayCenter(sourceCoarseId)
-              : linkLevel === 2
-                ? getFineDisplayCenter(sourceModule, coarseByFine)
-                : getLeafDisplayCenter(
-                    sourceModule,
-                    link.source.id,
-                    coarseByFine,
-                  );
-          const targetCenter =
-            linkLevel === 1
-              ? getCoarseDisplayCenter(targetCoarseId)
-              : linkLevel === 2
-                ? getFineDisplayCenter(targetModule, coarseByFine)
-                : getLeafDisplayCenter(
-                    targetModule,
-                    link.target.id,
-                    coarseByFine,
-                  );
-          const sourceRadius =
-            linkLevel === 1
-              ? ROOT_MODULE_RADIUS
-              : linkLevel === 2
-                ? FINE_MODULE_RADIUS
-                : getLeafRadius(sourceModule);
-          const targetRadius =
-            linkLevel === 1
-              ? ROOT_MODULE_RADIUS
-              : linkLevel === 2
-                ? FINE_MODULE_RADIUS
-                : getLeafRadius(targetModule);
-          const source = edgePoint(sourceCenter, targetCenter, sourceRadius);
-          const target = edgePoint(targetCenter, sourceCenter, targetRadius);
-          const sourceColorId = linkLevel === 1 ? sourceCoarseId : sourceFineId;
-          const targetColorId = linkLevel === 1 ? targetCoarseId : targetFineId;
-          const stroke =
-            sourceColorId === targetColorId
-              ? getLevelColor(sourceColorId, linkLevel)
-              : TWO_LEVEL_INTER_LINK_COLOR;
-
-          return (
-            <line
-              key={`hierarchy-link-${link.source.id}-${link.target.id}-${index}`}
-              x1={source.x}
-              y1={source.y}
-              x2={target.x}
-              y2={target.y}
-              stroke={stroke}
-              strokeLinecap="round"
-              strokeWidth={LINK_STROKE_WIDTH}
-              vectorEffect="non-scaling-stroke"
-              opacity={0.68}
-            />
-          );
-        })}
-        {coarseModules.map((module_) => {
-          const center = getCoarseDisplayCenter(module_.id);
-          const visible = !selectedCoarse || selectedCoarse.id === module_.id;
-
-          if (!visible) {
-            return null;
-          }
-
-          return (
-            <g
-              key={`coarse-${module_.id}`}
-              className="cursor-pointer transition-opacity hover:opacity-95"
-              onClick={() => onZoomPathChange([module_.id])}
-            >
-              <circle
-                cx={center.x}
-                cy={center.y}
-                r={ROOT_MODULE_RADIUS}
-                fill={getLevelColor(module_.id, 1)}
-                fillOpacity={selectedCoarse ? 0.1 : 0.18}
-                stroke={getLevelStrokeColor(module_.id, 1)}
-                strokeWidth={1.4}
-                vectorEffect="non-scaling-stroke"
-              />
-              {!selectedCoarse && (
-                <text
-                  x={center.x}
-                  y={center.y}
-                  textAnchor="middle"
-                  dominantBaseline="middle"
-                  fontSize={16}
-                  fontWeight={700}
-                  fill="#1f2937"
-                  pointerEvents="none"
-                >
-                  {module_.id}
-                </text>
-              )}
-            </g>
-          );
-        })}
-        {visibleFineModules.map((module_) => {
-          const center = getFineDisplayCenter(module_, coarseByFine);
-          const selected = selectedFine?.id === module_.id;
-          const fineRadius = getFineRadius();
-
-          return (
-            <g
-              key={`fine-${module_.id}`}
-              className="cursor-pointer transition-opacity hover:opacity-95"
-              onClick={() => onZoomPathChange([module_.coarseId, module_.id])}
-            >
-              <circle
-                cx={center.x}
-                cy={center.y}
-                r={fineRadius}
-                fill={getLevelColor(module_.id, 2)}
-                fillOpacity={selected ? 0.42 : selectedCoarse ? 0.34 : 0.28}
-                stroke={getLevelStrokeColor(module_.id, 2)}
-                strokeWidth={selectedCoarse ? 1.2 : 0.9}
-                vectorEffect="non-scaling-stroke"
-              />
-              {selectedCoarse && !selectedFine && (
-                <text
-                  x={center.x}
-                  y={center.y}
-                  textAnchor="middle"
-                  dominantBaseline="middle"
-                  fontSize={5}
-                  fontWeight={700}
-                  fill="#1f2937"
-                  pointerEvents="none"
-                >
-                  {module_.label}
-                </text>
-              )}
-            </g>
-          );
-        })}
-        {visibleFineModules.flatMap((module_) =>
-          module_.nodeIds.map((nodeId, index) => {
-            const node = network.getNode(nodeId);
-            const leafCenter = getLeafDisplayCenter(
-              module_,
-              nodeId,
-              coarseByFine,
-            );
-            const isSelectedFine = selectedFine?.id === module_.id;
-            const leafRadius = getLeafRadius(module_);
-
-            return (
-              <g key={`leaf-${nodeId}`}>
-                <circle
-                  cx={leafCenter.x}
-                  cy={leafCenter.y}
-                  r={leafRadius}
-                  fill={getLevelColor(module_.id, 3)}
-                  fillOpacity={isSelectedFine ? 0.82 : 0.74}
-                  stroke={getLevelStrokeColor(module_.id, 3)}
-                  strokeWidth={0.8}
-                  vectorEffect="non-scaling-stroke"
-                />
-                {isSelectedFine && (
-                  <text
-                    x={leafCenter.x}
-                    y={leafCenter.y}
-                    textAnchor="middle"
-                    dominantBaseline="middle"
-                    fontSize={1.9}
-                    fontWeight={700}
-                    fill="#1f2937"
-                    pointerEvents="none"
-                  >
-                    {node?.name ?? `${module_.label}.${index + 1}`}
-                  </text>
-                )}
-              </g>
-            );
-          }),
-        )}
-        {selectedFine && (
-          <text
-            x={getFineDisplayCenter(selectedFine, coarseByFine).x}
-            y={getFineDisplayCenter(selectedFine, coarseByFine).y + 8.8}
-            textAnchor="middle"
-            dominantBaseline="middle"
-            fontSize={2.4}
-            fontWeight={700}
-            fill="#1f2937"
-            pointerEvents="none"
-          >
-            {selectedFine.label}
-          </text>
-        )}
-        {selectedCoarse && !selectedFine && (
-          <text
-            x={getCoarseDisplayCenter(selectedCoarse.id).x}
-            y={getCoarseDisplayCenter(selectedCoarse.id).y + 30}
-            textAnchor="middle"
-            dominantBaseline="middle"
-            fontSize={6}
-            fontWeight={700}
-            fill="#1f2937"
-            pointerEvents="none"
-          >
-            Module {selectedCoarse.id}
-          </text>
-        )}
-      </svg>
+    <div className="grid gap-4 md:grid-cols-2">
+      {groups.map((group) => (
+        <CodelengthGroupView key={group.key} group={group} />
+      ))}
     </div>
   );
 }
 
-function TwoLevelNetworkView({
-  network,
-  fineModules,
-  zoomPath,
-  onZoomPathChange,
-}: {
-  network: NetworkModel;
-  fineModules: FineModuleStat[];
-  zoomPath: number[];
-  onZoomPathChange: (path: number[]) => void;
-}) {
-  const fineModuleById = useMemo(
-    () => new Map(fineModules.map((module_) => [module_.id, module_])),
-    [fineModules],
-  );
-  const zoomedFineId = zoomPath[0] ?? null;
-  const selectedFine = zoomedFineId
-    ? (fineModules.find((module_) => module_.id === zoomedFineId) ?? null)
-    : null;
-  const targetViewBox = selectedFine
-    ? getFocusViewBox(
-        getTwoLevelFineDisplayCenter(selectedFine),
-        FINE_MODULE_RADIUS,
-      )
-    : ROOT_VIEWBOX;
-  const viewBox = useAnimatedViewBox(targetViewBox);
-
-  return (
-    <div className="space-y-3">
-      <div className="mb-3 flex flex-col gap-2">
-        <div>
-          <h3 className="m-0 text-base font-bold text-gray-900">
-            Two-level network view
-          </h3>
-          <p className="m-0 mt-1 text-sm text-gray-600">
-            The same node positions without the intermediate top modules.
-          </p>
-        </div>
-        <div>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              className="rounded-md px-2 py-1 text-sm font-semibold text-gray-800 underline-offset-4 hover:underline disabled:cursor-default disabled:text-gray-400 disabled:no-underline"
-              disabled={zoomPath.length === 0}
-              onClick={() => onZoomPathChange([])}
-            >
-              Zoom out
-            </button>
-            <button
-              type="button"
-              className="rounded-md px-2 py-1 text-sm font-semibold text-gray-800 underline-offset-4 hover:underline disabled:cursor-default disabled:text-gray-400 disabled:no-underline"
-              disabled={zoomPath.length === 0}
-              onClick={() => onZoomPathChange([])}
-            >
-              Home
-            </button>
-          </div>
-          <div className="mt-1 text-xs font-semibold text-gray-500">
-            {selectedFine
-              ? `Current level: nodes in module ${selectedFine.label}`
-              : "Current level: fine modules"}
-          </div>
-        </div>
-      </div>
-      <svg
-        viewBox={formatViewBox(viewBox)}
-        className="block w-full overflow-hidden"
-        style={{ aspectRatio: `${VIEWBOX.width} / ${VIEWBOX.height}` }}
-        role="img"
-        aria-label="Two-level network comparison"
-      >
-        {network.links.map((link, index) => {
-          const sourceFineId = paperToyFineByNodeId.get(link.source.id);
-          const targetFineId = paperToyFineByNodeId.get(link.target.id);
-
-          if (!sourceFineId || !targetFineId) {
-            return null;
-          }
-
-          const sourceModule = fineModuleById.get(sourceFineId);
-          const targetModule = fineModuleById.get(targetFineId);
-
-          if (!sourceModule || !targetModule) {
-            return null;
-          }
-
-          const visible =
-            !selectedFine ||
-            sourceFineId === selectedFine.id ||
-            targetFineId === selectedFine.id;
-
-          if (!visible) {
-            return null;
-          }
-
-          const linkLevel = selectedFine
-            ? 3
-            : sourceFineId === targetFineId
-              ? 3
-              : 2;
-          const sourceCenter =
-            linkLevel === 3
-              ? getTwoLevelLeafDisplayCenter(sourceModule, link.source.id)
-              : getTwoLevelFineDisplayCenter(sourceModule);
-          const targetCenter =
-            linkLevel === 3
-              ? getTwoLevelLeafDisplayCenter(targetModule, link.target.id)
-              : getTwoLevelFineDisplayCenter(targetModule);
-          const sourceRadius =
-            linkLevel === 3 ? TOP_VIEW_LEAF_RADIUS : TOP_VIEW_FINE_RADIUS;
-          const targetRadius =
-            linkLevel === 3 ? TOP_VIEW_LEAF_RADIUS : TOP_VIEW_FINE_RADIUS;
-          const source = edgePoint(sourceCenter, targetCenter, sourceRadius);
-          const target = edgePoint(targetCenter, sourceCenter, targetRadius);
-          const stroke =
-            sourceFineId === targetFineId
-              ? getLevelColor(sourceFineId, linkLevel)
-              : TWO_LEVEL_INTER_LINK_COLOR;
-
-          return (
-            <line
-              key={`two-level-link-${link.source.id}-${link.target.id}-${index}`}
-              x1={source.x}
-              y1={source.y}
-              x2={target.x}
-              y2={target.y}
-              stroke={stroke}
-              strokeLinecap="round"
-              strokeWidth={LINK_STROKE_WIDTH}
-              vectorEffect="non-scaling-stroke"
-              opacity={sourceFineId === targetFineId ? 0.58 : 0.68}
-            />
-          );
-        })}
-        {fineModules.map((module_) => {
-          const center = getTwoLevelFineDisplayCenter(module_);
-          const visible = !selectedFine || selectedFine.id === module_.id;
-
-          if (!visible) {
-            return null;
-          }
-
-          return (
-            <g
-              key={`two-level-module-${module_.id}`}
-              className="cursor-pointer transition-opacity hover:opacity-95"
-              onClick={() => onZoomPathChange([module_.id])}
-            >
-              <circle
-                cx={center.x}
-                cy={center.y}
-                r={TOP_VIEW_FINE_RADIUS}
-                fill={getLevelColor(module_.id, 1)}
-                fillOpacity={0.24}
-                stroke={getLevelStrokeColor(module_.id, 1)}
-                strokeWidth={0.9}
-                vectorEffect="non-scaling-stroke"
-              />
-              <text
-                x={center.x}
-                y={center.y + TOP_VIEW_FINE_RADIUS + 8}
-                textAnchor="middle"
-                dominantBaseline="middle"
-                fontSize={6}
-                fontWeight={700}
-                fill="#1f2937"
-                pointerEvents="none"
-              >
-                {module_.label}
-              </text>
-            </g>
-          );
-        })}
-        {fineModules.flatMap((module_) =>
-          module_.nodeIds.map((nodeId) => {
-            if (selectedFine && selectedFine.id !== module_.id) {
-              return null;
-            }
-
-            const center = getTwoLevelLeafDisplayCenter(module_, nodeId);
-
-            return (
-              <g key={`two-level-node-${nodeId}`}>
-                <circle
-                  cx={center.x}
-                  cy={center.y}
-                  r={TOP_VIEW_LEAF_RADIUS}
-                  fill={getLevelColor(module_.id, 3)}
-                  fillOpacity={0.78}
-                  stroke={getLevelStrokeColor(module_.id, 3)}
-                  strokeWidth={0.8}
-                  vectorEffect="non-scaling-stroke"
-                />
-              </g>
-            );
-          }),
-        )}
-      </svg>
-    </div>
-  );
-}
-
-function createCodebookEntry({
-  key,
+function CodebookBlock({
+  x,
+  y,
+  width = CODEBOOK_BLOCK.width,
+  height = CODEBOOK_BLOCK.height,
+  color,
   kind,
   label,
-  code,
-  flow,
-  color,
-}: CodebookEntry) {
-  return {
-    key,
-    kind,
-    label,
-    code: code || "-",
-    flow: Math.max(flow, 0),
-    color,
-  };
-}
-
-function getCodebookModuleLabel(moduleId: number) {
-  return getFineLabel(moduleId, defaultCoarseByFine);
-}
-
-function buildLeafCodebookSection(
-  network: NetworkModel,
-  module_: TreeNode,
-  mode: "hierarchical" | "two-level",
-): CodebookSection {
-  const fineId = module_.id;
-  const colorId = mode === "hierarchical" ? module_.path[0] : fineId;
-  const title =
-    mode === "hierarchical"
-      ? `Module codebook - ${getCodebookModuleLabel(fineId)}`
-      : `Module codebook - ${getCodebookModuleLabel(fineId)}`;
-  const entries: CodebookEntry[] = [];
-
-  if (module_.exitCode) {
-    entries.push(
-      createCodebookEntry({
-        key: `${mode}-${module_.pathKey}-exit`,
-        kind: "exit",
-        label: "Exit",
-        code: module_.exitCode,
-        flow: module_.exitFlow,
-        color: getLevelColor(colorId, 3),
-      }),
-    );
-  }
-
-  module_
-    .sort((left, right) => left.id - right.id)
-    .forEach((node) => {
-      const networkNode = network.getNode(node.id);
-
-      entries.push(
-        createCodebookEntry({
-          key: `${mode}-${module_.pathKey}-node-${node.id}`,
-          kind: "visit",
-          label: networkNode?.name ?? `Node ${node.id}`,
-          code: node.code,
-          flow: node.flow,
-          color: getLevelColor(colorId, 3),
-        }),
-      );
-    });
-
-  return {
-    key: `${mode}-${module_.pathKey}-leaf`,
-    title,
-    entries,
-  };
-}
-
-function buildCodebookPanelData(
-  network: NetworkModel,
-  mode: "hierarchical" | "two-level",
-): CodebookPanelData {
-  const topModules = network.tree.root.sort(
-    (left, right) => left.id - right.id,
-  );
-  const indexOneSections: CodebookSection[] = [];
-  const indexTwoSections: CodebookSection[] = [];
-
-  if (mode === "hierarchical") {
-    indexOneSections.push({
-      key: "hierarchical-top-index",
-      title: "Index codebook 1",
-      entries: topModules.map((module_) =>
-        createCodebookEntry({
-          key: `hierarchical-enter-${module_.id}`,
-          kind: "enter",
-          label: `Enter module ${module_.id}`,
-          code: module_.enterCode,
-          flow: module_.enterFlow,
-          color: getLevelColor(module_.id, 1),
-        }),
-      ),
-    });
-
-    topModules.forEach((coarseModule) => {
-      const entries: CodebookEntry[] = [];
-
-      if (coarseModule.exitCode) {
-        entries.push(
-          createCodebookEntry({
-            key: `hierarchical-exit-${coarseModule.id}`,
-            kind: "exit",
-            label: `Exit module ${coarseModule.id}`,
-            code: coarseModule.exitCode,
-            flow: coarseModule.exitFlow,
-            color: getLevelColor(coarseModule.id, 2),
-          }),
-        );
-      }
-
-      coarseModule
-        .sort((left, right) => left.id - right.id)
-        .filter((module_) => !module_.isLeafNode)
-        .forEach((fineModule) => {
-          entries.push(
-            createCodebookEntry({
-              key: `hierarchical-enter-${coarseModule.id}-${fineModule.id}`,
-              kind: "enter",
-              label: `Enter ${getCodebookModuleLabel(fineModule.id)}`,
-              code: fineModule.enterCode,
-              flow: fineModule.enterFlow,
-              color: getLevelColor(coarseModule.id, 2),
-            }),
-          );
-        });
-
-      indexTwoSections.push({
-        key: `hierarchical-subindex-${coarseModule.id}`,
-        title: `Index codebook 2 - module ${coarseModule.id}`,
-        entries,
-      });
-    });
-  } else {
-    indexOneSections.push({
-      key: "two-level-index",
-      title: "Index codebook 1",
-      entries: topModules.map((module_) =>
-        createCodebookEntry({
-          key: `two-level-enter-${module_.id}`,
-          kind: "enter",
-          label: `Enter ${getCodebookModuleLabel(module_.id)}`,
-          code: module_.enterCode,
-          flow: module_.enterFlow,
-          color: getLevelColor(module_.id, 1),
-        }),
-      ),
-    });
-  }
-
-  const moduleSections = Array.from(network.tree.depthFirstModules())
-    .filter((module_) => module_.isLeafModule)
-    .sort((left, right) => left.pathKey.localeCompare(right.pathKey))
-    .map((module_) => buildLeafCodebookSection(network, module_, mode));
-
-  return {
-    title:
-      mode === "hierarchical" ? "Multilevel codebooks" : "Two-level codebooks",
-    indexOneSections,
-    indexTwoSections,
-    moduleSections,
-  };
-}
-
-function CodebookEntryRow({
-  entry,
-  maxFlow,
+  active = false,
 }: {
-  entry: CodebookEntry;
-  maxFlow: number;
+  x: number;
+  y: number;
+  width?: number;
+  height?: number;
+  color: string;
+  kind: CodebookBlockKind;
+  label?: string;
+  active?: boolean;
 }) {
-  const width = Math.max(28, 18 + (entry.flow / maxFlow) * 72);
-  const shapeProps = {
-    x: 3,
-    y: 22,
-    width,
-    height: 16,
-    fill: entry.color,
-    stroke: darkenHexColor(entry.color, 0.18),
-    strokeWidth: 1.2,
+  const fill = active ? darkenHexColor(color, 0.34) : color;
+  const stroke = darkenHexColor(color, active ? 0.48 : 0.24);
+  const commonProps = {
+    fill,
+    fillOpacity: active ? 1 : 0.88,
+    stroke,
+    strokeWidth: active ? 1.35 : 1,
+    vectorEffect: "non-scaling-stroke" as const,
   };
   const shape =
-    entry.kind === "enter" ? (
-      <EnterFlow {...shapeProps} />
-    ) : entry.kind === "exit" ? (
-      <ExitFlow {...shapeProps} />
+    kind === "enter" ? (
+      <EnterFlow
+        {...commonProps}
+        x={x}
+        y={y + height}
+        width={width}
+        height={height}
+        dx={CODEBOOK_BLOCK.pointer}
+      />
+    ) : kind === "exit" ? (
+      <ExitFlow
+        {...commonProps}
+        x={x}
+        y={y + height}
+        width={width - CODEBOOK_BLOCK.pointer}
+        height={height}
+        dx={CODEBOOK_BLOCK.pointer}
+      />
     ) : (
-      <Flow {...shapeProps} />
+      <Flow
+        {...commonProps}
+        x={x}
+        y={y + height}
+        width={width}
+        height={height}
+      />
     );
 
   return (
-    <div className="grid grid-cols-[minmax(4.5rem,7rem)_6rem_minmax(2.5rem,auto)] items-center gap-2 text-xs">
-      <div className="truncate text-gray-600">{entry.label}</div>
-      <svg viewBox="0 0 96 26" className="h-6 w-24 overflow-visible">
-        {shape}
-      </svg>
-      <code className="text-right font-mono text-[11px] font-semibold text-gray-900">
-        {entry.code}
-      </code>
-    </div>
+    <g>
+      {shape}
+      {label && (
+        <text
+          x={x + width / 2}
+          y={y + height / 2 + 0.6}
+          textAnchor="middle"
+          dominantBaseline="middle"
+          fontSize={Math.max(2.8, height * 0.62)}
+          fontWeight={900}
+          fill={active ? "#ffffff" : "#111827"}
+          pointerEvents="none"
+        >
+          {label}
+        </text>
+      )}
+    </g>
   );
 }
 
-function CodebookSectionView({ section }: { section: CodebookSection }) {
-  const maxFlow = Math.max(...section.entries.map((entry) => entry.flow), 1);
-
+function Connector({
+  x1,
+  y1,
+  x2,
+  y2,
+  color,
+  opacity = 0.35,
+  strokeWidth = 2,
+}: {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  color: string;
+  opacity?: number;
+  strokeWidth?: number;
+}) {
   return (
-    <div className="space-y-1.5">
-      <div className="text-xs font-bold uppercase text-gray-500">
-        {section.title}
-      </div>
-      <div className="space-y-1">
-        {section.entries.map((entry) => (
-          <CodebookEntryRow key={entry.key} entry={entry} maxFlow={maxFlow} />
-        ))}
-      </div>
-    </div>
+    <path
+      d={`M ${x1} ${y1} C ${x1 + 26} ${y1}, ${x2 - 26} ${y2}, ${x2} ${y2}`}
+      fill="none"
+      stroke={darkenHexColor(color, 0.16)}
+      strokeLinecap="round"
+      strokeWidth={strokeWidth}
+      vectorEffect="non-scaling-stroke"
+      opacity={opacity}
+    />
   );
 }
 
-function CodebookPanel({ data }: { data: CodebookPanelData }) {
+interface CodebookStackItem {
+  key: string;
+  kind: CodebookBlockKind;
+  color: string;
+  label?: string;
+  variant: NetworkViewVariant;
+  role: "top" | "fine" | "node";
+  topIndex?: number;
+  fineIndex?: number;
+  nodeId?: number;
+}
+
+function isCodebookItemActive(
+  item: CodebookStackItem,
+  hoveredTarget: HoverTarget | null,
+) {
+  if (!hoveredTarget) {
+    return false;
+  }
+
+  if (item.variant !== hoveredTarget.variant) {
+    return false;
+  }
+
+  if (hoveredTarget.kind === "top") {
+    return item.role === "top" && item.topIndex === hoveredTarget.topIndex;
+  }
+
+  if (hoveredTarget.kind === "fine") {
+    return item.role === "fine" && item.fineIndex === hoveredTarget.fineIndex;
+  }
+
+  const fineIndex = getFineModuleIndexForNodeId(hoveredTarget.nodeId);
+  const topIndex = getTopModuleIndexForNodeId(hoveredTarget.nodeId);
+
   return (
-    <div className="space-y-3">
-      <h3 className="m-0 text-base font-bold text-gray-900">{data.title}</h3>
-      <div className="grid gap-4 xl:grid-cols-3">
-        <div className="space-y-3">
-          <div className="text-sm font-semibold text-gray-900">
-            Index codebook 1
-          </div>
-          {data.indexOneSections.map((section) => (
-            <CodebookSectionView key={section.key} section={section} />
-          ))}
-        </div>
-        <div className="space-y-3">
-          <div className="text-sm font-semibold text-gray-900">
-            Index codebook 2
-          </div>
-          {data.indexTwoSections.map((section) => (
-            <CodebookSectionView key={section.key} section={section} />
-          ))}
-        </div>
-        <div className="space-y-3">
-          <div className="text-sm font-semibold text-gray-900">
-            Module codebook
-          </div>
-          <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-1">
-            {data.moduleSections.map((section) => (
-              <CodebookSectionView key={section.key} section={section} />
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
+    (item.role === "node" && item.nodeId === hoveredTarget.nodeId) ||
+    (item.role === "fine" && item.fineIndex === fineIndex) ||
+    (hoveredTarget.variant === "multilevel" &&
+      item.role === "top" &&
+      item.topIndex === topIndex)
+  );
+}
+
+function getHoverTargetForCodebookItem(
+  item: CodebookStackItem,
+): HoverTarget | null {
+  if (item.role === "top" && item.topIndex !== undefined) {
+    return {
+      variant: item.variant,
+      kind: "top",
+      topIndex: item.topIndex,
+    };
+  }
+
+  if (item.role === "fine" && item.fineIndex !== undefined) {
+    return {
+      variant: item.variant,
+      kind: "fine",
+      fineIndex: item.fineIndex,
+    };
+  }
+
+  if (item.role === "node" && item.nodeId !== undefined) {
+    return {
+      variant: item.variant,
+      kind: "node",
+      nodeId: item.nodeId,
+    };
+  }
+
+  return null;
+}
+
+function getStackMetrics(itemCount: number, maxHeight = CODEBOOK_STACK_HEIGHT) {
+  const naturalTotal =
+    itemCount * CODEBOOK_BLOCK.height +
+    Math.max(0, itemCount - 1) * CODEBOOK_BLOCK.gap;
+
+  if (naturalTotal <= maxHeight) {
+    return {
+      blockHeight: CODEBOOK_BLOCK.height,
+      gap: CODEBOOK_BLOCK.gap,
+      offsetY: (maxHeight - naturalTotal) / 2,
+    };
+  }
+
+  const gap = 0.3;
+
+  return {
+    blockHeight: (maxHeight - Math.max(0, itemCount - 1) * gap) / itemCount,
+    gap,
+    offsetY: 0,
+  };
+}
+
+function getStackBlockY({
+  stackY,
+  itemIndex,
+  itemCount,
+  maxHeight = CODEBOOK_STACK_HEIGHT,
+}: {
+  stackY: number;
+  itemIndex: number;
+  itemCount: number;
+  maxHeight?: number;
+}) {
+  const { blockHeight, gap, offsetY } = getStackMetrics(itemCount, maxHeight);
+
+  return stackY + offsetY + itemIndex * (blockHeight + gap);
+}
+
+function getStackBlockCenterY({
+  stackY,
+  itemIndex,
+  itemCount,
+  maxHeight = CODEBOOK_STACK_HEIGHT,
+}: {
+  stackY: number;
+  itemIndex: number;
+  itemCount: number;
+  maxHeight?: number;
+}) {
+  const { blockHeight } = getStackMetrics(itemCount, maxHeight);
+
+  return (
+    getStackBlockY({ stackY, itemIndex, itemCount, maxHeight }) +
+    blockHeight / 2
+  );
+}
+
+function CodebookStack({
+  x,
+  y,
+  items,
+  hoveredTarget,
+  onHoverTargetChange,
+}: {
+  x: number;
+  y: number;
+  items: CodebookStackItem[];
+  hoveredTarget: HoverTarget | null;
+  onHoverTargetChange: (target: HoverTarget | null) => void;
+}) {
+  const { blockHeight } = getStackMetrics(items.length);
+
+  return (
+    <g>
+      {items.map((item, itemIndex) => {
+        const target = getHoverTargetForCodebookItem(item);
+
+        return (
+          <g
+            key={item.key}
+            onMouseEnter={() => onHoverTargetChange(target)}
+            onMouseLeave={() => onHoverTargetChange(null)}
+          >
+            <CodebookBlock
+              x={x}
+              y={getStackBlockY({
+                stackY: y,
+                itemIndex,
+                itemCount: items.length,
+              })}
+              height={blockHeight}
+              color={item.color}
+              kind={item.kind}
+              label={item.label}
+              active={isCodebookItemActive(item, hoveredTarget)}
+            />
+          </g>
+        );
+      })}
+    </g>
   );
 }
 
 function CodebookComparison({
-  hierarchicalNetwork,
-  twoLevelNetwork,
+  hoveredTarget,
+  onHoverTargetChange,
 }: {
-  hierarchicalNetwork: NetworkModel;
-  twoLevelNetwork: NetworkModel;
+  hoveredTarget: HoverTarget | null;
+  onHoverTargetChange: (target: HoverTarget | null) => void;
 }) {
-  const hierarchicalCodebooks = useMemo(
-    () => buildCodebookPanelData(hierarchicalNetwork, "hierarchical"),
-    [hierarchicalNetwork],
+  const panelY = 8;
+  const multilevelX = 10;
+  const twoLevelX = 408;
+  const topIndexX = multilevelX + 6;
+  const subIndexX = multilevelX + 84;
+  const moduleX = multilevelX + 180;
+  const twoLevelIndexX = twoLevelX + 8;
+  const twoLevelModuleX = twoLevelX + 112;
+  const topIndexItems: CodebookStackItem[] = topModules.map((module_) => ({
+    key: `top-index-${module_.key}`,
+    kind: "enter",
+    color: module_.color,
+    label: module_.label,
+    variant: "multilevel",
+    role: "top",
+    topIndex: module_.topIndex,
+  }));
+  const subIndexItems: CodebookStackItem[] = topModules.flatMap((topModule) => [
+    ...fineModules
+      .filter((module_) => module_.topIndex === topModule.topIndex)
+      .map((module_, localIndex) => ({
+        key: `subindex-enter-${module_.key}`,
+        kind: "enter" as const,
+        color: module_.color,
+        label: module_.label,
+        variant: "multilevel" as const,
+        role: "fine" as const,
+        topIndex: topModule.topIndex,
+        fineIndex: topModule.topIndex * 3 + localIndex,
+      })),
+    {
+      key: `subindex-exit-${topModule.key}`,
+      kind: "exit" as const,
+      color: topModule.color,
+      variant: "multilevel" as const,
+      role: "top" as const,
+      topIndex: topModule.topIndex,
+    },
+  ]);
+  const multilevelModuleItems: CodebookStackItem[] = fineModules.flatMap(
+    (module_, fineIndex) => [
+      ...module_.nodeIds.map((nodeId, nodeIndex) => ({
+        key: `multilevel-node-${module_.key}-${nodeId}`,
+        kind: "node" as const,
+        color: module_.color,
+        label: (nodeIndex + 1).toString(),
+        variant: "multilevel" as const,
+        role: "node" as const,
+        fineIndex,
+        nodeId,
+      })),
+      {
+        key: `multilevel-exit-${module_.key}`,
+        kind: "exit" as const,
+        color: module_.color,
+        variant: "multilevel" as const,
+        role: "fine" as const,
+        fineIndex,
+      },
+    ],
   );
-  const twoLevelCodebooks = useMemo(
-    () => buildCodebookPanelData(twoLevelNetwork, "two-level"),
-    [twoLevelNetwork],
+  const twoLevelIndexItems: CodebookStackItem[] = fineModules.map(
+    (module_, fineIndex) => ({
+      key: `two-level-index-${module_.key}`,
+      kind: "enter",
+      color: module_.color,
+      label: TWO_LEVEL_MODULE_LABELS[fineIndex],
+      variant: "two-level",
+      role: "fine",
+      fineIndex,
+    }),
   );
-  const detailedComparison = (
-    <>
-      <p className="m-0 mt-1 text-sm text-gray-600">
-        Hierarchical coding splits the index across levels; two-level coding
-        keeps one index over all fine modules.
-      </p>
-      <div className="grid gap-6 lg:grid-cols-2">
-        <CodebookPanel data={hierarchicalCodebooks} />
-        <CodebookPanel data={twoLevelCodebooks} />
+  const twoLevelModuleItems: CodebookStackItem[] = fineModules.flatMap(
+    (module_, fineIndex) => [
+      ...module_.nodeIds.map((nodeId, nodeIndex) => ({
+        key: `two-level-node-${module_.key}-${nodeId}`,
+        kind: "node" as const,
+        color: module_.color,
+        label: (nodeIndex + 1).toString(),
+        variant: "two-level" as const,
+        role: "node" as const,
+        fineIndex,
+        nodeId,
+      })),
+      {
+        key: `two-level-exit-${module_.key}`,
+        kind: "exit" as const,
+        color: module_.color,
+        variant: "two-level" as const,
+        role: "fine" as const,
+        fineIndex,
+      },
+    ],
+  );
+  const subIndexItemIndex = (module_: FineModuleVisual) =>
+    module_.topIndex * 4 + module_.localIndex;
+  const subIndexExitItemIndex = (topIndex: number) => topIndex * 4 + 3;
+  const moduleItemIndex = (fineIndex: number, localIndex: number) =>
+    fineIndex * 4 + localIndex;
+
+  return (
+    <div className="-mt-6 p-0">
+      <h3 className="sr-only">Codebook comparison</h3>
+      <svg
+        viewBox="0 0 820 246"
+        className="block w-full overflow-visible"
+        role="img"
+        aria-label="Codebook comparison"
+      >
+        {topModules.map((topModule) => {
+          const sourceY = getStackBlockCenterY({
+            stackY: panelY,
+            itemIndex: topModule.topIndex,
+            itemCount: topIndexItems.length,
+          });
+
+          return (
+            <g key={`multilevel-top-connectors-${topModule.key}`}>
+              {[
+                ...fineModules.filter(
+                  (module_) => module_.topIndex === topModule.topIndex,
+                ),
+                null,
+              ].map((module_, localIndex) => (
+                <Connector
+                  key={`top-to-sub-${topModule.topIndex}-${localIndex}`}
+                  x1={topIndexX + CODEBOOK_BLOCK.width}
+                  y1={sourceY}
+                  x2={subIndexX}
+                  y2={getStackBlockCenterY({
+                    stackY: panelY,
+                    itemIndex:
+                      module_ === null
+                        ? subIndexExitItemIndex(topModule.topIndex)
+                        : subIndexItemIndex(module_),
+                    itemCount: subIndexItems.length,
+                  })}
+                  color={module_?.color ?? topModule.color}
+                  opacity={module_ === null ? 0.58 : 0.42}
+                  strokeWidth={module_ === null ? 1.8 : 1.35}
+                />
+              ))}
+            </g>
+          );
+        })}
+        {fineModules.map((module_, fineIndex) => {
+          return (
+            <g key={`multilevel-module-connectors-${module_.key}`}>
+              {[0, 1, 2, 3].map((localIndex) => (
+                <Connector
+                  key={`sub-to-node-${module_.key}-${localIndex}`}
+                  x1={subIndexX + CODEBOOK_BLOCK.width}
+                  y1={getStackBlockCenterY({
+                    stackY: panelY,
+                    itemIndex: subIndexItemIndex(module_),
+                    itemCount: subIndexItems.length,
+                  })}
+                  x2={moduleX}
+                  y2={getStackBlockCenterY({
+                    stackY: panelY,
+                    itemIndex: moduleItemIndex(fineIndex, localIndex),
+                    itemCount: multilevelModuleItems.length,
+                  })}
+                  color={module_.color}
+                  opacity={localIndex === 3 ? 0.58 : 0.42}
+                  strokeWidth={localIndex === 3 ? 1.85 : 1.3}
+                />
+              ))}
+            </g>
+          );
+        })}
+        <CodebookStack
+          x={topIndexX}
+          y={panelY}
+          items={topIndexItems}
+          hoveredTarget={hoveredTarget}
+          onHoverTargetChange={onHoverTargetChange}
+        />
+        <CodebookStack
+          x={subIndexX}
+          y={panelY}
+          items={subIndexItems}
+          hoveredTarget={hoveredTarget}
+          onHoverTargetChange={onHoverTargetChange}
+        />
+        <CodebookStack
+          x={moduleX}
+          y={panelY}
+          items={multilevelModuleItems}
+          hoveredTarget={hoveredTarget}
+          onHoverTargetChange={onHoverTargetChange}
+        />
+        <line
+          x1={392}
+          y1={7}
+          x2={392}
+          y2={239}
+          stroke="#e5e7eb"
+          strokeWidth={1}
+          vectorEffect="non-scaling-stroke"
+        />
+        {fineModules.map((module_, fineIndex) => {
+          return (
+            <g key={`two-level-module-connectors-${module_.key}`}>
+              {[0, 1, 2, 3].map((localIndex) => (
+                <Connector
+                  key={`two-level-index-to-node-${module_.key}-${localIndex}`}
+                  x1={twoLevelIndexX + CODEBOOK_BLOCK.width}
+                  y1={getStackBlockCenterY({
+                    stackY: panelY,
+                    itemIndex: fineIndex,
+                    itemCount: twoLevelIndexItems.length,
+                  })}
+                  x2={twoLevelModuleX}
+                  y2={getStackBlockCenterY({
+                    stackY: panelY,
+                    itemIndex: moduleItemIndex(fineIndex, localIndex),
+                    itemCount: twoLevelModuleItems.length,
+                  })}
+                  color={module_.color}
+                  opacity={localIndex === 3 ? 0.58 : 0.42}
+                  strokeWidth={localIndex === 3 ? 1.85 : 1.3}
+                />
+              ))}
+            </g>
+          );
+        })}
+        <CodebookStack
+          x={twoLevelIndexX}
+          y={panelY}
+          items={twoLevelIndexItems}
+          hoveredTarget={hoveredTarget}
+          onHoverTargetChange={onHoverTargetChange}
+        />
+        <CodebookStack
+          x={twoLevelModuleX}
+          y={panelY}
+          items={twoLevelModuleItems}
+          hoveredTarget={hoveredTarget}
+          onHoverTargetChange={onHoverTargetChange}
+        />
+      </svg>
+    </div>
+  );
+}
+
+function RecursiveTriangleZoomNetwork() {
+  const [selectedPath, setSelectedPath] = useState<number[]>([]);
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "failed">(
+    "idle",
+  );
+  const modules = useMemo(() => buildRecursiveTriangleModules(), []);
+  const leafNetwork = useMemo(
+    () => buildRecursiveLeafNetwork(modules),
+    [modules],
+  );
+  const pajekNetwork = useMemo(
+    () => serializeRecursiveNetworkToPajek(leafNetwork),
+    [leafNetwork],
+  );
+  const recursiveCodelengthGroups = useMemo(
+    () => buildRecursiveCodelengthGroups(leafNetwork),
+    [leafNetwork],
+  );
+  const nodeById = useMemo(
+    () => new Map(leafNetwork.nodes.map((node) => [node.id, node])),
+    [leafNetwork.nodes],
+  );
+  const selectedModule =
+    modules.find((module_) => samePath(module_.path, selectedPath)) ??
+    modules[0];
+  const targetViewBox = getTriangleViewBox(selectedModule.corners);
+  const animatedViewBox = useAnimatedViewBox(
+    targetViewBox,
+    RECURSIVE_ZOOM_DURATION_MS,
+  );
+  const directChildren = modules.filter((module_) =>
+    isDirectChild(module_.path, selectedPath),
+  );
+  const labeledModules = modules.filter((module_) => module_.path.length > 0);
+  const nodeRadius = Math.max(
+    0.4,
+    (animatedViewBox.width / RECURSIVE_VIEWBOX.width) * 1.55,
+  );
+  const canZoomOut = selectedPath.length > 0;
+  const handleSvgBackgroundClick = (event: MouseEvent<SVGSVGElement>) => {
+    if (!canZoomOut) {
+      return;
+    }
+
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const point = {
+      x:
+        animatedViewBox.x +
+        ((event.clientX - bounds.left) / bounds.width) * animatedViewBox.width,
+      y:
+        animatedViewBox.y +
+        ((event.clientY - bounds.top) / bounds.height) * animatedViewBox.height,
+    };
+
+    if (!isPointInsideTriangle(point, selectedModule.corners)) {
+      setSelectedPath((path) => path.slice(0, -1));
+    }
+  };
+  const handleCopyPajek = async () => {
+    try {
+      await navigator.clipboard.writeText(pajekNetwork);
+      setCopyStatus("copied");
+      window.setTimeout(() => setCopyStatus("idle"), 1600);
+    } catch {
+      setCopyStatus("failed");
+      window.setTimeout(() => setCopyStatus("idle"), 2200);
+    }
+  };
+
+  return (
+    <div className="mx-auto mt-8 max-w-md">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h3 className="m-0 text-base font-bold text-gray-900">
+          Recursive triangle
+        </h3>
+        <div className="flex items-center gap-2 text-xs font-bold text-gray-600">
+          <span>
+            Level {selectedPath.length + 1} / {RECURSIVE_TRIANGLE_LEVELS}
+          </span>
+          <button
+            type="button"
+            className="rounded-full border border-gray-300 px-2 py-1"
+            onClick={handleCopyPajek}
+          >
+            {copyStatus === "copied"
+              ? "Copied"
+              : copyStatus === "failed"
+                ? "Copy failed"
+                : "Copy Pajek"}
+          </button>
+          <button
+            type="button"
+            className="rounded-full border border-gray-300 px-2 py-1 disabled:opacity-40"
+            disabled={!canZoomOut}
+            onClick={() => setSelectedPath((path) => path.slice(0, -1))}
+          >
+            Back
+          </button>
+          <button
+            type="button"
+            className="rounded-full border border-gray-300 px-2 py-1 disabled:opacity-40"
+            disabled={!canZoomOut}
+            onClick={() => setSelectedPath([])}
+          >
+            Reset
+          </button>
+        </div>
       </div>
-    </>
+      <svg
+        viewBox={formatViewBox(animatedViewBox)}
+        className="block w-full overflow-hidden"
+        style={{
+          aspectRatio: `${RECURSIVE_VIEWBOX.width} / ${RECURSIVE_VIEWBOX.height}`,
+        }}
+        role="img"
+        aria-label="Six-level recursive triangle network"
+        onClick={handleSvgBackgroundClick}
+      >
+        {modules.map((module_) => {
+          const isSelected = samePath(module_.path, selectedPath);
+          const isClickable = directChildren.some((child) =>
+            samePath(child.path, module_.path),
+          );
+          const color = getRecursiveModuleColor(module_.path);
+
+          return (
+            <polygon
+              key={`recursive-module-${module_.key}`}
+              points={formatTrianglePoints(module_.corners)}
+              fill={color}
+              fillOpacity={
+                isSelected
+                  ? Math.min(0.3, getRecursiveModuleFillOpacity(module_) + 0.08)
+                  : getRecursiveModuleFillOpacity(module_)
+              }
+              stroke={darkenHexColor(color, isSelected ? 0.34 : 0.22)}
+              strokeOpacity={
+                isSelected ? 0.7 : Math.max(0.1, 0.36 - module_.level * 0.045)
+              }
+              strokeWidth={isSelected ? 1.6 : 0.85}
+              strokeLinejoin="round"
+              vectorEffect="non-scaling-stroke"
+              pointerEvents={isClickable ? "all" : "none"}
+              className={isClickable ? "cursor-pointer" : undefined}
+              onClick={(event) => {
+                if (isClickable) {
+                  event.stopPropagation();
+                  setSelectedPath(module_.path);
+                }
+              }}
+            />
+          );
+        })}
+        {directChildren.map((module_) => {
+          const color = getRecursiveModuleColor(module_.path);
+
+          return (
+            <polygon
+              key={`recursive-click-${module_.key}`}
+              points={formatTrianglePoints(module_.corners)}
+              fill={color}
+              fillOpacity={0.08}
+              stroke={darkenHexColor(color, 0.36)}
+              strokeOpacity={0.72}
+              strokeWidth={1.4}
+              strokeLinejoin="round"
+              vectorEffect="non-scaling-stroke"
+              className="cursor-pointer"
+              onClick={(event) => {
+                event.stopPropagation();
+                setSelectedPath(module_.path);
+              }}
+            />
+          );
+        })}
+        {labeledModules.map((module_) => {
+          const center = getTriangleCentroid(module_.corners);
+          const fontSize = Math.max(
+            1.05,
+            getTriangleHeight(module_.corners) * 0.16,
+          );
+          const color = getRecursiveModuleColor(module_.path);
+
+          return (
+            <text
+              key={`recursive-label-${module_.key}`}
+              x={center.x}
+              y={center.y + fontSize * 0.1}
+              textAnchor="middle"
+              dominantBaseline="middle"
+              fontSize={fontSize}
+              fontWeight={900}
+              fill={darkenHexColor(color, 0.55)}
+              opacity={getRecursiveLabelOpacity(module_)}
+              paintOrder="stroke"
+              stroke="#ffffff"
+              strokeWidth={fontSize * 0.2}
+              pointerEvents="none"
+            >
+              {getRecursiveModuleLabel(module_.path)}
+            </text>
+          );
+        })}
+        {selectedPath.length > 0 && (
+          <text
+            x={selectedModule.corners[0].x}
+            y={
+              selectedModule.corners[0].y -
+              getTriangleHeight(selectedModule.corners) * 0.035
+            }
+            textAnchor="middle"
+            dominantBaseline="middle"
+            fontSize={Math.max(
+              1.2,
+              getTriangleHeight(selectedModule.corners) * 0.055,
+            )}
+            fontWeight={900}
+            fill="#111827"
+            paintOrder="stroke"
+            stroke="#ffffff"
+            strokeWidth={Math.max(
+              0.22,
+              getTriangleHeight(selectedModule.corners) * 0.01,
+            )}
+            pointerEvents="none"
+          >
+            {getRecursivePathLabel(selectedPath)}
+          </text>
+        )}
+        {leafNetwork.links.map((link) => {
+          const source = nodeById.get(link.source);
+          const target = nodeById.get(link.target);
+
+          if (!source || !target) {
+            return null;
+          }
+
+          return (
+            <line
+              key={`recursive-link-${link.source}-${link.target}`}
+              x1={source.x}
+              y1={source.y}
+              x2={target.x}
+              y2={target.y}
+              stroke="#374151"
+              strokeOpacity={0.54}
+              strokeLinecap="round"
+              strokeWidth={1.1}
+              vectorEffect="non-scaling-stroke"
+            />
+          );
+        })}
+        {leafNetwork.nodes.map((node) => {
+          const color = getRecursiveNodeColor(node.paths);
+
+          return (
+            <circle
+              key={`recursive-node-${node.id}`}
+              cx={node.x}
+              cy={node.y}
+              r={nodeRadius}
+              fill={darkenHexColor(color, 0.3)}
+              fillOpacity={0.9}
+              stroke="#ffffff"
+              strokeWidth={0.8}
+              vectorEffect="non-scaling-stroke"
+            />
+          );
+        })}
+      </svg>
+      <div className="mt-4 grid gap-4 md:grid-cols-2">
+        {recursiveCodelengthGroups.map((group) => (
+          <CodelengthGroupView key={group.key} group={group} />
+        ))}
+      </div>
+    </div>
   );
-  void detailedComparison;
+}
+
+function RawTopologyNetworkView({
+  title,
+  description,
+  variant,
+  hoveredTarget,
+  onHoverTargetChange,
+}: {
+  title: string;
+  description: string;
+  variant: NetworkViewVariant;
+  hoveredTarget: HoverTarget | null;
+  onHoverTargetChange: (target: HoverTarget | null) => void;
+}) {
+  const nodes = useMemo(() => buildPositionedNodes(), []);
+  const nodeById = useMemo(
+    () => new Map(nodes.map((node) => [node.id, node])),
+    [nodes],
+  );
 
   return (
     <div className="space-y-3">
       <div className="mb-3">
-        <h3 className="m-0 text-lg font-bold text-gray-900">
-          Codebook comparison
-        </h3>
-        <p className="m-0 mt-1 text-sm text-gray-600">Coming soon.</p>
+        <h3 className="m-0 text-base font-bold text-gray-900">{title}</h3>
+        <p className="m-0 mt-1 text-sm text-gray-600">{description}</p>
       </div>
+      <svg
+        viewBox={formatViewBox(ROOT_VIEWBOX)}
+        className="block w-full overflow-visible"
+        style={{
+          aspectRatio: `${ROOT_VIEWBOX.width} / ${ROOT_VIEWBOX.height}`,
+        }}
+        role="img"
+        aria-label={title}
+      >
+        {topModules.map((module_) => {
+          const points = getTrianglePoints(nodeById, module_.cornerNodeIds);
+          const active =
+            hoveredTarget?.variant === variant &&
+            ((hoveredTarget.kind === "top" &&
+              hoveredTarget.topIndex === module_.topIndex) ||
+              (hoveredTarget.kind === "node" &&
+                getTopModuleIndexForNodeId(hoveredTarget.nodeId) ===
+                  module_.topIndex));
+
+          if (points.length !== 3) {
+            return null;
+          }
+
+          return (
+            <polygon
+              key={module_.key}
+              points={formatPolygonPoints(points)}
+              fill={module_.color}
+              fillOpacity={active ? 0.18 : 0.075}
+              stroke={darkenHexColor(module_.color, 0.18)}
+              strokeWidth={active ? 2 : 1.35}
+              strokeLinejoin="round"
+              vectorEffect="non-scaling-stroke"
+              onMouseEnter={() =>
+                onHoverTargetChange({
+                  variant,
+                  kind: "top",
+                  topIndex: module_.topIndex,
+                })
+              }
+              onMouseLeave={() => onHoverTargetChange(null)}
+            />
+          );
+        })}
+        {fineModules.map((module_, fineIndex) => {
+          const points = getTrianglePoints(nodeById, module_.nodeIds);
+          const active =
+            hoveredTarget?.variant === variant &&
+            ((hoveredTarget.kind === "fine" &&
+              hoveredTarget.fineIndex === fineIndex) ||
+              (hoveredTarget.kind === "node" &&
+                module_.nodeIds.includes(hoveredTarget.nodeId)));
+
+          if (points.length !== 3) {
+            return null;
+          }
+
+          return (
+            <polygon
+              key={module_.key}
+              points={formatPolygonPoints(points)}
+              fill={module_.color}
+              fillOpacity={active ? 0.42 : 0.28}
+              stroke={darkenHexColor(module_.color, 0.16)}
+              strokeWidth={active ? 1.8 : 1.15}
+              strokeLinejoin="round"
+              vectorEffect="non-scaling-stroke"
+              onMouseEnter={() =>
+                onHoverTargetChange({
+                  variant,
+                  kind: "fine",
+                  fineIndex,
+                })
+              }
+              onMouseLeave={() => onHoverTargetChange(null)}
+            />
+          );
+        })}
+        {hierarchicalPaperToyTopology.links.map((link, index) => {
+          const source = nodeById.get(link.source);
+          const target = nodeById.get(link.target);
+
+          if (!source || !target) {
+            return null;
+          }
+
+          const sourceFineModule = getFineModuleForNodeId(link.source);
+          const isWithinFineModule =
+            getFineModuleIndexForNodeId(link.source) ===
+            getFineModuleIndexForNodeId(link.target);
+          const isWithinTopModule =
+            getTopModuleIndexForNodeId(link.source) ===
+            getTopModuleIndexForNodeId(link.target);
+
+          return (
+            <line
+              key={`raw-link-${link.source}-${link.target}-${index}`}
+              x1={source.x}
+              y1={source.y}
+              x2={target.x}
+              y2={target.y}
+              stroke={
+                isWithinFineModule
+                  ? darkenHexColor(sourceFineModule.color, 0.16)
+                  : isWithinTopModule
+                    ? darkenHexColor(sourceFineModule.color, 0.28)
+                    : LINK_STROKE
+              }
+              strokeLinecap="round"
+              strokeWidth={LINK_STROKE_WIDTH}
+              vectorEffect="non-scaling-stroke"
+              opacity={isWithinFineModule || isWithinTopModule ? 0.76 : 0.58}
+            />
+          );
+        })}
+        {fineModules.map((module_, fineIndex) => {
+          const points = getTrianglePoints(nodeById, module_.nodeIds);
+          const center = getCentroid(points);
+          const label =
+            variant === "two-level"
+              ? TWO_LEVEL_MODULE_LABELS[fineIndex]
+              : module_.label;
+
+          if (points.length !== 3) {
+            return null;
+          }
+
+          return (
+            <text
+              key={`${module_.key}-label`}
+              x={center.x}
+              y={center.y + 1.5}
+              textAnchor="middle"
+              dominantBaseline="middle"
+              fontSize={12}
+              fontWeight={900}
+              fill={darkenHexColor(module_.color, 0.46)}
+              paintOrder="stroke"
+              stroke="#ffffff"
+              strokeWidth={3}
+              pointerEvents="none"
+            >
+              {label}
+            </text>
+          );
+        })}
+        {variant === "multilevel" &&
+          topModules.map((module_) => {
+            const points = getTrianglePoints(nodeById, module_.cornerNodeIds);
+            const center = getCentroid(points);
+
+            if (points.length !== 3) {
+              return null;
+            }
+
+            return (
+              <text
+                key={`${module_.key}-label`}
+                x={center.x}
+                y={center.y + 3}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fontSize={18}
+                fontWeight={900}
+                fill={darkenHexColor(module_.color, 0.36)}
+                paintOrder="stroke"
+                stroke="#ffffff"
+                strokeWidth={3.6}
+                pointerEvents="none"
+              >
+                {module_.label}
+              </text>
+            );
+          })}
+        {nodes.map((node) => {
+          const module_ = getFineModuleForNodeId(node.id);
+          const active =
+            hoveredTarget?.variant === variant &&
+            hoveredTarget.kind === "node" &&
+            hoveredTarget.nodeId === node.id;
+
+          return (
+            <g
+              key={`raw-node-${node.id}`}
+              onMouseEnter={() =>
+                onHoverTargetChange({ variant, kind: "node", nodeId: node.id })
+              }
+              onMouseLeave={() => onHoverTargetChange(null)}
+            >
+              <circle
+                cx={node.x}
+                cy={node.y}
+                r={active ? NODE_RADIUS + 1 : NODE_RADIUS}
+                fill={module_.color}
+                fillOpacity={0.94}
+                stroke={darkenHexColor(module_.color, active ? 0.48 : 0.28)}
+                strokeWidth={active ? 1.55 : 1.1}
+                vectorEffect="non-scaling-stroke"
+              />
+              <text
+                x={node.x}
+                y={node.y + 0.25}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fontSize={6.6}
+                fontWeight={800}
+                fill="#111827"
+                pointerEvents="none"
+              >
+                {node.name}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+function ComparisonNetworkPajekCopyButton() {
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "failed">(
+    "idle",
+  );
+  const pajekNetwork = useMemo(
+    () => serializeNetworkToPajek(hierarchicalPaperToyTopology),
+    [],
+  );
+  const handleCopyPajek = async () => {
+    try {
+      await navigator.clipboard.writeText(pajekNetwork);
+      setCopyStatus("copied");
+      window.setTimeout(() => setCopyStatus("idle"), 1600);
+    } catch {
+      setCopyStatus("failed");
+      window.setTimeout(() => setCopyStatus("idle"), 2200);
+    }
+  };
+
+  return (
+    <div className="flex justify-end">
+      <button
+        type="button"
+        className="rounded-full border border-gray-300 px-2 py-1 text-xs font-bold text-gray-600"
+        onClick={handleCopyPajek}
+      >
+        {copyStatus === "copied"
+          ? "Copied"
+          : copyStatus === "failed"
+            ? "Copy failed"
+            : "Copy Pajek"}
+      </button>
     </div>
   );
 }
 
 function HierarchicalCodebooks() {
-  const [zoomPath, setZoomPath] = useState<number[]>([]);
-  const [twoLevelZoomPath, setTwoLevelZoomPath] = useState<number[]>([]);
-  const [network] = useState(() => createDemoNetwork());
-  const [twoLevelNetwork] = useState(() => createTwoLevelNetwork());
-  const coarseByFine = useMemo(
-    () => cloneCoarseByFine(defaultCoarseByFine),
-    [],
-  );
-  const fineModules = useMemo(
-    () => buildFineModuleStats(network, coarseByFine),
-    [coarseByFine, network],
-  );
-  const coarseModules = useMemo(
-    () => buildCoarseModuleStats(fineModules),
-    [fineModules],
-  );
-  const codelengthRows = useMemo(
-    () => buildCodelengthRows(network, twoLevelNetwork),
-    [network, twoLevelNetwork],
-  );
+  const [hoveredTarget, setHoveredTarget] = useState<HoverTarget | null>(null);
 
   return (
     <section id="hierarchical-codebooks" className="col-span-4 mb-48">
@@ -1492,35 +2009,36 @@ function HierarchicalCodebooks() {
           and finally the node inside it.
         </p>
         <p>
-          This can compress movement when the network has nested structure. If a
-          path tends to remain inside the same region, local codewords can be
-          reused there; the description only pays the extra cost of changing
-          levels when the path leaves one region for another.
+          This view now starts from the raw Untitled network only. The small
+          triangles are fine modules, and each group of three fine modules forms
+          a roman-numbered top-level module.
         </p>
       </div>
 
-      <div className="space-y-6">
+      <div className="space-y-1">
+        <ComparisonNetworkPajekCopyButton />
         <div className="grid gap-6 lg:grid-cols-2">
-          <HierarchyMap
-            network={network}
-            coarseByFine={coarseByFine}
-            zoomPath={zoomPath}
-            fineModules={fineModules}
-            coarseModules={coarseModules}
-            onZoomPathChange={setZoomPath}
+          <RawTopologyNetworkView
+            title="Multilevel network view"
+            description="Small triangles are fine modules; each large triangle is a top-level module."
+            variant="multilevel"
+            hoveredTarget={hoveredTarget}
+            onHoverTargetChange={setHoveredTarget}
           />
-          <TwoLevelNetworkView
-            network={twoLevelNetwork}
-            fineModules={fineModules}
-            zoomPath={twoLevelZoomPath}
-            onZoomPathChange={setTwoLevelZoomPath}
+          <RawTopologyNetworkView
+            title="Two-level network view"
+            description="The same raw topology, ready for the flat two-level grouping comparison."
+            variant="two-level"
+            hoveredTarget={hoveredTarget}
+            onHoverTargetChange={setHoveredTarget}
           />
         </div>
-        <CodelengthOverview rows={codelengthRows} />
         <CodebookComparison
-          hierarchicalNetwork={network}
-          twoLevelNetwork={twoLevelNetwork}
+          hoveredTarget={hoveredTarget}
+          onHoverTargetChange={setHoveredTarget}
         />
+        <CodelengthBreakdown />
+        <RecursiveTriangleZoomNetwork />
       </div>
     </section>
   );

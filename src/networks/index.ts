@@ -15,5 +15,6 @@ export {
   default as hierarchical_paper_toy,
   paperToyDefaultCoarseByFine,
   paperToyFineModules,
+  hierarchicalPaperToyTopology,
   PAPER_REFERENCE_CODELENGTHS,
 } from "./hierarchical_paper_toy";
