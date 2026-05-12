@@ -93,6 +93,8 @@ function formatRelativeCodelength(
 
 const NUM_COMMUNITIES = 8;
 const NODE_ID_DARKEN_AMOUNT = 0.42;
+const CODEBOOK_HELP =
+  "A codebook is the list of symbols the walker can print and the binary code assigned to each symbol. Short codes are used for common events, and longer codes are used for rarer events.";
 const INDEX_CODELENGTH_HELP =
   "Index codelength is the cost of telling the walker which module it enters next when it moves between modules.";
 const MODULE_CODELENGTH_HELP =
@@ -161,16 +163,12 @@ const TwoLevelCodelengthOverlay = observer(function TwoLevelCodelengthOverlay({
       width={280}
       lines={[
         <span>
-          <HelpTooltip content={INDEX_CODELENGTH_HELP} />
-          {" "}
-          Index codelength {network.mapequation.indexCodelength.toFixed(3)}{" "}
-          bits
+          <HelpTooltip content={INDEX_CODELENGTH_HELP} /> Index codelength{" "}
+          {network.mapequation.indexCodelength.toFixed(3)} bits
         </span>,
         <span>
-          <HelpTooltip content={MODULE_CODELENGTH_HELP} />
-          {" "}
-          Module codelength {network.mapequation.moduleCodelength.toFixed(3)}{" "}
-          bits
+          <HelpTooltip content={MODULE_CODELENGTH_HELP} /> Module codelength{" "}
+          {network.mapequation.moduleCodelength.toFixed(3)} bits
         </span>,
         `Total codelength ${network.mapequation.codelength.toFixed(3)} bits`,
       ]}
@@ -336,8 +334,9 @@ export default function Main() {
         <p className="mb-4 text-gray-700">
           Below we compare a <strong>one-level partition</strong> and a{" "}
           <strong>two-level partition</strong>. In the one-level partition, the
-          walker uses one shared codebook for all nodes in the network. In the
-          two-level partition, the walker uses an{" "}
+          walker uses one shared codebook{" "}
+          <HelpTooltip content={CODEBOOK_HELP} /> for all nodes in the network.
+          In the two-level partition, the walker uses an{" "}
           <strong>index codebook</strong> to say which community it is in and a
           separate local codebook inside each community for the nodes there.
         </p>

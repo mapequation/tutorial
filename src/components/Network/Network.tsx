@@ -71,6 +71,7 @@ interface Props {
   nodeScale?: (value: number) => number;
   scaleLinksByWeight?: boolean;
   baseLinkStrokeWidth?: number;
+  linkBackgroundChildren?: ReactNode;
   underlayChildren?: ReactNode;
 }
 
@@ -109,6 +110,7 @@ function Network({
   nodeScale = defaultNodeScale,
   scaleLinksByWeight = false,
   baseLinkStrokeWidth = 3,
+  linkBackgroundChildren,
   underlayChildren,
   children,
   style,
@@ -278,6 +280,8 @@ function Network({
           </linearGradient>
         ))}
       </defs>
+
+      {linkBackgroundChildren}
 
       {/* Render links first so nodes appear above them. Optionally scale
           thickness by link weight; otherwise keep a uniform width. */}

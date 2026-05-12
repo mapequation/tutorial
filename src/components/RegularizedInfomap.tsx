@@ -220,8 +220,8 @@ const CONTROL_LABEL_CLASS = "grid grid-cols-[9.5rem_8rem] items-center gap-2";
 const CONTROL_TEXT_CLASS =
   "inline-grid w-[9.5rem] grid-cols-[1rem_1fr] items-center gap-1 text-xs font-semibold";
 const CONTROL_VALUE_CLASS = "whitespace-nowrap tabular-nums";
-const CONTROL_RANGE_CLASS = "h-1 w-32 flex-none";
-const PRIOR_LINK_STROKE = "#dc2626";
+const CONTROL_RANGE_CLASS = "h-4 w-32 flex-none";
+const PRIOR_LINK_STROKE = "#d1d5db";
 
 const formatPrecomputeStatusMessage = (
   label: string,
@@ -1635,8 +1635,8 @@ function PriorLinksOverlay({
             x2={x2 - nodeRadius * unitX}
             y2={y2 - nodeRadius * unitY}
             stroke={PRIOR_LINK_STROKE}
-            strokeOpacity={0.22}
-            strokeWidth={0.7}
+            strokeOpacity={0.2}
+            strokeWidth={0.6}
             strokeLinecap="round"
             vectorEffect="non-scaling-stroke"
           />
@@ -1651,7 +1651,7 @@ export default observer(function RegularizedInfomap({
   height = 400,
 }: Props) {
   const [sparsePercentage, setSparsePercentage] = useState(0);
-  const [regularizationStrength, setRegularizationStrength] = useState(0.7);
+  const [regularizationStrength, setRegularizationStrength] = useState(1);
   const [showPriorLinks, setShowPriorLinks] = useState(false);
   const [linksCopyStatus, setLinksCopyStatus] = useState("");
   const [treeCopyStatus, setTreeCopyStatus] = useState<
@@ -2332,14 +2332,47 @@ export default observer(function RegularizedInfomap({
       )}
     </div>
   );
+  const priorLinksButtonStyle = {
+    padding: "0.25rem 0.5rem",
+    fontSize: "0.7rem",
+    textAlign: "center",
+    justifyContent: "center",
+    letterSpacing: "0.02em",
+    width: "7.4rem",
+  } as const;
   const renderPriorLinksToggleButton = () => (
     <button
       type="button"
-      className="mx-auto block rounded-full border border-red-300 px-2.5 py-1 text-xs font-semibold text-red-700 transition hover:bg-red-50"
+      className={`button whitespace-nowrap shrink-0 ${showPriorLinks ? "button--primary" : ""}`}
+      style={priorLinksButtonStyle}
       onClick={() => setShowPriorLinks((visible) => !visible)}
     >
-      {showPriorLinks ? "hide prior links" : "show prior links"}
+      {showPriorLinks ? "Hide Prior Links" : "Show Prior Links"}
     </button>
+  );
+  const renderLinkRemovalControl = () => (
+    <div className="relative mx-auto w-max">
+      <label className={CONTROL_LABEL_CLASS}>
+        <strong className={CONTROL_TEXT_CLASS}>
+          <HelpTooltip content={LINK_REMOVAL_HELP} />
+          <span className={CONTROL_VALUE_CLASS}>
+            Link Removal: {sparsePercentage}%
+          </span>
+        </strong>
+        <input
+          type="range"
+          min="0"
+          max={MAX_SPARSE_PERCENTAGE}
+          step="5"
+          value={sparsePercentage}
+          onChange={(e) => setSparsePercentage(Number(e.target.value))}
+          className={CONTROL_RANGE_CLASS}
+        />
+      </label>
+      <div className="absolute left-full top-1/2 z-20 ml-2 -translate-y-1/2">
+        {renderPriorLinksToggleButton()}
+      </div>
+    </div>
   );
 
   return (
@@ -2380,26 +2413,7 @@ export default observer(function RegularizedInfomap({
 
       <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-gray-700 xl:hidden">
-          <div className="space-y-1">
-            {renderPriorLinksToggleButton()}
-            <label className={CONTROL_LABEL_CLASS}>
-              <strong className={CONTROL_TEXT_CLASS}>
-                <HelpTooltip content={LINK_REMOVAL_HELP} />
-                <span className={CONTROL_VALUE_CLASS}>
-                  Link Removal: {sparsePercentage}%
-                </span>
-              </strong>
-              <input
-                type="range"
-                min="0"
-                max={MAX_SPARSE_PERCENTAGE}
-                step="5"
-                value={sparsePercentage}
-                onChange={(e) => setSparsePercentage(Number(e.target.value))}
-                className={CONTROL_RANGE_CLASS}
-              />
-            </label>
-          </div>
+          <div className="space-y-1">{renderLinkRemovalControl()}</div>
 
           <div className="space-y-1">
             <label className={CONTROL_LABEL_CLASS}>
@@ -2441,28 +2455,7 @@ export default observer(function RegularizedInfomap({
           <div className="xl:col-start-2 xl:row-start-1 xl:self-start xl:justify-self-center xl:pt-7">
             <div className="hidden xl:block">
               <div className="flex flex-col items-center gap-3 text-xs text-gray-700">
-                <div className="space-y-1">
-                  {renderPriorLinksToggleButton()}
-                  <label className={CONTROL_LABEL_CLASS}>
-                    <strong className={CONTROL_TEXT_CLASS}>
-                      <HelpTooltip content={LINK_REMOVAL_HELP} />
-                      <span className={CONTROL_VALUE_CLASS}>
-                        Link Removal: {sparsePercentage}%
-                      </span>
-                    </strong>
-                    <input
-                      type="range"
-                      min="0"
-                      max={MAX_SPARSE_PERCENTAGE}
-                      step="5"
-                      value={sparsePercentage}
-                      onChange={(e) =>
-                        setSparsePercentage(Number(e.target.value))
-                      }
-                      className={CONTROL_RANGE_CLASS}
-                    />
-                  </label>
-                </div>
+                <div className="space-y-1">{renderLinkRemovalControl()}</div>
 
                 <div className="space-y-1">
                   <label className={CONTROL_LABEL_CLASS}>
@@ -2572,7 +2565,7 @@ export default observer(function RegularizedInfomap({
               width={networkWidth}
               height={networkHeight}
               nodeScale={regularizedNodeScale}
-              underlayChildren={
+              linkBackgroundChildren={
                 showPriorLinks ? (
                   <PriorLinksOverlay
                     network={regularizedNetwork}
