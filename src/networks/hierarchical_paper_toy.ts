@@ -82,19 +82,20 @@ const intraModuleLinks = paperToyFineModules.flatMap((module_) => {
   ];
 });
 
+const interModuleLinkWeight = 0.85;
 const bridgeLinks = [
-  { source: 2, target: 7, weight: 1 },
-  { source: 3, target: 4, weight: 1 },
-  { source: 9, target: 5, weight: 1 },
-  { source: 8, target: 19, weight: 1 },
-  { source: 6, target: 10, weight: 1 },
-  { source: 11, target: 16, weight: 1 },
-  { source: 12, target: 13, weight: 1 },
-  { source: 20, target: 25, weight: 1 },
-  { source: 21, target: 22, weight: 1 },
-  { source: 27, target: 23, weight: 1 },
-  { source: 24, target: 17, weight: 1 },
-  { source: 18, target: 14, weight: 1 },
+  { source: 2, target: 7, weight: interModuleLinkWeight },
+  { source: 3, target: 4, weight: interModuleLinkWeight },
+  { source: 9, target: 5, weight: interModuleLinkWeight },
+  { source: 8, target: 19, weight: interModuleLinkWeight },
+  { source: 6, target: 10, weight: interModuleLinkWeight },
+  { source: 11, target: 16, weight: interModuleLinkWeight },
+  { source: 12, target: 13, weight: interModuleLinkWeight },
+  { source: 20, target: 25, weight: interModuleLinkWeight },
+  { source: 21, target: 22, weight: interModuleLinkWeight },
+  { source: 27, target: 23, weight: interModuleLinkWeight },
+  { source: 24, target: 17, weight: interModuleLinkWeight },
+  { source: 18, target: 14, weight: interModuleLinkWeight },
 ];
 
 const untitledLinks = [...intraModuleLinks, ...bridgeLinks];

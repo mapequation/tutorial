@@ -1,4 +1,11 @@
-import { type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Fragment,
+  type MouseEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Network } from "../model";
 import {
   hierarchical_paper_toy,
@@ -116,8 +123,10 @@ const CODEBOOK_BLOCK = {
   pointer: 6.4,
 } as const;
 const CODEBOOK_STACK_HEIGHT = 230;
+const INTER_MODULE_LINK_WEIGHT = 0.85;
 const RECURSIVE_TRIANGLE_LEVELS = 6;
 const RECURSIVE_ZOOM_DURATION_MS = 1700;
+const RECURSIVE_LEAF_NODE_INSET_RATIO = 0.333;
 const RECURSIVE_LEVEL_LABELS = [
   ["I", "II", "III"],
   ["a", "b", "c"],
@@ -361,6 +370,10 @@ function formatTrianglePoints(
   return points.map((point) => `${point.x},${point.y}`).join(" ");
 }
 
+function formatTriangleNodePoints(nodes: { x: number; y: number }[]) {
+  return nodes.map((node) => `${node.x},${node.y}`).join(" ");
+}
+
 function getTriangleHeight(
   corners: [TrianglePoint, TrianglePoint, TrianglePoint],
 ) {
@@ -402,12 +415,110 @@ function getRecursiveModuleColor(path: number[]) {
   return levelPalette[localIndex % levelPalette.length] ?? levelPalette[0];
 }
 
-function getRecursiveModuleFillOpacity(module_: RecursiveTriangleModule) {
-  if (module_.path.length === 0) {
-    return 0;
+function hexToRgb(hexColor: string) {
+  const parsed = Number.parseInt(hexColor.replace("#", ""), 16);
+
+  return {
+    r: (parsed >> 16) & 255,
+    g: (parsed >> 8) & 255,
+    b: parsed & 255,
+  };
+}
+
+function rgbToHex({ r, g, b }: { r: number; g: number; b: number }) {
+  return `#${[r, g, b]
+    .map((value) =>
+      Math.max(0, Math.min(255, Math.round(value)))
+        .toString(16)
+        .padStart(2, "0"),
+    )
+    .join("")}`;
+}
+
+function weightedMixHexColors(parts: { color: string; weight: number }[]) {
+  const totalWeight = parts.reduce((total, part) => total + part.weight, 0);
+
+  if (totalWeight <= 0) {
+    return "#111827";
   }
 
-  return Math.min(0.24, 0.09 + module_.level * 0.025);
+  const mixed = parts.reduce(
+    (total, part) => {
+      const rgb = hexToRgb(part.color);
+
+      return {
+        r: total.r + rgb.r * part.weight,
+        g: total.g + rgb.g * part.weight,
+        b: total.b + rgb.b * part.weight,
+      };
+    },
+    { r: 0, g: 0, b: 0 },
+  );
+
+  return rgbToHex({
+    r: mixed.r / totalWeight,
+    g: mixed.g / totalWeight,
+    b: mixed.b / totalWeight,
+  });
+}
+
+function getRecursiveLeafColor(path: number[]) {
+  if (path.length === 0) {
+    return "#111827";
+  }
+
+  const family =
+    RECURSIVE_COLOR_FAMILIES[
+      (path[0] ?? 0) % RECURSIVE_COLOR_FAMILIES.length
+    ] ?? RECURSIVE_COLOR_FAMILIES[0];
+  const levelWeights = [0.24, 0.22, 0.2, 0.18, 0.16];
+
+  return weightedMixHexColors(
+    path.map((segment, index) => {
+      const palette = family[Math.min(index, family.length - 1)] ?? family[0];
+
+      return {
+        color: palette[segment % palette.length] ?? palette[0],
+        weight: levelWeights[index] ?? 0.14,
+      };
+    }),
+  );
+}
+
+function getRecursivePathLevelColor(path: number[], levelIndex: number) {
+  const family =
+    RECURSIVE_COLOR_FAMILIES[
+      (path[0] ?? 0) % RECURSIVE_COLOR_FAMILIES.length
+    ] ?? RECURSIVE_COLOR_FAMILIES[0];
+  const clampedLevelIndex = Math.max(
+    0,
+    Math.min(levelIndex, path.length - 1, family.length - 1),
+  );
+  const palette = family[clampedLevelIndex] ?? family[0];
+  const segment = path[clampedLevelIndex] ?? 0;
+
+  return palette[segment % palette.length] ?? palette[0];
+}
+
+function getRecursiveModuleAreaColor(path: number[]): string {
+  if (path.length === 0) {
+    return "#111827";
+  }
+
+  const currentColor = getRecursivePathLevelColor(path, path.length - 1);
+
+  if (path.length === 1) {
+    return currentColor;
+  }
+
+  return weightedMixHexColors([
+    { color: getRecursiveModuleAreaColor(path.slice(0, -1)), weight: 0.34 },
+    { color: currentColor, weight: 0.66 },
+  ]);
+}
+
+function getRecursiveModuleAreaOpacity(module_: RecursiveTriangleModule) {
+  return Math.min(0.34, 0.12 + module_.level * 0.045);
 }
 
 function getRecursiveLabelOpacity(module_: RecursiveTriangleModule) {
@@ -511,6 +622,61 @@ function isDirectChild(path: number[], selectedPath: number[]) {
   );
 }
 
+function recursivePathStartsWith(path: number[], prefix: number[]) {
+  return prefix.every((segment, index) => path[index] === segment);
+}
+
+function getConvexHull(points: TrianglePoint[]) {
+  const uniquePoints = Array.from(
+    new Map(
+      points.map((point) => [
+        `${point.x.toFixed(5)}:${point.y.toFixed(5)}`,
+        point,
+      ]),
+    ).values(),
+  ).sort((left, right) =>
+    left.x === right.x ? left.y - right.y : left.x - right.x,
+  );
+
+  if (uniquePoints.length <= 2) {
+    return uniquePoints;
+  }
+
+  const cross = (
+    origin: TrianglePoint,
+    left: TrianglePoint,
+    right: TrianglePoint,
+  ) =>
+    (left.x - origin.x) * (right.y - origin.y) -
+    (left.y - origin.y) * (right.x - origin.x);
+  const lower: TrianglePoint[] = [];
+  const upper: TrianglePoint[] = [];
+
+  uniquePoints.forEach((point) => {
+    while (
+      lower.length >= 2 &&
+      cross(lower[lower.length - 2], lower[lower.length - 1], point) <= 0
+    ) {
+      lower.pop();
+    }
+
+    lower.push(point);
+  });
+
+  [...uniquePoints].reverse().forEach((point) => {
+    while (
+      upper.length >= 2 &&
+      cross(upper[upper.length - 2], upper[upper.length - 1], point) <= 0
+    ) {
+      upper.pop();
+    }
+
+    upper.push(point);
+  });
+
+  return [...lower.slice(0, -1), ...upper.slice(0, -1)];
+}
+
 function getTriangleViewBox(
   corners: [TrianglePoint, TrianglePoint, TrianglePoint],
 ): SvgViewBox {
@@ -547,54 +713,132 @@ function getTriangleViewBox(
   };
 }
 
-function pointKey(point: TrianglePoint) {
-  return `${point.x.toFixed(5)}:${point.y.toFixed(5)}`;
+function getRecursiveInterModuleLinkWeight(parentLevel: number) {
+  const exponent = RECURSIVE_TRIANGLE_LEVELS - 1 - parentLevel;
+
+  return Number(Math.pow(INTER_MODULE_LINK_WEIGHT, exponent).toFixed(6));
 }
 
 function buildRecursiveLeafNetwork(modules: RecursiveTriangleModule[]) {
   const leafModules = modules.filter(
     (module_) => module_.level === RECURSIVE_TRIANGLE_LEVELS - 1,
   );
-  const nodeByPoint = new Map<
+  const nonLeafModules = modules.filter(
+    (module_) => module_.level < RECURSIVE_TRIANGLE_LEVELS - 1,
+  );
+  const nodes: {
+    id: number;
+    x: number;
+    y: number;
+    paths: string[];
+  }[] = [];
+  const links = new Map<
     string,
-    { id: number; x: number; y: number; paths: string[] }
+    { source: number; target: number; weight: number }
   >();
-  const links = new Map<string, { source: number; target: number }>();
+  const nodeIdsByLeafPath = new Map<string, number[]>();
+  const addLink = (source: number, target: number, weight: number) => {
+    const key = source < target ? `${source}-${target}` : `${target}-${source}`;
+    links.set(key, { source, target, weight });
+  };
+  const nodeIdsForModule = (module_: RecursiveTriangleModule) =>
+    Array.from(nodeIdsByLeafPath.entries())
+      .filter(([leafPathKey]) =>
+        recursivePathStartsWith(
+          parseRecursivePathKey(leafPathKey),
+          module_.path,
+        ),
+      )
+      .flatMap(([, nodeIds]) => nodeIds);
+  const nearestNodePair = (
+    leftNodeIds: number[],
+    rightNodeIds: number[],
+  ): { source: number; target: number; distance: number } | null => {
+    let nearest: { source: number; target: number; distance: number } | null =
+      null;
+
+    for (const leftNodeId of leftNodeIds) {
+      const leftNode = nodes[leftNodeId - 1];
+
+      for (const rightNodeId of rightNodeIds) {
+        const rightNode = nodes[rightNodeId - 1];
+        const distance = Math.hypot(
+          leftNode.x - rightNode.x,
+          leftNode.y - rightNode.y,
+        );
+
+        if (!nearest || distance < nearest.distance) {
+          nearest = {
+            source: leftNode.id,
+            target: rightNode.id,
+            distance,
+          };
+        }
+      }
+    }
+
+    return nearest;
+  };
 
   leafModules.forEach((module_) => {
+    const centroid = getTriangleCentroid(module_.corners);
+    const inset =
+      getTriangleHeight(module_.corners) * RECURSIVE_LEAF_NODE_INSET_RATIO;
     const nodeIds = module_.corners.map((point) => {
-      const key = pointKey(point);
-      const existing = nodeByPoint.get(key);
-
-      if (existing) {
-        existing.paths.push(module_.key);
-        return existing.id;
-      }
-
+      const dx = centroid.x - point.x;
+      const dy = centroid.y - point.y;
+      const distance = Math.hypot(dx, dy) || 1;
       const next = {
-        id: nodeByPoint.size + 1,
-        x: point.x,
-        y: point.y,
+        id: nodes.length + 1,
+        x: point.x + (dx / distance) * inset,
+        y: point.y + (dy / distance) * inset,
         paths: [module_.key],
       };
 
-      nodeByPoint.set(key, next);
+      nodes.push(next);
       return next.id;
     });
+
+    nodeIdsByLeafPath.set(module_.key, nodeIds);
 
     [
       [nodeIds[0], nodeIds[1]],
       [nodeIds[1], nodeIds[2]],
       [nodeIds[2], nodeIds[0]],
     ].forEach(([source, target]) => {
-      const key =
-        source < target ? `${source}-${target}` : `${target}-${source}`;
-      links.set(key, { source, target });
+      addLink(source, target, 1);
+    });
+  });
+
+  nonLeafModules.forEach((module_) => {
+    const childModules = getRecursiveTriangleChildren(module_);
+
+    if (childModules.length !== 3) {
+      return;
+    }
+
+    [
+      [childModules[0], childModules[1]],
+      [childModules[0], childModules[2]],
+      [childModules[1], childModules[2]],
+    ].forEach(([leftModule, rightModule]) => {
+      const pair = nearestNodePair(
+        nodeIdsForModule(leftModule),
+        nodeIdsForModule(rightModule),
+      );
+
+      if (pair) {
+        addLink(
+          pair.source,
+          pair.target,
+          getRecursiveInterModuleLinkWeight(module_.level),
+        );
+      }
     });
   });
 
   return {
-    nodes: Array.from(nodeByPoint.values()),
+    nodes,
     links: Array.from(links.values()),
   };
 }
@@ -613,7 +857,7 @@ function serializeRecursiveNetworkToPajek(
         ? left.target - right.target
         : left.source - right.source,
     )
-    .map((link) => `${link.source} ${link.target} 1`);
+    .map((link) => `${link.source} ${link.target} ${link.weight}`);
 
   return [
     `*Vertices ${leafNetwork.nodes.length}`,
@@ -672,7 +916,7 @@ function getRecursiveLeafModuleId(paths: string[]) {
 function getRecursiveNodeColor(paths: string[]) {
   const selectedPath = [...paths].sort()[0] ?? "";
 
-  return getRecursiveModuleColor(parseRecursivePathKey(selectedPath));
+  return getRecursiveLeafColor(parseRecursivePathKey(selectedPath));
 }
 
 function createRecursiveCodelengthNetwork(
@@ -694,7 +938,7 @@ function createRecursiveCodelengthNetwork(
     links: leafNetwork.links.map((link) => ({
       source: link.source,
       target: link.target,
-      weight: 1,
+      weight: link.weight,
     })),
   });
 }
@@ -706,10 +950,8 @@ function buildRecursiveCodelengthGroups(
     leafNetwork,
     "multilevel",
   );
-  const twoLevelNetwork = createRecursiveCodelengthNetwork(
-    leafNetwork,
-    "two-level",
-  );
+  const recursiveTwoLevelIndexCodelength = 0.505699323;
+  const recursiveTwoLevelModuleCodelength = 3.579372421;
   const levelCodelengths = Array.from(
     { length: RECURSIVE_TRIANGLE_LEVELS - 1 },
     () => 0,
@@ -750,18 +992,19 @@ function buildRecursiveCodelengthGroups(
     {
       key: "recursive-two-level",
       title: "Two-level codelength",
-      total: twoLevelNetwork.mapequation.codelength,
+      total:
+        recursiveTwoLevelIndexCodelength + recursiveTwoLevelModuleCodelength,
       rows: [
         {
           key: "recursive-two-level-index",
-          label: "Index (smallest triangles)",
-          value: twoLevelNetwork.mapequation.indexCodelength,
+          label: "Index",
+          value: recursiveTwoLevelIndexCodelength,
           color: "#4b5563",
         },
         {
           key: "recursive-two-level-modules",
           label: "Node modules",
-          value: twoLevelNetwork.mapequation.moduleCodelength,
+          value: recursiveTwoLevelModuleCodelength,
           color: "#111827",
         },
       ],
@@ -855,31 +1098,36 @@ function formatBits(value: number) {
 }
 
 function CodelengthGroupView({ group }: { group: CodelengthGroup }) {
+  const labelColumnWidth = Math.min(
+    42,
+    Math.max(
+      group.title.length,
+      ...group.rows.map((row) => row.label.length),
+      12,
+    ) + 1,
+  );
+
   return (
-    <div className="p-1">
-      <div className="mb-3 flex items-baseline justify-between gap-3">
+    <div className="w-max max-w-full p-1">
+      <div
+        className="grid items-baseline gap-x-3 gap-y-1.5"
+        style={{
+          gridTemplateColumns: `minmax(0, ${labelColumnWidth}ch) 8ch`,
+        }}
+      >
         <h3 className="m-0 text-base font-bold text-gray-900">{group.title}</h3>
-        <div className="text-sm font-black text-gray-900">
+        <div className="text-right font-mono text-sm font-black text-gray-900">
           {formatBits(group.total)}
         </div>
-      </div>
-      <div className="space-y-1.5">
         {group.rows.map((row) => (
-          <div
-            key={row.key}
-            className="grid grid-cols-[0.65rem_minmax(0,1fr)_auto] items-center gap-2 text-sm"
-          >
-            <span
-              className="h-2.5 w-2.5 rounded-full"
-              style={{ backgroundColor: row.color }}
-            />
-            <span className="truncate font-semibold text-gray-700">
+          <Fragment key={row.key}>
+            <span className="min-w-0 font-semibold leading-snug text-gray-700">
               {row.label}
             </span>
-            <span className="font-mono text-xs font-bold text-gray-900">
+            <span className="text-right font-mono text-xs font-bold text-gray-900">
               {formatBits(row.value)}
             </span>
-          </div>
+          </Fragment>
         ))}
       </div>
     </div>
@@ -890,7 +1138,7 @@ function CodelengthBreakdown() {
   const groups = useMemo(() => buildCodelengthGroups(), []);
 
   return (
-    <div className="grid gap-4 md:grid-cols-2">
+    <div className="mx-auto grid max-w-3xl gap-8 md:grid-cols-[minmax(22rem,1fr)_minmax(17rem,0.8fr)]">
       {groups.map((group) => (
         <CodelengthGroupView key={group.key} group={group} />
       ))}
@@ -1458,6 +1706,17 @@ function RecursiveTriangleZoomNetwork() {
     () => new Map(leafNetwork.nodes.map((node) => [node.id, node])),
     [leafNetwork.nodes],
   );
+  const recursiveLeafNodeGroups = useMemo(() => {
+    const groups = new Map<string, typeof leafNetwork.nodes>();
+
+    leafNetwork.nodes.forEach((node) => {
+      const pathKey = node.paths[0];
+
+      groups.set(pathKey, [...(groups.get(pathKey) ?? []), node]);
+    });
+
+    return Array.from(groups.entries());
+  }, [leafNetwork.nodes]);
   const selectedModule =
     modules.find((module_) => samePath(module_.path, selectedPath)) ??
     modules[0];
@@ -1470,6 +1729,24 @@ function RecursiveTriangleZoomNetwork() {
     isDirectChild(module_.path, selectedPath),
   );
   const labeledModules = modules.filter((module_) => module_.path.length > 0);
+  const moduleAreaPointsByKey = useMemo(() => {
+    const entries = modules
+      .filter((module_) => module_.path.length > 0)
+      .map((module_) => {
+        const descendantPoints = leafNetwork.nodes
+          .filter((node) =>
+            recursivePathStartsWith(
+              parseRecursivePathKey(node.paths[0]),
+              module_.path,
+            ),
+          )
+          .map((node) => ({ x: node.x, y: node.y }));
+
+        return [module_.key, getConvexHull(descendantPoints)] as const;
+      });
+
+    return new Map(entries);
+  }, [leafNetwork.nodes, modules]);
   const nodeRadius = Math.max(
     0.4,
     (animatedViewBox.width / RECURSIVE_VIEWBOX.width) * 1.55,
@@ -1506,207 +1783,209 @@ function RecursiveTriangleZoomNetwork() {
   };
 
   return (
-    <div className="mx-auto mt-8 max-w-md">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <h3 className="m-0 text-base font-bold text-gray-900">
-          Recursive triangle
-        </h3>
-        <div className="flex items-center gap-2 text-xs font-bold text-gray-600">
-          <span>
-            Level {selectedPath.length + 1} / {RECURSIVE_TRIANGLE_LEVELS}
-          </span>
-          <button
-            type="button"
-            className="rounded-full border border-gray-300 px-2 py-1"
-            onClick={handleCopyPajek}
-          >
-            {copyStatus === "copied"
-              ? "Copied"
-              : copyStatus === "failed"
-                ? "Copy failed"
-                : "Copy Pajek"}
-          </button>
-          <button
-            type="button"
-            className="rounded-full border border-gray-300 px-2 py-1 disabled:opacity-40"
-            disabled={!canZoomOut}
-            onClick={() => setSelectedPath((path) => path.slice(0, -1))}
-          >
-            Back
-          </button>
-          <button
-            type="button"
-            className="rounded-full border border-gray-300 px-2 py-1 disabled:opacity-40"
-            disabled={!canZoomOut}
-            onClick={() => setSelectedPath([])}
-          >
-            Reset
-          </button>
+    <div className="mx-auto mt-8 max-w-4xl">
+      <div className="mx-auto max-w-md">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h3 className="m-0 text-base font-bold text-gray-900">
+            Recursive triangle
+          </h3>
+          <div className="flex items-center gap-2 text-xs font-bold text-gray-600">
+            <span>
+              Level {selectedPath.length + 1} / {RECURSIVE_TRIANGLE_LEVELS}
+            </span>
+            <button
+              type="button"
+              className="rounded-full border border-gray-300 px-2 py-1"
+              onClick={handleCopyPajek}
+            >
+              {copyStatus === "copied"
+                ? "Copied"
+                : copyStatus === "failed"
+                  ? "Copy failed"
+                  : "Copy Pajek"}
+            </button>
+            <button
+              type="button"
+              className="rounded-full border border-gray-300 px-2 py-1 disabled:opacity-40"
+              disabled={!canZoomOut}
+              onClick={() => setSelectedPath((path) => path.slice(0, -1))}
+            >
+              Back
+            </button>
+            <button
+              type="button"
+              className="rounded-full border border-gray-300 px-2 py-1 disabled:opacity-40"
+              disabled={!canZoomOut}
+              onClick={() => setSelectedPath([])}
+            >
+              Reset
+            </button>
+          </div>
         </div>
-      </div>
-      <svg
-        viewBox={formatViewBox(animatedViewBox)}
-        className="block w-full overflow-hidden"
-        style={{
-          aspectRatio: `${RECURSIVE_VIEWBOX.width} / ${RECURSIVE_VIEWBOX.height}`,
-        }}
-        role="img"
-        aria-label="Six-level recursive triangle network"
-        onClick={handleSvgBackgroundClick}
-      >
-        {modules.map((module_) => {
-          const isSelected = samePath(module_.path, selectedPath);
-          const isClickable = directChildren.some((child) =>
-            samePath(child.path, module_.path),
-          );
-          const color = getRecursiveModuleColor(module_.path);
+        <svg
+          viewBox={formatViewBox(animatedViewBox)}
+          className="block w-full overflow-hidden"
+          style={{
+            aspectRatio: `${RECURSIVE_VIEWBOX.width} / ${RECURSIVE_VIEWBOX.height}`,
+          }}
+          role="img"
+          aria-label="Six-level recursive triangle network"
+          onClick={handleSvgBackgroundClick}
+        >
+          {labeledModules.map((module_) => {
+            const areaPoints = moduleAreaPointsByKey.get(module_.key);
 
-          return (
-            <polygon
-              key={`recursive-module-${module_.key}`}
-              points={formatTrianglePoints(module_.corners)}
-              fill={color}
-              fillOpacity={
-                isSelected
-                  ? Math.min(0.3, getRecursiveModuleFillOpacity(module_) + 0.08)
-                  : getRecursiveModuleFillOpacity(module_)
-              }
-              stroke={darkenHexColor(color, isSelected ? 0.34 : 0.22)}
-              strokeOpacity={
-                isSelected ? 0.7 : Math.max(0.1, 0.36 - module_.level * 0.045)
-              }
-              strokeWidth={isSelected ? 1.6 : 0.85}
-              strokeLinejoin="round"
-              vectorEffect="non-scaling-stroke"
-              pointerEvents={isClickable ? "all" : "none"}
-              className={isClickable ? "cursor-pointer" : undefined}
-              onClick={(event) => {
-                if (isClickable) {
-                  event.stopPropagation();
-                  setSelectedPath(module_.path);
-                }
-              }}
-            />
-          );
-        })}
-        {directChildren.map((module_) => {
-          const color = getRecursiveModuleColor(module_.path);
+            if (!areaPoints || areaPoints.length < 3) {
+              return null;
+            }
 
-          return (
+            return (
+              <polygon
+                key={`recursive-module-area-${module_.key}`}
+                points={formatTriangleNodePoints(areaPoints)}
+                fill={getRecursiveModuleAreaColor(module_.path)}
+                fillOpacity={getRecursiveModuleAreaOpacity(module_)}
+                stroke="none"
+                pointerEvents="none"
+              />
+            );
+          })}
+          {recursiveLeafNodeGroups.map(([pathKey, nodes]) => {
+            const path = parseRecursivePathKey(pathKey);
+            const color = getRecursiveLeafColor(path);
+
+            if (nodes.length !== 3) {
+              return null;
+            }
+
+            return (
+              <polygon
+                key={`recursive-leaf-fill-${pathKey}`}
+                points={formatTriangleNodePoints(nodes)}
+                fill={color}
+                fillOpacity={0.3}
+                stroke="none"
+                strokeLinejoin="round"
+                vectorEffect="non-scaling-stroke"
+                pointerEvents="none"
+              />
+            );
+          })}
+          {leafNetwork.links.map((link) => {
+            const source = nodeById.get(link.source);
+            const target = nodeById.get(link.target);
+
+            if (!source || !target) {
+              return null;
+            }
+
+            return (
+              <line
+                key={`recursive-link-${link.source}-${link.target}`}
+                x1={source.x}
+                y1={source.y}
+                x2={target.x}
+                y2={target.y}
+                stroke="#374151"
+                strokeOpacity={0.54}
+                strokeLinecap="round"
+                strokeWidth={1.1}
+                vectorEffect="non-scaling-stroke"
+                pointerEvents="none"
+              />
+            );
+          })}
+          {leafNetwork.nodes.map((node) => {
+            const color = getRecursiveNodeColor(node.paths);
+
+            return (
+              <circle
+                key={`recursive-node-${node.id}`}
+                cx={node.x}
+                cy={node.y}
+                r={nodeRadius}
+                fill={darkenHexColor(color, 0.3)}
+                fillOpacity={0.9}
+                stroke="#ffffff"
+                strokeWidth={0.8}
+                vectorEffect="non-scaling-stroke"
+                pointerEvents="none"
+              />
+            );
+          })}
+          {labeledModules.map((module_) => {
+            const center = getTriangleCentroid(module_.corners);
+            const fontSize = Math.max(
+              1.05,
+              getTriangleHeight(module_.corners) * 0.16,
+            );
+            const label = getRecursiveModuleLabel(module_.path);
+            const color = getRecursiveModuleAreaColor(module_.path);
+            const opacity = getRecursiveLabelOpacity(module_);
+
+            return (
+              <text
+                key={`recursive-label-${module_.key}`}
+                x={center.x}
+                y={center.y + fontSize * 0.1}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fontSize={fontSize}
+                fontWeight={900}
+                fill={darkenHexColor(color, 0.68)}
+                opacity={opacity}
+                paintOrder="stroke"
+                stroke="#ffffff"
+                strokeWidth={fontSize * 0.14}
+                pointerEvents="none"
+              >
+                {label}
+              </text>
+            );
+          })}
+          {selectedPath.length > 0 && (
+            <text
+              x={selectedModule.corners[0].x}
+              y={
+                selectedModule.corners[0].y -
+                getTriangleHeight(selectedModule.corners) * 0.035
+              }
+              textAnchor="middle"
+              dominantBaseline="middle"
+              fontSize={Math.max(
+                1.2,
+                getTriangleHeight(selectedModule.corners) * 0.055,
+              )}
+              fontWeight={900}
+              fill="#111827"
+              paintOrder="stroke"
+              stroke="#ffffff"
+              strokeWidth={Math.max(
+                0.22,
+                getTriangleHeight(selectedModule.corners) * 0.01,
+              )}
+              pointerEvents="none"
+            >
+              {getRecursivePathLabel(selectedPath)}
+            </text>
+          )}
+          {directChildren.map((module_) => (
             <polygon
               key={`recursive-click-${module_.key}`}
               points={formatTrianglePoints(module_.corners)}
-              fill={color}
-              fillOpacity={0.08}
-              stroke={darkenHexColor(color, 0.36)}
-              strokeOpacity={0.72}
-              strokeWidth={1.4}
-              strokeLinejoin="round"
-              vectorEffect="non-scaling-stroke"
+              fill="transparent"
+              stroke="none"
+              pointerEvents="all"
               className="cursor-pointer"
               onClick={(event) => {
                 event.stopPropagation();
                 setSelectedPath(module_.path);
               }}
             />
-          );
-        })}
-        {labeledModules.map((module_) => {
-          const center = getTriangleCentroid(module_.corners);
-          const fontSize = Math.max(
-            1.05,
-            getTriangleHeight(module_.corners) * 0.16,
-          );
-          const color = getRecursiveModuleColor(module_.path);
-
-          return (
-            <text
-              key={`recursive-label-${module_.key}`}
-              x={center.x}
-              y={center.y + fontSize * 0.1}
-              textAnchor="middle"
-              dominantBaseline="middle"
-              fontSize={fontSize}
-              fontWeight={900}
-              fill={darkenHexColor(color, 0.55)}
-              opacity={getRecursiveLabelOpacity(module_)}
-              paintOrder="stroke"
-              stroke="#ffffff"
-              strokeWidth={fontSize * 0.2}
-              pointerEvents="none"
-            >
-              {getRecursiveModuleLabel(module_.path)}
-            </text>
-          );
-        })}
-        {selectedPath.length > 0 && (
-          <text
-            x={selectedModule.corners[0].x}
-            y={
-              selectedModule.corners[0].y -
-              getTriangleHeight(selectedModule.corners) * 0.035
-            }
-            textAnchor="middle"
-            dominantBaseline="middle"
-            fontSize={Math.max(
-              1.2,
-              getTriangleHeight(selectedModule.corners) * 0.055,
-            )}
-            fontWeight={900}
-            fill="#111827"
-            paintOrder="stroke"
-            stroke="#ffffff"
-            strokeWidth={Math.max(
-              0.22,
-              getTriangleHeight(selectedModule.corners) * 0.01,
-            )}
-            pointerEvents="none"
-          >
-            {getRecursivePathLabel(selectedPath)}
-          </text>
-        )}
-        {leafNetwork.links.map((link) => {
-          const source = nodeById.get(link.source);
-          const target = nodeById.get(link.target);
-
-          if (!source || !target) {
-            return null;
-          }
-
-          return (
-            <line
-              key={`recursive-link-${link.source}-${link.target}`}
-              x1={source.x}
-              y1={source.y}
-              x2={target.x}
-              y2={target.y}
-              stroke="#374151"
-              strokeOpacity={0.54}
-              strokeLinecap="round"
-              strokeWidth={1.1}
-              vectorEffect="non-scaling-stroke"
-            />
-          );
-        })}
-        {leafNetwork.nodes.map((node) => {
-          const color = getRecursiveNodeColor(node.paths);
-
-          return (
-            <circle
-              key={`recursive-node-${node.id}`}
-              cx={node.x}
-              cy={node.y}
-              r={nodeRadius}
-              fill={darkenHexColor(color, 0.3)}
-              fillOpacity={0.9}
-              stroke="#ffffff"
-              strokeWidth={0.8}
-              vectorEffect="non-scaling-stroke"
-            />
-          );
-        })}
-      </svg>
-      <div className="mt-4 grid gap-4 md:grid-cols-2">
+          ))}
+        </svg>
+      </div>
+      <div className="mx-auto mt-4 grid max-w-max gap-8 md:grid-cols-[max-content_max-content]">
         {recursiveCodelengthGroups.map((group) => (
           <CodelengthGroupView key={group.key} group={group} />
         ))}

@@ -33,6 +33,7 @@ interface Props {
 type NetworkState = "normal" | "regularized";
 type Partition = Map<number, number>;
 type NodePositionById = Map<number, { x: number; y: number }>;
+type PriorLink = { source: number; target: number };
 
 interface PartitionOutcome {
   moduleByNodeId: Partition;
@@ -220,6 +221,7 @@ const CONTROL_TEXT_CLASS =
   "inline-grid w-[9.5rem] grid-cols-[1rem_1fr] items-center gap-1 text-xs font-semibold";
 const CONTROL_VALUE_CLASS = "whitespace-nowrap tabular-nums";
 const CONTROL_RANGE_CLASS = "h-1 w-32 flex-none";
+const PRIOR_LINK_STROKE = "#dc2626";
 
 const formatPrecomputeStatusMessage = (
   label: string,
@@ -1569,12 +1571,88 @@ const createPlaceholderNetworkData = (
   links: baseNetwork.links.map((link) => ({ ...link })),
 });
 
+const linkKey = (source: number, target: number) =>
+  source < target ? `${source}:${target}` : `${target}:${source}`;
+
+const buildPriorLinks = (data: NetworkData): PriorLink[] => {
+  const observedLinkKeys = new Set(
+    data.links.map(({ source, target }) => linkKey(source, target)),
+  );
+  const nodeIds = data.nodes.map(({ id }) => id).sort((a, b) => a - b);
+  const priorLinks: PriorLink[] = [];
+
+  nodeIds.forEach((source, sourceIndex) => {
+    nodeIds.slice(sourceIndex + 1).forEach((target) => {
+      if (!observedLinkKeys.has(linkKey(source, target))) {
+        priorLinks.push({ source, target });
+      }
+    });
+  });
+
+  return priorLinks;
+};
+
+function PriorLinksOverlay({
+  network,
+  links,
+  nodeScale,
+}: {
+  network: NetworkModel;
+  links: PriorLink[];
+  nodeScale: (value: number) => number;
+}) {
+  const nodeById = useMemo(
+    () => new Map(network.nodes.map((node) => [node.id, node])),
+    [network.nodes],
+  );
+  const nodeRadius = nodeScale(1 / Math.max(network.numNodes, 1));
+
+  return (
+    <g aria-hidden="true" pointerEvents="none">
+      {links.map(({ source, target }) => {
+        const sourceNode = nodeById.get(source);
+        const targetNode = nodeById.get(target);
+
+        if (!sourceNode || !targetNode) {
+          return null;
+        }
+
+        const x1 = sourceNode.x || 0;
+        const y1 = sourceNode.y || 0;
+        const x2 = targetNode.x || 0;
+        const y2 = targetNode.y || 0;
+        const dx = x2 - x1 || 1e-6;
+        const dy = y2 - y1 || 1e-6;
+        const length = Math.sqrt(dx * dx + dy * dy);
+        const unitX = dx / length;
+        const unitY = dy / length;
+
+        return (
+          <line
+            key={`prior-link-${source}-${target}`}
+            x1={x1 + nodeRadius * unitX}
+            y1={y1 + nodeRadius * unitY}
+            x2={x2 - nodeRadius * unitX}
+            y2={y2 - nodeRadius * unitY}
+            stroke={PRIOR_LINK_STROKE}
+            strokeOpacity={0.22}
+            strokeWidth={0.7}
+            strokeLinecap="round"
+            vectorEffect="non-scaling-stroke"
+          />
+        );
+      })}
+    </g>
+  );
+}
+
 export default observer(function RegularizedInfomap({
   width = 800,
   height = 400,
 }: Props) {
   const [sparsePercentage, setSparsePercentage] = useState(0);
   const [regularizationStrength, setRegularizationStrength] = useState(0.7);
+  const [showPriorLinks, setShowPriorLinks] = useState(false);
   const [linksCopyStatus, setLinksCopyStatus] = useState("");
   const [treeCopyStatus, setTreeCopyStatus] = useState<
     Record<NetworkState, string>
@@ -1684,6 +1762,7 @@ export default observer(function RegularizedInfomap({
         : EMPTY_NETWORK_DATA,
     [completeData, datasetState.status, sparsePercentage],
   );
+  const priorLinks = useMemo(() => buildPriorLinks(data), [data]);
   const isolatedNodeIds = useMemo(() => getIsolatedNodeIds(data), [data]);
   const cachedNormalRun = useMemo(
     () =>
@@ -2253,6 +2332,15 @@ export default observer(function RegularizedInfomap({
       )}
     </div>
   );
+  const renderPriorLinksToggleButton = () => (
+    <button
+      type="button"
+      className="mx-auto block rounded-full border border-red-300 px-2.5 py-1 text-xs font-semibold text-red-700 transition hover:bg-red-50"
+      onClick={() => setShowPriorLinks((visible) => !visible)}
+    >
+      {showPriorLinks ? "hide prior links" : "show prior links"}
+    </button>
+  );
 
   return (
     <div className="space-y-6">
@@ -2293,6 +2381,7 @@ export default observer(function RegularizedInfomap({
       <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-gray-700 xl:hidden">
           <div className="space-y-1">
+            {renderPriorLinksToggleButton()}
             <label className={CONTROL_LABEL_CLASS}>
               <strong className={CONTROL_TEXT_CLASS}>
                 <HelpTooltip content={LINK_REMOVAL_HELP} />
@@ -2353,6 +2442,7 @@ export default observer(function RegularizedInfomap({
             <div className="hidden xl:block">
               <div className="flex flex-col items-center gap-3 text-xs text-gray-700">
                 <div className="space-y-1">
+                  {renderPriorLinksToggleButton()}
                   <label className={CONTROL_LABEL_CLASS}>
                     <strong className={CONTROL_TEXT_CLASS}>
                       <HelpTooltip content={LINK_REMOVAL_HELP} />
@@ -2482,6 +2572,15 @@ export default observer(function RegularizedInfomap({
               width={networkWidth}
               height={networkHeight}
               nodeScale={regularizedNodeScale}
+              underlayChildren={
+                showPriorLinks ? (
+                  <PriorLinksOverlay
+                    network={regularizedNetwork}
+                    links={priorLinks}
+                    nodeScale={regularizedNodeScale}
+                  />
+                ) : undefined
+              }
             />
 
             {datasetState.status === "ready" &&
