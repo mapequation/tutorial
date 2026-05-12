@@ -334,7 +334,7 @@ export default function Main() {
         <p className="mb-4 text-gray-700">
           Below we compare a <strong>one-level partition</strong> and a{" "}
           <strong>two-level partition</strong>. In the one-level partition, the
-          walker uses one shared codebook{" "}
+          walker uses one shared <strong>codebook</strong>{" "}
           <HelpTooltip content={CODEBOOK_HELP} /> for all nodes in the network.
           In the two-level partition, the walker uses an{" "}
           <strong>index codebook</strong> to say which community it is in and a
