@@ -1,11 +1,13 @@
 import {
   Fragment,
   type MouseEvent,
+  type ReactNode,
   useEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
+import TeX from "@matejmazur/react-katex";
 import { Network } from "../model";
 import {
   hierarchical_paper_toy,
@@ -14,6 +16,7 @@ import {
 } from "../networks";
 import { EnterFlow, ExitFlow } from "./CodeBooks";
 import Flow from "./CodeBooks/Flow";
+import HelpTooltip from "./HelpTooltip";
 import { darkenHexColor, scheme } from "./scheme";
 
 interface SvgViewBox {
@@ -59,6 +62,9 @@ interface CodelengthGroup {
   title: string;
   total: number;
   rows: CodelengthRow[];
+  formula?: ReactNode;
+  calculation?: ReactNode;
+  note?: ReactNode;
 }
 
 interface TrianglePoint {
@@ -161,6 +167,16 @@ const RECURSIVE_VIEWBOX = {
   width: 460,
   height: 400,
 } as const;
+const MULTILEVEL_MAP_EQUATION_HELP =
+  "The multilevel map equation recursively asks whether adding coarser or finer index codebooks makes the random-walk description shorter. The number of useful levels is therefore part of the solution.";
+const HIERARCHICAL_CODEBOOK_HELP =
+  "A hierarchical codebook is a nested set of codebooks: broad index codebooks choose large modules, lower index codebooks choose submodules, and the finest module codebooks describe node visits and exits.";
+const TWO_LEVEL_LIMIT_HELP =
+  "A two-level description is restricted to one index codebook plus module codebooks. It can show one useful cross-section of the network, but it cannot simultaneously encode modules, submodules, and deeper substructure.";
+const CODELENGTH_HELP =
+  "Codelength is the expected number of bits printed per step of the random walker. A lower codelength means the partition describes the walk more efficiently.";
+const RECURSIVE_STRUCTURE_HELP =
+  "A recursive structure repeats the same pattern inside itself. Here, triangles contain smaller triangles, which contain still smaller triangles.";
 const RECURSIVE_ROOT_CORNERS: [TrianglePoint, TrianglePoint, TrianglePoint] = [
   { x: 230, y: 42 },
   { x: 100, y: 267 },
@@ -1050,6 +1066,16 @@ function buildCodelengthGroups(): CodelengthGroup[] {
       key: "multilevel",
       title: "Multilevel codelength",
       total: multilevelNetwork.mapequation.codelength,
+      note:
+        "The multilevel sum uses one top index codebook, lower index codebooks inside top modules, and local node-module codebooks.",
+      formula: (
+        <TeX math="L_{\mathrm{multi}}(M)=q_{\curvearrowright}H(\mathcal{Q})+\sum_i q_{\curvearrowright}^{i}H(\mathcal{Q}^{i})+\sum_{ij}p_{\circlearrowright}^{ij}H(\mathcal{P}^{ij})" />
+      ),
+      calculation: (
+        <TeX
+          math={`L_{\\mathrm{multi}}=${topIndex.toFixed(3)}+${submoduleIndex.toFixed(3)}+${multilevelModules.toFixed(3)}=${multilevelNetwork.mapequation.codelength.toFixed(3)}\\ \\text{bits}`}
+        />
+      ),
       rows: [
         {
           key: "top-index",
@@ -1075,6 +1101,16 @@ function buildCodelengthGroups(): CodelengthGroup[] {
       key: "two-level",
       title: "Two-level codelength",
       total: twoLevelNetwork.mapequation.codelength,
+      note:
+        "The two-level sum is the page-3 map equation calculation: index-codebook use plus all module-codebook use.",
+      formula: (
+        <TeX math="L_{\mathrm{two}}(M)=q_{\curvearrowright}H(\mathcal{Q})+\sum_i p_{\circlearrowright}^{i}H(\mathcal{P}^{i})" />
+      ),
+      calculation: (
+        <TeX
+          math={`L_{\\mathrm{two}}=${twoLevelNetwork.mapequation.indexCodelength.toFixed(3)}+${twoLevelNetwork.mapequation.moduleCodelength.toFixed(3)}=${twoLevelNetwork.mapequation.codelength.toFixed(3)}\\ \\text{bits}`}
+        />
+      ),
       rows: [
         {
           key: "two-level-index",
@@ -1109,6 +1145,25 @@ function CodelengthGroupView({ group }: { group: CodelengthGroup }) {
 
   return (
     <div className="w-max max-w-full p-1">
+      {(group.note || group.formula || group.calculation) && (
+        <div className="mb-3 max-w-xl space-y-1.5">
+          {group.note && (
+            <p className="m-0 text-sm leading-relaxed text-gray-600">
+              {group.note}
+            </p>
+          )}
+          {group.formula && (
+            <div className="overflow-x-auto py-1 text-base leading-8 text-gray-900">
+              {group.formula}
+            </div>
+          )}
+          {group.calculation && (
+            <div className="overflow-x-auto py-1 text-base leading-8 text-gray-900">
+              {group.calculation}
+            </div>
+          )}
+        </div>
+      )}
       <div
         className="grid items-baseline gap-x-3 gap-y-1.5"
         style={{
@@ -1138,10 +1193,17 @@ function CodelengthBreakdown() {
   const groups = useMemo(() => buildCodelengthGroups(), []);
 
   return (
-    <div className="mx-auto grid max-w-3xl gap-8 md:grid-cols-[minmax(22rem,1fr)_minmax(17rem,0.8fr)]">
-      {groups.map((group) => (
-        <CodelengthGroupView key={group.key} group={group} />
-      ))}
+    <div className="mx-auto max-w-5xl space-y-4">
+      <p className="m-0 max-w-4xl text-sm leading-relaxed text-gray-600">
+        Following the paper calculation, every term is a codebook contribution:
+        how often that codebook is used multiplied by the entropy of the
+        symbols in it. The total codelength is the sum of those contributions.
+      </p>
+      <div className="grid gap-8 md:grid-cols-2">
+        {groups.map((group) => (
+          <CodelengthGroupView key={group.key} group={group} />
+        ))}
+      </div>
     </div>
   );
 }
@@ -1270,6 +1332,10 @@ function isCodebookItemActive(
   item: CodebookStackItem,
   hoveredTarget: HoverTarget | null,
 ) {
+  if (item.kind === "exit") {
+    return false;
+  }
+
   if (!hoveredTarget) {
     return false;
   }
@@ -1286,16 +1352,7 @@ function isCodebookItemActive(
     return item.role === "fine" && item.fineIndex === hoveredTarget.fineIndex;
   }
 
-  const fineIndex = getFineModuleIndexForNodeId(hoveredTarget.nodeId);
-  const topIndex = getTopModuleIndexForNodeId(hoveredTarget.nodeId);
-
-  return (
-    (item.role === "node" && item.nodeId === hoveredTarget.nodeId) ||
-    (item.role === "fine" && item.fineIndex === fineIndex) ||
-    (hoveredTarget.variant === "multilevel" &&
-      item.role === "top" &&
-      item.topIndex === topIndex)
-  );
+  return item.role === "node" && item.nodeId === hoveredTarget.nodeId;
 }
 
 function getHoverTargetForCodebookItem(
@@ -2032,11 +2089,8 @@ function RawTopologyNetworkView({
           const points = getTrianglePoints(nodeById, module_.cornerNodeIds);
           const active =
             hoveredTarget?.variant === variant &&
-            ((hoveredTarget.kind === "top" &&
-              hoveredTarget.topIndex === module_.topIndex) ||
-              (hoveredTarget.kind === "node" &&
-                getTopModuleIndexForNodeId(hoveredTarget.nodeId) ===
-                  module_.topIndex));
+            hoveredTarget.kind === "top" &&
+            hoveredTarget.topIndex === module_.topIndex;
 
           if (points.length !== 3) {
             return null;
@@ -2067,10 +2121,8 @@ function RawTopologyNetworkView({
           const points = getTrianglePoints(nodeById, module_.nodeIds);
           const active =
             hoveredTarget?.variant === variant &&
-            ((hoveredTarget.kind === "fine" &&
-              hoveredTarget.fineIndex === fineIndex) ||
-              (hoveredTarget.kind === "node" &&
-                module_.nodeIds.includes(hoveredTarget.nodeId)));
+            hoveredTarget.kind === "fine" &&
+            hoveredTarget.fineIndex === fineIndex;
 
           if (points.length !== 3) {
             return null;
@@ -2282,20 +2334,45 @@ function HierarchicalCodebooks() {
       <div className="mb-8 max-w-4xl">
         <h2>Hierarchical codebooks</h2>
         <p>
-          Hierarchical codebooks are the multilevel version of the map equation
-          idea. Instead of naming every part of a network from one flat list,
-          the description can first name a broad region, then a smaller module,
-          and finally the node inside it.
+          The Huffman coding example above showed the map equation with one or
+          two codebook layers. That two-level view is useful for learning the
+          mechanics, but it is a restriction{" "}
+          <HelpTooltip content={TWO_LEVEL_LIMIT_HELP} />. The map equation is
+          naturally multilevel: it can ask how many levels of modules are needed
+          to describe the random walker most efficiently.
         </p>
         <p>
-          This view now starts from the raw Untitled network only. The small
-          triangles are fine modules, and each group of three fine modules forms
-          a roman-numbered top-level module.
+          Hierarchical codebooks{" "}
+          <HelpTooltip content={HIERARCHICAL_CODEBOOK_HELP} /> are the coding
+          structure that makes this possible. Instead of naming every node from
+          one flat list, the walker can name a path through as many nested
+          modules as the network supports, from broad regions through finer
+          submodules until it reaches the node. When a network has nested
+          structure, those shorter local choices can reduce the total
+          codelength.
+        </p>
+        <p className="text-gray-700">
+          The multilevel map equation{" "}
+          <HelpTooltip content={MULTILEVEL_MAP_EQUATION_HELP} /> searches for
+          the shortest description across nested partitions, not just across
+          flat partitions. In the first two network views, both views use the
+          same nodes and links. The multilevel view keeps small triangle modules
+          nested inside larger roman-numbered modules, while the two-level view
+          flattens those same small modules into one layer labeled a-i. The
+          sections below show how those two descriptions become codebooks and
+          codelengths <HelpTooltip content={CODELENGTH_HELP} />.
         </p>
       </div>
 
       <div className="space-y-1">
         <ComparisonNetworkPajekCopyButton />
+        <p className="max-w-4xl text-sm text-gray-600">
+          Start by comparing the two network views. The left view shows the
+          natural nested description: top-level modules I-III contain smaller
+          modules a-c. The right view forces the same network into a two-level
+          cross-section, where the nine small modules are all placed at the same
+          level.
+        </p>
         <div className="grid gap-6 lg:grid-cols-2">
           <RawTopologyNetworkView
             title="Multilevel network view"
@@ -2312,11 +2389,33 @@ function HierarchicalCodebooks() {
             onHoverTargetChange={setHoveredTarget}
           />
         </div>
+        <p className="max-w-4xl pt-3 text-sm text-gray-600">
+          The codebook visualization translates those module labels into stacks
+          of codebook entries. In the multilevel description, the path goes from
+          a top index codebook to a lower index codebook and then to the local
+          node module codebook. In the two-level description, the top index is
+          not available, so all small modules must be selected from one flat
+          index.
+        </p>
         <CodebookComparison
           hoveredTarget={hoveredTarget}
           onHoverTargetChange={setHoveredTarget}
         />
+        <p className="max-w-4xl pt-3 text-sm text-gray-600">
+          The codelength section compares how many bits each description needs
+          on average. A multilevel solution is not better just because it has
+          more levels: the extra index codebooks must pay for themselves by
+          making the random walk easier to describe. When the nested structure
+          matches the flow, the multilevel description can be shorter.
+        </p>
         <CodelengthBreakdown />
+        <p className="max-w-4xl pt-6 text-sm text-gray-600">
+          The recursive triangle{" "}
+          <HelpTooltip content={RECURSIVE_STRUCTURE_HELP} /> is a larger example
+          of the same principle. Zooming in shows that the same triangular
+          pattern keeps repeating, which is exactly the kind of nested structure
+          hierarchical codebooks are meant to describe.
+        </p>
         <RecursiveTriangleZoomNetwork />
       </div>
     </section>
