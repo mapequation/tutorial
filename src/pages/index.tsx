@@ -62,7 +62,7 @@ const Home: NextPage = () => {
             </div>
             <div className="relative">
               <img
-                src="/demo/images/map-1.png"
+                src="/tutorial/images/map-1.png"
                 alt="Map over Europe"
                 className="filter-grayscale-25 object-cover rounded-xl shadow-xl"
               />
