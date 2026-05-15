@@ -28,7 +28,7 @@ const Home: NextPage = () => {
           <div className="col-span-1 xl:mt-12 mb-20">
             <img
               className="rounded-full w-1/2 mx-auto xl:w-full"
-              src="/demo/images/hairball.png"
+              src="/tutorial/images/hairball.png"
               alt="Hairball graph"
             />
           </div>
@@ -56,7 +56,7 @@ const Home: NextPage = () => {
             <div>
               <img
                 className="filter-grayscale-25 object-cover rounded-full shadow-xl"
-                src="/demo/images/globe.png"
+                src="/tutorial/images/globe.png"
                 alt="The Earth"
               />
             </div>
@@ -69,14 +69,14 @@ const Home: NextPage = () => {
             </div>
             <div className="relative">
               <img
-                src="/demo/images/map-2.png"
+                src="/tutorial/images/map-2.png"
                 alt="Map over Umeå"
                 className="filter-grayscale-25 object-cover rounded-xl shadow-xl"
               />
             </div>
             <div className="relative">
               <img
-                src="/demo/images/map-3.png"
+                src="/tutorial/images/map-3.png"
                 alt="Map over Umeå University"
                 className="filter-grayscale-25 object-cover rounded-xl shadow-xl"
               />
