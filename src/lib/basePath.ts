@@ -3,7 +3,7 @@
  * Uses NEXT_PUBLIC_BASE_PATH environment variable, defaults to '/demo'
  */
 export function getBasePath(): string {
-    return process.env.NEXT_PUBLIC_BASE_PATH || '/demo';
+    return process.env.NEXT_PUBLIC_BASE_PATH || '/map-demo';
 }
 
 /**
