@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const webpack = require('webpack');
 
-const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '/demo';
+const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '/map-demo';
 
 module.exports = {
   reactStrictMode: true,
