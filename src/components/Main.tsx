@@ -101,14 +101,14 @@ export default observer(function Main() {
         <div>
           <img
             className="rounded-lg shadow-lg"
-            src="/demo/images/compression-top.png"
+            src="/tutorial/images/compression-top.png"
             alt="top"
           />
         </div>
         <div>
           <img
             className="rounded-lg shadow-lg"
-            src="/demo/images/compression-bottom.png"
+            src="/tutorial/images/compression-bottom.png"
             alt=""
           />
         </div>
