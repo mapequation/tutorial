@@ -8,15 +8,20 @@ import {
   useState,
 } from "react";
 import TeX from "@matejmazur/react-katex";
+import { observer } from "mobx-react";
 import { Network } from "../model";
+import type RandomWalker from "../model/algorithms/RandomWalker";
 import {
   hierarchical_paper_toy,
   hierarchicalPaperToyTopology,
   paperToyFineModules,
 } from "../networks";
+import Button from "./Button";
 import { EnterFlow, ExitFlow } from "./CodeBooks";
 import Flow from "./CodeBooks/Flow";
 import HelpTooltip from "./HelpTooltip";
+import Walker from "./Network/Walker";
+import WalkTrace from "./Network/WalkTrace";
 import { darkenHexColor, scheme } from "./scheme";
 
 interface SvgViewBox {
@@ -81,10 +86,26 @@ interface RecursiveTriangleModule {
 
 type NetworkViewVariant = "multilevel" | "two-level";
 type CodebookBlockKind = "enter" | "exit" | "node";
+type CodebookColumnKey =
+  | "multilevel-top-index"
+  | "multilevel-sub-index"
+  | "multilevel-module"
+  | "two-level-index"
+  | "two-level-module";
 type HoverTarget =
   | { variant: NetworkViewVariant; kind: "top"; topIndex: number }
   | { variant: NetworkViewVariant; kind: "fine"; fineIndex: number }
   | { variant: NetworkViewVariant; kind: "node"; nodeId: number };
+
+interface CodebookActivation {
+  itemKeys: Set<string>;
+  columnKeys: Set<CodebookColumnKey>;
+}
+
+interface CodebookColumnCounterState {
+  stepsSinceLast: number | null;
+  activationCount: number;
+}
 
 const VIEWBOX = {
   width: 800,
@@ -128,6 +149,13 @@ const CODEBOOK_BLOCK = {
   gap: 1,
   pointer: 6.4,
 } as const;
+const CODEBOOK_COLUMN_KEYS: CodebookColumnKey[] = [
+  "multilevel-top-index",
+  "multilevel-sub-index",
+  "multilevel-module",
+  "two-level-index",
+  "two-level-module",
+];
 const CODEBOOK_STACK_HEIGHT = 230;
 const INTER_MODULE_LINK_WEIGHT = 0.85;
 const RECURSIVE_TRIANGLE_LEVELS = 6;
@@ -1013,7 +1041,7 @@ function buildRecursiveCodelengthGroups(
       rows: [
         {
           key: "recursive-two-level-index",
-          label: "Index",
+          label: "Index (A, B, C)",
           value: recursiveTwoLevelIndexCodelength,
           color: "#4b5563",
         },
@@ -1038,6 +1066,222 @@ function createTwoLevelNetwork() {
   });
 
   return network.finalize();
+}
+
+function applyPaperToyPositions(network: Network) {
+  const positions = buildPositionedNodes();
+
+  positions.forEach((position) => {
+    const node = network.getNode(position.id);
+
+    if (!node) {
+      return;
+    }
+
+    node.x = position.x;
+    node.y = position.y;
+  });
+
+  return network;
+}
+
+function createHierarchicalWalkerNetwork() {
+  const network = applyPaperToyPositions(Network.parse(hierarchical_paper_toy));
+
+  network.walker.setTeleportRate(0);
+
+  return network;
+}
+
+function getCodebookActivationForTransition(
+  variant: NetworkViewVariant,
+  currentNodeId: number | null,
+  previousNodeId: number | null,
+): CodebookActivation {
+  const itemKeys = new Set<string>();
+  const columnKeys = new Set<CodebookColumnKey>();
+
+  if (currentNodeId === null) {
+    return { itemKeys, columnKeys };
+  }
+
+  const currentFineIndex = getFineModuleIndexForNodeId(currentNodeId);
+  const currentFineModule = fineModules[currentFineIndex];
+
+  if (!currentFineModule) {
+    return { itemKeys, columnKeys };
+  }
+
+  const previousFineIndex =
+    previousNodeId === null ? null : getFineModuleIndexForNodeId(previousNodeId);
+  const previousFineModule =
+    previousFineIndex === null ? null : fineModules[previousFineIndex];
+  const currentTopIndex = getTopModuleIndexForNodeId(currentNodeId);
+  const previousTopIndex =
+    previousNodeId === null ? null : getTopModuleIndexForNodeId(previousNodeId);
+  const changedFineModule =
+    previousFineIndex === null || previousFineIndex !== currentFineIndex;
+  const changedTopModule =
+    previousTopIndex === null || previousTopIndex !== currentTopIndex;
+
+  if (variant === "multilevel") {
+    itemKeys.add(`multilevel-node-${currentFineModule.key}-${currentNodeId}`);
+    columnKeys.add("multilevel-module");
+
+    if (changedFineModule) {
+      itemKeys.add(`subindex-enter-${currentFineModule.key}`);
+      columnKeys.add("multilevel-sub-index");
+    }
+
+    if (previousFineModule && changedFineModule) {
+      itemKeys.add(`multilevel-exit-${previousFineModule.key}`);
+      columnKeys.add("multilevel-module");
+    }
+
+    if (changedTopModule) {
+      const currentTopModule = topModules[currentTopIndex];
+
+      if (currentTopModule) {
+        itemKeys.add(`top-index-${currentTopModule.key}`);
+        columnKeys.add("multilevel-top-index");
+      }
+    }
+
+    if (previousTopIndex !== null && changedTopModule) {
+      const previousTopModule = topModules[previousTopIndex];
+
+      if (previousTopModule) {
+        itemKeys.add(`subindex-exit-${previousTopModule.key}`);
+        columnKeys.add("multilevel-sub-index");
+      }
+    }
+
+    return { itemKeys, columnKeys };
+  }
+
+  itemKeys.add(`two-level-node-${currentFineModule.key}-${currentNodeId}`);
+  columnKeys.add("two-level-module");
+
+  if (changedFineModule) {
+    itemKeys.add(`two-level-index-${currentFineModule.key}`);
+    columnKeys.add("two-level-index");
+  }
+
+  if (previousFineModule && changedFineModule) {
+    itemKeys.add(`two-level-exit-${previousFineModule.key}`);
+    columnKeys.add("two-level-module");
+  }
+
+  return { itemKeys, columnKeys };
+}
+
+function getCodebookActiveItemKeys(walker: RandomWalker) {
+  const activeKeys = new Set<string>();
+
+  (["multilevel", "two-level"] as const).forEach((variant) => {
+    const activation = getCodebookActivationForTransition(
+      variant,
+      walker.current?.id ?? null,
+      walker.prev?.id ?? null,
+    );
+
+    activation.itemKeys.forEach((key) => activeKeys.add(key));
+  });
+
+  return activeKeys;
+}
+
+function createEmptyColumnActivationTotals() {
+  return new Map<CodebookColumnKey, number>(
+    CODEBOOK_COLUMN_KEYS.map((columnKey) => [columnKey, 0] as const),
+  );
+}
+
+function useCodebookColumnActivationTotals(walker: RandomWalker) {
+  const totalsRef = useRef(createEmptyColumnActivationTotals());
+  const lastProcessedStepRef = useRef(0);
+  const trace = Array.from(walker.trace);
+  const totalVisits = walker.totalVisits;
+  const firstVisibleStep = totalVisits - trace.length + 1;
+  const shouldReset = totalVisits < lastProcessedStepRef.current;
+
+  if (shouldReset) {
+    totalsRef.current = createEmptyColumnActivationTotals();
+    lastProcessedStepRef.current = 0;
+  }
+
+  trace.forEach((currentNodeId, traceIndex) => {
+    const stepNumber = firstVisibleStep + traceIndex;
+
+    if (stepNumber <= lastProcessedStepRef.current) {
+      return;
+    }
+
+    const previousNodeId = traceIndex > 0 ? trace[traceIndex - 1] : null;
+
+    (["multilevel", "two-level"] as const).forEach((variant) => {
+      const activation = getCodebookActivationForTransition(
+        variant,
+        currentNodeId,
+        previousNodeId,
+      );
+
+      activation.columnKeys.forEach((columnKey) => {
+        totalsRef.current.set(
+          columnKey,
+          (totalsRef.current.get(columnKey) ?? 0) + 1,
+        );
+      });
+    });
+
+    lastProcessedStepRef.current = stepNumber;
+  });
+
+  return totalsRef.current;
+}
+
+function getCodebookColumnCounters(
+  walker: RandomWalker,
+  activationTotals: Map<CodebookColumnKey, number>,
+) {
+  const lastUsedStep = new Map<CodebookColumnKey, number>();
+  const trace = Array.from(walker.trace);
+
+  trace.forEach((currentNodeId, traceIndex) => {
+    const previousNodeId = traceIndex > 0 ? trace[traceIndex - 1] : null;
+
+    (["multilevel", "two-level"] as const).forEach((variant) => {
+      const activation = getCodebookActivationForTransition(
+        variant,
+        currentNodeId,
+        previousNodeId,
+      );
+
+      activation.columnKeys.forEach((columnKey) => {
+        lastUsedStep.set(columnKey, traceIndex + 1);
+      });
+    });
+  });
+
+  return new Map(
+    CODEBOOK_COLUMN_KEYS.map((columnKey) => {
+      const lastStep = lastUsedStep.get(columnKey);
+      const stepsSinceLast =
+        lastStep === undefined
+          ? trace.length > 0 && walker.totalVisits > trace.length
+            ? -trace.length
+            : null
+          : trace.length - lastStep;
+
+      return [
+        columnKey,
+        {
+          stepsSinceLast,
+          activationCount: activationTotals.get(columnKey) ?? 0,
+        },
+      ] as const;
+    }),
+  );
 }
 
 function buildCodelengthGroups(): CodelengthGroup[] {
@@ -1131,6 +1375,22 @@ function buildCodelengthGroups(): CodelengthGroup[] {
 
 function formatBits(value: number) {
   return `${value.toFixed(3)} bits`;
+}
+
+function formatStepsSinceUsed(value: number | null | undefined) {
+  if (value === null || value === undefined) {
+    return "not used";
+  }
+
+  if (value === 0) {
+    return "now";
+  }
+
+  if (value < 0) {
+    return `${Math.abs(value)}+ steps ago`;
+  }
+
+  return value === 1 ? "1 step ago" : `${value} steps ago`;
 }
 
 function CodelengthGroupView({ group }: { group: CodelengthGroup }) {
@@ -1331,7 +1591,12 @@ interface CodebookStackItem {
 function isCodebookItemActive(
   item: CodebookStackItem,
   hoveredTarget: HoverTarget | null,
+  activeItemKeys: Set<string>,
 ) {
+  if (activeItemKeys.has(item.key)) {
+    return true;
+  }
+
   if (item.kind === "exit") {
     return false;
   }
@@ -1447,12 +1712,14 @@ function CodebookStack({
   y,
   items,
   hoveredTarget,
+  activeItemKeys,
   onHoverTargetChange,
 }: {
   x: number;
   y: number;
   items: CodebookStackItem[];
   hoveredTarget: HoverTarget | null;
+  activeItemKeys: Set<string>;
   onHoverTargetChange: (target: HoverTarget | null) => void;
 }) {
   const { blockHeight } = getStackMetrics(items.length);
@@ -1479,7 +1746,7 @@ function CodebookStack({
               color={item.color}
               kind={item.kind}
               label={item.label}
-              active={isCodebookItemActive(item, hoveredTarget)}
+              active={isCodebookItemActive(item, hoveredTarget, activeItemKeys)}
             />
           </g>
         );
@@ -1488,10 +1755,46 @@ function CodebookStack({
   );
 }
 
-function CodebookComparison({
+function CodebookColumnCounter({
+  x,
+  y,
+  counter,
+  showLastUsed = true,
+}: {
+  x: number;
+  y: number;
+  counter: CodebookColumnCounterState | undefined;
+  showLastUsed?: boolean;
+}) {
+  const activationCount = counter?.activationCount ?? 0;
+
+  return (
+    <text
+      x={x}
+      y={y}
+      textAnchor="middle"
+      fontSize={7.2}
+      fontWeight={800}
+      fill="#4b5563"
+    >
+      {showLastUsed && (
+        <tspan x={x}>
+          last: {formatStepsSinceUsed(counter?.stepsSinceLast)}
+        </tspan>
+      )}
+      <tspan x={x} dy={showLastUsed ? 9.2 : 0}>
+        total: {activationCount}
+      </tspan>
+    </text>
+  );
+}
+
+const CodebookComparison = observer(function CodebookComparison({
+  walker,
   hoveredTarget,
   onHoverTargetChange,
 }: {
+  walker: RandomWalker;
   hoveredTarget: HoverTarget | null;
   onHoverTargetChange: (target: HoverTarget | null) => void;
 }) {
@@ -1503,6 +1806,12 @@ function CodebookComparison({
   const moduleX = multilevelX + 180;
   const twoLevelIndexX = twoLevelX + 8;
   const twoLevelModuleX = twoLevelX + 112;
+  const activeItemKeys = getCodebookActiveItemKeys(walker);
+  const columnActivationTotals = useCodebookColumnActivationTotals(walker);
+  const columnCounters = getCodebookColumnCounters(
+    walker,
+    columnActivationTotals,
+  );
   const topIndexItems: CodebookStackItem[] = topModules.map((module_) => ({
     key: `top-index-${module_.key}`,
     kind: "enter",
@@ -1599,7 +1908,7 @@ function CodebookComparison({
     <div className="-mt-6 p-0">
       <h3 className="sr-only">Codebook comparison</h3>
       <svg
-        viewBox="0 0 820 246"
+        viewBox="0 0 820 274"
         className="block w-full overflow-visible"
         role="img"
         aria-label="Codebook comparison"
@@ -1671,6 +1980,7 @@ function CodebookComparison({
           y={panelY}
           items={topIndexItems}
           hoveredTarget={hoveredTarget}
+          activeItemKeys={activeItemKeys}
           onHoverTargetChange={onHoverTargetChange}
         />
         <CodebookStack
@@ -1678,6 +1988,7 @@ function CodebookComparison({
           y={panelY}
           items={subIndexItems}
           hoveredTarget={hoveredTarget}
+          activeItemKeys={activeItemKeys}
           onHoverTargetChange={onHoverTargetChange}
         />
         <CodebookStack
@@ -1685,6 +1996,7 @@ function CodebookComparison({
           y={panelY}
           items={multilevelModuleItems}
           hoveredTarget={hoveredTarget}
+          activeItemKeys={activeItemKeys}
           onHoverTargetChange={onHoverTargetChange}
         />
         <line
@@ -1727,6 +2039,7 @@ function CodebookComparison({
           y={panelY}
           items={twoLevelIndexItems}
           hoveredTarget={hoveredTarget}
+          activeItemKeys={activeItemKeys}
           onHoverTargetChange={onHoverTargetChange}
         />
         <CodebookStack
@@ -1734,12 +2047,99 @@ function CodebookComparison({
           y={panelY}
           items={twoLevelModuleItems}
           hoveredTarget={hoveredTarget}
+          activeItemKeys={activeItemKeys}
           onHoverTargetChange={onHoverTargetChange}
+        />
+        <CodebookColumnCounter
+          x={topIndexX + CODEBOOK_BLOCK.width / 2}
+          y={250}
+          counter={columnCounters.get("multilevel-top-index")}
+        />
+        <CodebookColumnCounter
+          x={subIndexX + CODEBOOK_BLOCK.width / 2}
+          y={250}
+          counter={columnCounters.get("multilevel-sub-index")}
+        />
+        <CodebookColumnCounter
+          x={moduleX + CODEBOOK_BLOCK.width / 2}
+          y={250}
+          counter={columnCounters.get("multilevel-module")}
+          showLastUsed={false}
+        />
+        <CodebookColumnCounter
+          x={twoLevelIndexX + CODEBOOK_BLOCK.width / 2}
+          y={250}
+          counter={columnCounters.get("two-level-index")}
+        />
+        <CodebookColumnCounter
+          x={twoLevelModuleX + CODEBOOK_BLOCK.width / 2}
+          y={250}
+          counter={columnCounters.get("two-level-module")}
+          showLastUsed={false}
         />
       </svg>
     </div>
   );
-}
+});
+
+const HierarchicalWalkerControls = observer(function HierarchicalWalkerControls({
+  network,
+  speed,
+  onSpeedChange,
+}: {
+  network: Network;
+  speed: number;
+  onSpeedChange: (speed: number) => void;
+}) {
+  const { walker } = network;
+  const buttonStyle = {
+    padding: "0.35rem 0.75rem",
+    fontSize: "0.85rem",
+    textAlign: "center",
+    justifyContent: "center",
+  } as const;
+
+  return (
+    <div className="flex flex-row flex-nowrap items-center justify-start gap-3 overflow-x-auto py-2 text-sm lg:flex-col lg:justify-start lg:overflow-visible lg:px-2 lg:pt-24 xl:items-center">
+      <Button
+        className="button shrink-0 whitespace-nowrap"
+        style={{ ...buttonStyle, width: "4.8rem" }}
+        onClick={() => {
+          walker.reset();
+          walker.step();
+        }}
+      >
+        Reset
+      </Button>
+      <Button
+        className="button shrink-0 whitespace-nowrap"
+        style={{ ...buttonStyle, width: "4.4rem" }}
+        onClick={() => walker.step()}
+      >
+        Step
+      </Button>
+      <Button
+        className={`button shrink-0 whitespace-nowrap ${walker.isStarted ? "button--primary" : ""}`}
+        style={{ ...buttonStyle, width: "5.8rem" }}
+        onClick={() => (walker.isStarted ? walker.stop() : walker.start())}
+      >
+        {walker.isStarted ? "Stop" : "Start"}
+      </Button>
+      <label className="flex shrink-0 flex-col items-center gap-1 text-xs font-semibold text-gray-600">
+        <input
+          className="h-4 w-28 lg:w-24"
+          type="range"
+          min={1}
+          max={12}
+          step={1}
+          value={speed}
+          onChange={(event) => onSpeedChange(Number(event.target.value))}
+        />
+        <span>{speed} steps/s</span>
+      </label>
+    </div>
+  );
+});
 
 function RecursiveTriangleZoomNetwork() {
   const [selectedPath, setSelectedPath] = useState<number[]>([]);
@@ -2051,16 +2451,18 @@ function RecursiveTriangleZoomNetwork() {
   );
 }
 
-function RawTopologyNetworkView({
+const RawTopologyNetworkView = observer(function RawTopologyNetworkView({
   title,
   description,
   variant,
+  walker,
   hoveredTarget,
   onHoverTargetChange,
 }: {
   title: string;
   description: string;
   variant: NetworkViewVariant;
+  walker: RandomWalker;
   hoveredTarget: HoverTarget | null;
   onHoverTargetChange: (target: HoverTarget | null) => void;
 }) {
@@ -2076,15 +2478,21 @@ function RawTopologyNetworkView({
         <h3 className="m-0 text-base font-bold text-gray-900">{title}</h3>
         <p className="m-0 mt-1 text-sm text-gray-600">{description}</p>
       </div>
-      <svg
-        viewBox={formatViewBox(ROOT_VIEWBOX)}
-        className="block w-full overflow-visible"
-        style={{
-          aspectRatio: `${ROOT_VIEWBOX.width} / ${ROOT_VIEWBOX.height}`,
-        }}
-        role="img"
-        aria-label={title}
-      >
+      <div className="relative">
+        {variant === "two-level" && (
+          <div className="absolute right-2 top-2 z-10">
+            <ComparisonNetworkPajekCopyButton />
+          </div>
+        )}
+        <svg
+          viewBox={formatViewBox(ROOT_VIEWBOX)}
+          className="block w-full overflow-visible"
+          style={{
+            aspectRatio: `${ROOT_VIEWBOX.width} / ${ROOT_VIEWBOX.height}`,
+          }}
+          role="img"
+          aria-label={title}
+        >
         {topModules.map((module_) => {
           const points = getTrianglePoints(nodeById, module_.cornerNodeIds);
           const active =
@@ -2186,6 +2594,19 @@ function RawTopologyNetworkView({
             />
           );
         })}
+        <WalkTrace
+          walker={walker}
+          stroke="#111827"
+          opacity={0.28}
+          minWidth={1.5}
+          maxWidth={8}
+          maxVisiblePaths={10}
+          stableSegments
+          getStableSegmentStroke={(source, target) => ({
+            from: getFineModuleForNodeId(source.id).color,
+            to: getFineModuleForNodeId(target.id).color,
+          })}
+        />
         {fineModules.map((module_, fineIndex) => {
           const points = getTrianglePoints(nodeById, module_.nodeIds);
           const center = getCentroid(points);
@@ -2251,6 +2672,7 @@ function RawTopologyNetworkView({
             hoveredTarget?.variant === variant &&
             hoveredTarget.kind === "node" &&
             hoveredTarget.nodeId === node.id;
+          const visiting = walker.current?.id === node.id;
 
           return (
             <g
@@ -2263,11 +2685,14 @@ function RawTopologyNetworkView({
               <circle
                 cx={node.x}
                 cy={node.y}
-                r={active ? NODE_RADIUS + 1 : NODE_RADIUS}
+                r={active || visiting ? NODE_RADIUS + 1 : NODE_RADIUS}
                 fill={module_.color}
-                fillOpacity={0.94}
-                stroke={darkenHexColor(module_.color, active ? 0.48 : 0.28)}
-                strokeWidth={active ? 1.55 : 1.1}
+                fillOpacity={visiting ? 1 : 0.94}
+                stroke={darkenHexColor(
+                  module_.color,
+                  active || visiting ? 0.52 : 0.28,
+                )}
+                strokeWidth={active || visiting ? 1.65 : 1.1}
                 vectorEffect="non-scaling-stroke"
               />
               <text
@@ -2285,10 +2710,20 @@ function RawTopologyNetworkView({
             </g>
           );
         })}
-      </svg>
+        <Walker
+          walker={walker}
+          r={7.6}
+          fill="#111827"
+          teleportFill="#991b1b"
+          stroke="#ffffff"
+          strokeWidth={1.2}
+          squishy={false}
+        />
+        </svg>
+      </div>
     </div>
   );
-}
+});
 
 function ComparisonNetworkPajekCopyButton() {
   const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "failed">(
@@ -2310,24 +2745,36 @@ function ComparisonNetworkPajekCopyButton() {
   };
 
   return (
-    <div className="flex justify-end">
-      <button
-        type="button"
-        className="rounded-full border border-gray-300 px-2 py-1 text-xs font-bold text-gray-600"
-        onClick={handleCopyPajek}
-      >
-        {copyStatus === "copied"
-          ? "Copied"
-          : copyStatus === "failed"
-            ? "Copy failed"
-            : "Copy Pajek"}
-      </button>
-    </div>
+    <button
+      type="button"
+      className="rounded-full border border-gray-300 bg-white/90 px-2 py-1 text-xs font-bold text-gray-600 shadow-sm"
+      onClick={handleCopyPajek}
+    >
+      {copyStatus === "copied"
+        ? "Copied"
+        : copyStatus === "failed"
+          ? "Copy failed"
+          : "Copy Pajek"}
+    </button>
   );
 }
 
 function HierarchicalCodebooks() {
   const [hoveredTarget, setHoveredTarget] = useState<HoverTarget | null>(null);
+  const [walkerSpeed, setWalkerSpeed] = useState(3);
+  const walkerNetwork = useMemo(() => createHierarchicalWalkerNetwork(), []);
+  const handleWalkerSpeedChange = (speed: number) => {
+    setWalkerSpeed(speed);
+    walkerNetwork.walker.setSpeed(speed);
+  };
+
+  useEffect(() => {
+    if (!walkerNetwork.walker.current) {
+      walkerNetwork.walker.step();
+    }
+
+    return () => walkerNetwork.walker.stop();
+  }, [walkerNetwork]);
 
   return (
     <section id="hierarchical-codebooks" className="col-span-4 mb-48">
@@ -2365,7 +2812,6 @@ function HierarchicalCodebooks() {
       </div>
 
       <div className="space-y-1">
-        <ComparisonNetworkPajekCopyButton />
         <p className="max-w-4xl text-sm text-gray-600">
           Start by comparing the two network views. The left view shows the
           natural nested description: top-level modules I-III contain smaller
@@ -2373,18 +2819,27 @@ function HierarchicalCodebooks() {
           cross-section, where the nine small modules are all placed at the same
           level.
         </p>
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:items-start">
           <RawTopologyNetworkView
             title="Multilevel network view"
             description="Small triangles are fine modules; each large triangle is a top-level module."
             variant="multilevel"
+            walker={walkerNetwork.walker}
             hoveredTarget={hoveredTarget}
             onHoverTargetChange={setHoveredTarget}
           />
+          <div className="order-first lg:order-none">
+            <HierarchicalWalkerControls
+              network={walkerNetwork}
+              speed={walkerSpeed}
+              onSpeedChange={handleWalkerSpeedChange}
+            />
+          </div>
           <RawTopologyNetworkView
             title="Two-level network view"
             description="The same raw topology, ready for the flat two-level grouping comparison."
             variant="two-level"
+            walker={walkerNetwork.walker}
             hoveredTarget={hoveredTarget}
             onHoverTargetChange={setHoveredTarget}
           />
@@ -2398,6 +2853,7 @@ function HierarchicalCodebooks() {
           index.
         </p>
         <CodebookComparison
+          walker={walkerNetwork.walker}
           hoveredTarget={hoveredTarget}
           onHoverTargetChange={setHoveredTarget}
         />
