@@ -3,11 +3,14 @@ import {
   useEffect,
   useRef,
   useState,
-  useMemo,
   type ReactNode,
 } from "react";
 import { observer } from "mobx-react";
-import { Network as NetworkModel, Node as NodeModel, Rate } from "../model";
+import {
+  Network as NetworkModel,
+  Node as NodeModel,
+  Rate,
+} from "../model";
 import { modular_w_json } from "../networks";
 import { getAssetPath } from "../lib/basePath";
 import {
@@ -41,6 +44,22 @@ const network = NetworkModel.parse(modular_w_json).setNodeExtents(
   [50, 650],
   [50, 700],
 );
+
+function applyBadSolution(targetNetwork: NetworkModel) {
+  targetNetwork.getNode(2)?.setTopModule(4);
+  targetNetwork.getNode(4)?.setTopModule(4);
+  targetNetwork.getNode(8)?.setTopModule(0);
+  targetNetwork.getNode(9)?.setTopModule(0);
+  targetNetwork.getNode(11)?.setTopModule(0);
+  targetNetwork.getNode(13)?.setTopModule(4);
+  targetNetwork.getNode(14)?.setTopModule(4);
+  targetNetwork.getNode(17)?.setTopModule(3);
+  targetNetwork.getNode(20)?.setTopModule(3);
+  targetNetwork.getNode(21)?.setTopModule(3);
+}
+
+applyBadSolution(network);
+network.finalize();
 
 function CodelengthOverlay({
   x,
@@ -93,6 +112,10 @@ function formatRelativeCodelength(
 
 const NUM_COMMUNITIES = 8;
 const NODE_ID_DARKEN_AMOUNT = 0.42;
+const ONE_LEVEL_FLOW_PULSE_INTERVAL_MS = 3000;
+const ONE_LEVEL_FLOW_BLOB_ARRIVAL_MS = 2250;
+const ONE_LEVEL_FLOW_RATE_STEPS = 5;
+const ONE_LEVEL_FLOW_RATE_BASELINE = 0.02;
 const CODEBOOK_HELP =
   "A codebook is the list of symbols the walker can print and the binary code assigned to each symbol. Short codes are used for common events, and longer codes are used for rarer events.";
 const INDEX_CODELENGTH_HELP =
@@ -113,6 +136,115 @@ function getModuleTraceStroke(source: NodeModel, target: NodeModel) {
     from: getModuleTraceColor(source.topModule),
     to: getModuleTraceColor(target.topModule),
   };
+}
+
+const ONE_LEVEL_FLOW_NODE_RADIUS = 28;
+
+function linkEndpoints(
+  source: NodeModel,
+  target: NodeModel,
+  radius = ONE_LEVEL_FLOW_NODE_RADIUS,
+) {
+  const x1 = source.x || 0;
+  const y1 = source.y || 0;
+  const x2 = target.x || 0;
+  const y2 = target.y || 0;
+  const dx = x2 - x1 || 1e-6;
+  const dy = y2 - y1 || 1e-6;
+  const length = Math.sqrt(dx * dx + dy * dy);
+  const unitX = dx / length;
+  const unitY = dy / length;
+
+  return {
+    x1: x1 + radius * unitX,
+    y1: y1 + radius * unitY,
+    x2: x2 - radius * unitX,
+    y2: y2 - radius * unitY,
+  };
+}
+
+function getOneLevelReceivedFlowRates(network: NetworkModel) {
+  const rates = new Map(network.nodes.map((node) => [node.id, 0]));
+
+  network.links.forEach((link) => {
+    if (network.directed) {
+      rates.set(link.target.id, (rates.get(link.target.id) ?? 0) + link.flow);
+      return;
+    }
+
+    const flowPerDirection = link.flow / 2;
+    rates.set(
+      link.source.id,
+      (rates.get(link.source.id) ?? 0) + flowPerDirection,
+    );
+    rates.set(
+      link.target.id,
+      (rates.get(link.target.id) ?? 0) + flowPerDirection,
+    );
+  });
+
+  return rates;
+}
+
+function OneLevelFlowPulses({
+  network,
+  animationKey,
+}: {
+  network: NetworkModel;
+  animationKey: number;
+}) {
+  const maxFlow = Math.max(...network.links.map((link) => link.flow), 1e-6);
+
+  const pulses = network.links.flatMap((link, index) => [
+    { link, source: link.source, target: link.target, key: `${index}-forward` },
+    { link, source: link.target, target: link.source, key: `${index}-back` },
+  ]);
+
+  return (
+    <g key={`one-level-flow-pulses-${animationKey}`} pointerEvents="none">
+      {pulses.map(({ link, source, target, key }, index) => {
+        const { x1, y1, x2, y2 } = linkEndpoints(source, target);
+        const radius = 4.5 + 11 * Math.sqrt(link.flow / maxFlow);
+        const begin = `${(index % 8) * 0.035}s`;
+
+        return (
+          <circle
+            key={key}
+            cx={x1}
+            cy={y1}
+            r={radius}
+            fill="#4b5563"
+            opacity={0}
+          >
+            <animate
+              attributeName="cx"
+              values={`${x1};${x2};${x2}`}
+              keyTimes="0;0.667;1"
+              dur="3s"
+              begin={begin}
+              repeatCount="indefinite"
+            />
+            <animate
+              attributeName="cy"
+              values={`${y1};${y2};${y2}`}
+              keyTimes="0;0.667;1"
+              dur="3s"
+              begin={begin}
+              repeatCount="indefinite"
+            />
+            <animate
+              attributeName="opacity"
+              values="0;0.72;0.72;0;0"
+              keyTimes="0;0.05;0.6;0.667;1"
+              dur="3s"
+              begin={begin}
+              repeatCount="indefinite"
+            />
+          </circle>
+        );
+      })}
+    </g>
+  );
 }
 
 const OneLevelCodelengthOverlay = observer(function OneLevelCodelengthOverlay({
@@ -176,19 +308,80 @@ const TwoLevelCodelengthOverlay = observer(function TwoLevelCodelengthOverlay({
   );
 });
 
+function ArticleSection({
+  id,
+  eyebrow,
+  title,
+  children,
+  className = "",
+}: {
+  id?: string;
+  eyebrow?: string;
+  title?: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <section
+      id={id}
+      className={`col-span-4 mb-40 scroll-mt-16 ${className}`.trim()}
+    >
+      {(eyebrow || title) && (
+        <div className="mb-8 max-w-3xl">
+          {eyebrow && (
+            <p className="mb-2 text-sm font-black uppercase tracking-[0.22em] text-[#b22222]">
+              {eyebrow}
+            </p>
+          )}
+          {title && <h2 className="mb-4 mt-0">{title}</h2>}
+        </div>
+      )}
+      {children}
+    </section>
+  );
+}
+
+function ArticleStep({
+  label,
+  title,
+  children,
+}: {
+  label: string;
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="py-5">
+      <div className="mb-2 flex items-center gap-3">
+        <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#b22222] text-xs font-black text-white">
+          {label}
+        </span>
+        <h3 className="m-0 text-base font-bold">{title}</h3>
+      </div>
+      <div className="text-sm leading-relaxed text-gray-600">{children}</div>
+    </div>
+  );
+}
+
 /**
  * Main demo component embedding the interactive visualizations and
  * explanatory text. This component is NOT observed to prevent re-rendering
  * on every walker step. Walker-dependent components are isolated.
  */
 export default function Main() {
-  const [rate, setRate] = useState(Rate.Uniform);
   const [speed, setSpeed] = useState(3);
-  const [showOptimized, setShowOptimized] = useState(true);
+  const [showOptimized, setShowOptimized] = useState(false);
   const [showVisitRates, setShowVisitRates] = useState(false);
   const [showLinkWeights, setShowLinkWeights] = useState(false);
   const [activeCommunity, setActiveCommunity] = useState(0);
+  const [oneLevelFlowPulseIndex, setOneLevelFlowPulseIndex] = useState(0);
+  const [oneLevelFlowActive, setOneLevelFlowActive] = useState(false);
+  const [oneLevelFlowAnimationKey, setOneLevelFlowAnimationKey] = useState(0);
   const firstNetworkRef = useRef<HTMLDivElement>(null);
+  const oneLevelFlowRef = useRef<HTMLDivElement>(null);
+  const oneLevelFlowRateScale =
+    oneLevelFlowPulseIndex / ONE_LEVEL_FLOW_RATE_STEPS;
+  const oneLevelReceivedFlowRates = getOneLevelReceivedFlowRates(network);
 
   const setWalkerSpeed = (value: number) => {
     setSpeed(value);
@@ -213,13 +406,60 @@ export default function Main() {
 
           observer.unobserve(entry.target);
         }),
-      { threshold: 1, rootMargin: "0px 0px -100px 0px" },
+      { threshold: 0.35, rootMargin: "0px 0px -120px 0px" },
     );
 
     observer.observe(currentRef);
 
     return () => observer.disconnect();
   }, [startRandomWalk]);
+
+  useEffect(() => {
+    const currentRef = oneLevelFlowRef.current;
+    if (!currentRef) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        const isVisible = entry.isIntersecting;
+        setOneLevelFlowActive(isVisible);
+
+        if (isVisible) {
+          setOneLevelFlowPulseIndex(0);
+          setOneLevelFlowAnimationKey((key) => key + 1);
+        }
+      },
+      { threshold: 0.05 },
+    );
+
+    observer.observe(currentRef);
+
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!oneLevelFlowActive) return;
+
+    let intervalId: number | undefined;
+    const updateBarsAfterBlobArrival = () => {
+      setOneLevelFlowPulseIndex(
+        (pulseIndex) => (pulseIndex + 1) % (ONE_LEVEL_FLOW_RATE_STEPS + 1),
+      );
+    };
+    const arrivalTimeoutId = window.setTimeout(() => {
+      updateBarsAfterBlobArrival();
+      intervalId = window.setInterval(
+        updateBarsAfterBlobArrival,
+        ONE_LEVEL_FLOW_PULSE_INTERVAL_MS,
+      );
+    }, ONE_LEVEL_FLOW_BLOB_ARRIVAL_MS);
+
+    return () => {
+      window.clearTimeout(arrivalTimeoutId);
+      if (intervalId !== undefined) {
+        window.clearInterval(intervalId);
+      }
+    };
+  }, [oneLevelFlowActive]);
 
   const toggleSolution = () => {
     const wasStarted = network.walker.isStarted;
@@ -230,18 +470,7 @@ export default function Main() {
 
     // If currently showing optimal, apply bad solution
     if (showOptimized) {
-      // Apply a hand-crafted (suboptimal) module assignment to demonstrate
-      // differences between an optimized and a non-optimized partition.
-      network.getNode(2)?.setTopModule(4);
-      network.getNode(4)?.setTopModule(4);
-      network.getNode(8)?.setTopModule(0);
-      network.getNode(9)?.setTopModule(0);
-      network.getNode(11)?.setTopModule(0);
-      network.getNode(13)?.setTopModule(4);
-      network.getNode(14)?.setTopModule(4);
-      network.getNode(17)?.setTopModule(3);
-      network.getNode(20)?.setTopModule(3);
-      network.getNode(21)?.setTopModule(3);
+      applyBadSolution(network);
     }
     // If currently showing bad solution, we've already reset to initial (optimal) above
 
@@ -253,189 +482,53 @@ export default function Main() {
 
   return (
     <>
-      {/* Primary visualization area. Children like `Walker` will be injected
-          into the `Network` SVG so they can render overlays such as the
-          moving walker glyph or visit trace. */}
-      <div
-        ref={firstNetworkRef}
-        className="col-span-2 w-4/5 mx-auto xl:w-full mb-48"
+      <ArticleSection
+        id="node-selection"
+        eyebrow="Learn the Map Equation"
+        title="Can you make the code shorter?"
+        className="mb-36"
       >
-        <Network
-          network={network}
-          scheme={[neutralNodeColor]}
-          schemeAlt={[neutralNodeColorAlt]}
-          rate={showVisitRates ? Rate.Visits : Rate.Uniform}
-          showLabels={false}
-          showModules={false}
-          showNodeId={false}
-          showVisiting={showVisitRates}
-          scaleLinksByWeight={showLinkWeights}
-          width={800}
-          height={830}
-        >
-          <WalkTrace
-            walker={network.walker}
-            stroke={neutralLinkColor}
-            opacity={0.28}
-          />
-          <Walker walker={network.walker} r={12} fill={neutralNodeColorAlt} />
-        </Network>
-      </div>
-
-      <div className="col-span-2 mb-20 xl:mb-48">
-        <h1>The duality between compression and finding regularities</h1>
-        <p>
-          Compression algorithms use regularities to compress data. The more
-          regularities they find, the better they can compress. In this image,
-          the top half is easier to compress than the bottom part because of the
-          repeated pattern in the clear blue sky.
-        </p>
-      </div>
-
-      <div className="col-span-2 mb-48 mt-16 flex flex-col items-center space-y-6">
-        <div>
-          5.8 MB &rarr; <strong>0.91 MB</strong>
-        </div>
-        <div>
-          <img
-            className="rounded-lg shadow-lg"
-            src={getAssetPath("/images/compression-top.png")}
-            alt="top"
-          />
-        </div>
-        <div>
-          <img
-            className="rounded-lg shadow-lg"
-            src={getAssetPath("/images/compression-bottom.png")}
-            alt=""
-          />
-        </div>
-        <div>
-          5.8 MB &rarr; <strong>2.8 MB</strong>
-        </div>
-      </div>
-
-      <div className="col-span-4 mb-48">
-        <h2 className="font-light mx-auto text-center lg:w-3/5 mb-48 leading-relaxed">
-          By searching for <strong>optimal compression</strong> we will find the{" "}
-          <strong>regularities</strong> that simplifies the data.
-        </h2>
-      </div>
-
-      <section id="huffman-coding" className="col-span-4 mb-48">
-        <h2>Huffman coding</h2>
-        <p>
-          To understand the network, we need a compact way to describe how the
-          random walker moves on it. Huffman coding gives short binary codes to
-          symbols that appear often and longer codes to symbols that appear
-          rarely, much like Morse code. If we can describe the walker with few
-          bits, then we have captured important regularities in the network.
-        </p>
-        <p className="mb-4 text-gray-700">
-          Below we compare a <strong>one-level partition</strong> and a{" "}
-          <strong>two-level partition</strong>. In the one-level partition, the
-          walker uses one shared <strong>codebook</strong>{" "}
-          <HelpTooltip content={CODEBOOK_HELP} /> for all nodes in the network.
-          In the two-level partition, the walker uses an{" "}
-          <strong>index codebook</strong> to say which community it is in and a
-          separate local codebook inside each community for the nodes there.
-        </p>
-        <p className="mb-6 text-gray-700">
-          When the walker stays inside the same community, it only prints the
-          node code. When it moves to a different community, it first prints an{" "}
-          <strong>exit code</strong> to leave the old community, then an{" "}
-          <strong>enter code</strong> to enter the new one, and then the node
-          code inside that community. Try changing the two-level partition
-          yourself by selecting nodes and assigning them to different
-          communities, and watch how the codelength changes.
-        </p>
-        <WalkerControls
-          network={network}
-          rate={showVisitRates ? Rate.Visits : Rate.Uniform}
-          showOptimized={showOptimized}
-          showLinkWeights={showLinkWeights}
-          onStartWalk={startRandomWalk}
-          onToggleRate={() => setShowVisitRates(!showVisitRates)}
-          onToggleLinkWeights={() => setShowLinkWeights(!showLinkWeights)}
-          onToggleSolution={toggleSolution}
-          speed={speed}
-          onSpeedChange={setWalkerSpeed}
-        />
-
-        <div className="xl:grid xl:grid-cols-4 xl:items-start xl:gap-x-20">
-          <div className="min-w-0 xl:col-span-2">
-            <div className="mb-12">
-              <h3 className="text-lg font-bold mb-4">One-Level Partition</h3>
-              <Network
-                network={network}
-                scheme={[neutralNodeColor]}
-                schemeAlt={[neutralNodeColorAlt]}
-                rate={showVisitRates ? Rate.Visits : Rate.Uniform}
-                showLabels={true}
-                showModules={false}
-                showNodeId={true}
-                nodeIdLayer="top"
-                showVisiting={showVisitRates}
-                scaleLinksByWeight={showLinkWeights}
-                width={800}
-                height={830}
-                getNodeIdFill={getDarkerNodeIdFill}
-              >
-                <WalkTrace
-                  walker={network.walker}
-                  stroke={neutralLinkColor}
-                  opacity={0.58}
-                  minWidth={3.5}
-                  maxWidth={18}
-                  stableSegments
-                />
-                <Walker
-                  walker={network.walker}
-                  r={12}
-                  fill={neutralNodeColorAlt}
-                />
-                <OneLevelCodelengthOverlay network={network} />
-              </Network>
-            </div>
-
-            <div className="mb-12">
-              <h3 className="text-lg font-bold mb-4">Running code printer</h3>
-              <div className="space-y-2">
-                <div>
-                  <InlineTrace network={network} />
-                </div>
-                <div>
-                  <InlineTrace network={network} showModules />
-                </div>
-              </div>
-              <p className="mt-4 mb-4">
-                This trace prints the codewords emitted by the random walker in
-                real time. The first line shows the one-level code, where every
-                node uses a single shared codebook. The second line shows the
-                two-level code: when the walker crosses a community boundary it
-                prints an exit code, then an enter code, and then the node code
-                inside the new community.
+        <div className="grid gap-8 xl:grid-cols-[minmax(0,0.72fr)_minmax(0,1fr)] xl:items-start">
+          <div className="min-w-0 space-y-5">
+            <p className="text-lg leading-relaxed text-gray-700">
+              Before reading the definitions, try changing the partition. Draw
+              a lasso around nodes, choose a community, and watch the total
+              codelength respond.
+            </p>
+            <ArticleStep label="1" title="Choose a community">
+              <p className="m-0">
+                Pick one of the colored community buttons above the network.
+                This is the module the selected nodes will be assigned to.
               </p>
-              <CodelengthChart network={network} />
-            </div>
-
-            <div className="mb-16">
-              <Rates
-                network={network}
-                rate={Rate.Visits}
-                showModules
-                duration={network.walker.interval}
-              />
-            </div>
-
-            <div>
-              <CodeBooks network={network} />
-              <CodeBookLegend />
-            </div>
+            </ArticleStep>
+            <ArticleStep label="2" title="Move nodes between modules">
+              <p className="m-0">
+                Drag a free-hand lasso around nodes. When you release, the
+                selected nodes move to the active community and the map equation
+                recalculates the codelength.
+              </p>
+            </ArticleStep>
+            <ArticleStep label="3" title="Look for shorter descriptions">
+              <p className="m-0">
+                Lower codelength means the random walk can be described with
+                fewer bits. The rest of the article explains why this reveals
+                regularities in the network.
+              </p>
+            </ArticleStep>
           </div>
 
-          <aside className="mt-10 xl:sticky xl:top-[10vh] xl:col-span-2 xl:mt-0 xl:w-[min(42vw,520px)] xl:justify-self-center">
-            <h3 className="text-lg font-bold mb-4">Two-Level Partition</h3>
+          <div
+            ref={firstNetworkRef}
+            className="min-w-0 p-4 xl:sticky xl:top-8"
+          >
+            <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <h3 className="m-0 text-lg font-bold">Two-level partition</h3>
+                <p className="m-0 text-sm text-gray-600">
+                  Directly edit the communities and see the coding cost change.
+                </p>
+              </div>
+            </div>
             <InteractiveNetwork
               network={network}
               numCommunities={NUM_COMMUNITIES}
@@ -470,14 +563,290 @@ export default function Main() {
               <EnterExitCodes network={network} x={200} y={660} />
               <TwoLevelCodelengthOverlay network={network} />
             </InteractiveNetwork>
+          </div>
+        </div>
+      </ArticleSection>
+
+      <ArticleSection
+        id="why-compression"
+        eyebrow="Why compression?"
+        title="Regularities make descriptions shorter"
+      >
+        <div className="grid gap-8 xl:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] xl:items-center">
+          <div className="min-w-0 space-y-5">
+            <p>
+              Networks of nodes and links are powerful, but large networks are
+              too complicated to understand directly. Like geographic maps, we
+              need to simplify and highlight the organization that matters.
+            </p>
+            <p>
+              The map equation does this through compression. If a random walk
+              has regular patterns, a good code can describe it with fewer bits.
+              Searching for the shortest description becomes a way to find
+              modules in the network.
+            </p>
+            <p className="text-gray-700">
+              The same idea appears in ordinary compression: repeated structure
+              is easier to describe than irregular detail. In networks, the
+              repeated structure is flow that stays within modules before
+              crossing between them.
+            </p>
+          </div>
+          <div className="grid min-w-0 gap-4 sm:grid-cols-[0.85fr_1fr]">
+            <div className="p-4">
+              <img
+                className="mix-blend-multiply"
+                src={getAssetPath("/images/hairball.png")}
+                alt="Dense network before simplification"
+              />
+            </div>
+            <div className="space-y-4 p-4">
+              <div className="text-sm font-bold text-gray-700">
+                5.8 MB &rarr; <strong>0.91 MB</strong>
+              </div>
+              <img
+                className="rounded-lg"
+                src={getAssetPath("/images/compression-top.png")}
+                alt="Image region with repeated sky pattern"
+              />
+              <img
+                className="rounded-lg"
+                src={getAssetPath("/images/compression-bottom.png")}
+                alt="Image region with more irregular detail"
+              />
+              <div className="text-sm font-bold text-gray-700">
+                5.8 MB &rarr; <strong>2.8 MB</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+      </ArticleSection>
+
+      <ArticleSection
+        id="huffman-coding"
+        eyebrow="Codebooks"
+        title="Huffman coding"
+      >
+        <p>
+          To understand the network, we need a compact way to describe how the
+          random walker moves on it. Huffman coding gives short binary codes to
+          symbols that appear often and longer codes to symbols that appear
+          rarely, much like Morse code. If we can describe the walker with few
+          bits, then we have captured important regularities in the network.
+        </p>
+        <p className="mb-8 text-gray-700">
+          In a one-level partition, the walker uses one shared{" "}
+          <strong>codebook</strong> <HelpTooltip content={CODEBOOK_HELP} /> for
+          all nodes. In a two-level partition, the walker uses an{" "}
+          <strong>index codebook</strong> to say which community it enters and a
+          local module codebook for the nodes inside that community.
+        </p>
+        <WalkerControls
+          network={network}
+          rate={showVisitRates ? Rate.Visits : Rate.Uniform}
+          showOptimized={showOptimized}
+          showLinkWeights={showLinkWeights}
+          onStartWalk={startRandomWalk}
+          onToggleRate={() => setShowVisitRates(!showVisitRates)}
+          onToggleLinkWeights={() => setShowLinkWeights(!showLinkWeights)}
+          onToggleSolution={toggleSolution}
+          speed={speed}
+          onSpeedChange={setWalkerSpeed}
+        />
+
+        <div className="grid gap-10 xl:grid-cols-2 xl:items-start">
+          <div className="min-w-0 space-y-8">
+            <div className="p-5">
+              <h3 className="mb-4 text-lg font-bold">One-level reference</h3>
+              <Network
+                network={network}
+                scheme={[neutralNodeColor]}
+                schemeAlt={[neutralNodeColorAlt]}
+                rate={showVisitRates ? Rate.Visits : Rate.Uniform}
+                showLabels={true}
+                showModules={false}
+                showNodeId={true}
+                nodeIdLayer="top"
+                showVisiting={showVisitRates}
+                scaleLinksByWeight={showLinkWeights}
+                width={800}
+                height={830}
+                getNodeIdFill={getDarkerNodeIdFill}
+              >
+                <WalkTrace
+                  walker={network.walker}
+                  stroke={neutralLinkColor}
+                  opacity={0.58}
+                  minWidth={3.5}
+                  maxWidth={18}
+                  stableSegments
+                />
+                <Walker
+                  walker={network.walker}
+                  r={12}
+                  fill={neutralNodeColorAlt}
+                />
+                <OneLevelCodelengthOverlay network={network} />
+              </Network>
+            </div>
+
+            <div className="p-5">
+              <h3 className="mb-4 text-lg font-bold">Running code printer</h3>
+              <div className="space-y-2">
+                <div className="min-w-0">
+                  <InlineTrace network={network} />
+                </div>
+                <div className="min-w-0">
+                  <InlineTrace network={network} showModules />
+                </div>
+              </div>
+              <p className="mb-0 mt-4">
+                The first trace prints the one-level code. The second trace
+                prints the two-level code: when the walker crosses a community
+                boundary, it prints an exit code, an enter code, and then the
+                node code inside the new community.
+              </p>
+            </div>
+
+            <div className="p-5">
+              <CodeBooks network={network} />
+              <CodeBookLegend />
+            </div>
+          </div>
+
+          <aside className="min-w-0 xl:sticky xl:top-8">
+            <div className="p-5">
+              <h3 className="mb-4 text-lg font-bold">Two-level partition</h3>
+              <InteractiveNetwork
+                network={network}
+                numCommunities={NUM_COMMUNITIES}
+                scheme={scheme}
+                schemeAlt={schemeAlt}
+                activeCommunity={activeCommunity}
+                onActiveCommunityChange={setActiveCommunity}
+                showLabels={true}
+                showModules={true}
+                nodeIdLayer="top"
+                rate={showVisitRates ? Rate.Visits : Rate.Uniform}
+                showVisiting={showVisitRates}
+                scaleLinksByWeight={showLinkWeights}
+                width={800}
+                height={830}
+                getNodeIdFill={getDarkerNodeIdFill}
+              >
+                <WalkTrace
+                  walker={network.walker}
+                  stroke={neutralLinkColor}
+                  opacity={0.66}
+                  minWidth={3.5}
+                  maxWidth={18}
+                  stableSegments
+                  getStableSegmentStroke={getModuleTraceStroke}
+                />
+                <Walker
+                  walker={network.walker}
+                  r={12}
+                  fill={neutralNodeColorAlt}
+                />
+                <EnterExitCodes network={network} x={200} y={660} />
+                <TwoLevelCodelengthOverlay network={network} />
+              </InteractiveNetwork>
+            </div>
           </aside>
         </div>
-      </section>
+      </ArticleSection>
 
-      {/* Regularized Infomap Section */}
-      <div className="col-span-4 mb-48">
+      <ArticleSection
+        id="map-equation-codelength"
+        eyebrow="Codelength"
+        title="Start with one-level codelength"
+        className="mb-36"
+      >
+        <p className="max-w-4xl">
+          A one-level code uses one shared codebook for the whole network. The
+          codelength is the average number of bits needed to name the next node
+          visited by flow on the network: common nodes should get short codes,
+          and rare nodes can afford longer codes.
+        </p>
+        <div
+          ref={oneLevelFlowRef}
+          className="grid gap-10 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] xl:items-start"
+        >
+          <div className="min-w-0 p-5">
+            <CodelengthChart network={network} />
+          </div>
+          <aside className="min-w-0 space-y-6 p-5 xl:sticky xl:top-8">
+            <div>
+              <h3 className="mb-2 text-lg font-bold">
+                One-level flow reference
+              </h3>
+              <p className="mb-4 text-sm leading-relaxed text-gray-600">
+                Every three seconds, each node sends flow along its links.
+                Larger blobs mark links with higher flow.
+              </p>
+              <Network
+                network={network}
+                scheme={[neutralNodeColor]}
+                schemeAlt={[neutralNodeColorAlt]}
+                rate={Rate.Uniform}
+                showLabels={false}
+                showModules={false}
+                showNodeId={true}
+                nodeIdLayer="top"
+                showVisiting={false}
+                width={800}
+                height={830}
+                getNodeIdFill={getDarkerNodeIdFill}
+                underlayChildren={
+                  <OneLevelFlowPulses
+                    network={network}
+                    animationKey={oneLevelFlowAnimationKey}
+                  />
+                }
+              />
+            </div>
+            <div>
+              <h3 className="mb-2 text-lg font-bold">Node visit rates</h3>
+              <p className="mb-3 text-sm leading-relaxed text-gray-600">
+                These grey bars start from an even 0.02 baseline and move
+                toward the visit-rate probabilities used in the one-level
+                entropy calculation as the flow pulses repeat.
+              </p>
+              <Rates
+                network={network}
+                rate={Rate.Flow}
+                showModules={false}
+                duration={900}
+                monochrome
+                rateScale={oneLevelFlowRateScale}
+                rateBaseline={ONE_LEVEL_FLOW_RATE_BASELINE}
+                getRateOverride={(node) =>
+                  oneLevelReceivedFlowRates.get(node.id) ?? node.flow
+                }
+              />
+            </div>
+            <div>
+              <h3 className="mb-2 text-lg font-bold">
+                Walker node visit rates
+              </h3>
+              <p className="mb-3 text-sm leading-relaxed text-gray-600">
+                The colored bars show the visit rates measured from the running
+                random walker.
+              </p>
+              <Rates
+                network={network}
+                rate={Rate.Visits}
+                showModules
+                duration={network.walker.interval}
+              />
+            </div>
+          </aside>
+        </div>
+      </ArticleSection>
+
+      <section className="col-span-4 mb-40">
         <RegularizedInfomap width={700} height={300} />
-      </div>
+      </section>
 
       <HierarchicalCodebooks />
 

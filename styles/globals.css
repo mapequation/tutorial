@@ -4,14 +4,16 @@
 
 /* Base Styles */
 :root {
-  --base-path: "/demo";
+  --base-path: "/map-demo";
 }
 
 body {
+  background-color: #f8f6f1;
   background-image: var(--bg-noise-url);
   background-size: 50px 50px;
   color: #4b5563;
   line-height: 1.625;
+  overflow-x: hidden;
 }
 
 @media (min-width: 1280px) {

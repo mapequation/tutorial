@@ -142,16 +142,11 @@ const WalkerControls = observer(function WalkerControls({
   onSpeedChange,
 }: Props) {
   const { walker } = network;
-  const [helpEnabled, setHelpEnabled] = useState(true);
   const compactButtonStyle = {
     padding: "0.4rem 0.8rem",
     fontSize: "0.9rem",
     textAlign: "center",
     justifyContent: "center",
-  } as const;
-  const helpButtonStyle = {
-    ...compactButtonStyle,
-    width: "5.9rem",
   } as const;
   const walkButtonStyle = { ...compactButtonStyle, width: "6.8rem" } as const;
   const visitsButtonStyle = {
@@ -175,19 +170,7 @@ const WalkerControls = observer(function WalkerControls({
     <>
       <div className="mt-10 mb-10 flex flex-row flex-nowrap items-center justify-start gap-3 overflow-x-auto px-2 xl:justify-center">
         <ControlHint
-          enabled={helpEnabled}
-          hint="Turn these hover hints on or off for the Huffman coding controls."
-        >
-          <Button
-            className={`button whitespace-nowrap shrink-0 ${helpEnabled ? "button--primary" : ""}`}
-            style={helpButtonStyle}
-            onClick={() => setHelpEnabled((value) => !value)}
-          >
-            {helpEnabled ? "Help off" : "Help on"}
-          </Button>
-        </ControlHint>
-        <ControlHint
-          enabled={helpEnabled}
+          enabled
           hint="Reset the random walk, clear the printed code traces, and return the walker to the starting state."
         >
           <Button
@@ -199,7 +182,7 @@ const WalkerControls = observer(function WalkerControls({
           </Button>
         </ControlHint>
         <ControlHint
-          enabled={helpEnabled}
+          enabled
           hint="Advance the random walker by exactly one step."
         >
           <Button
@@ -211,7 +194,7 @@ const WalkerControls = observer(function WalkerControls({
           </Button>
         </ControlHint>
         <ControlHint
-          enabled={helpEnabled}
+          enabled
           hint={
             walker.isStarted
               ? "Stop the automatic random walk."
@@ -227,7 +210,7 @@ const WalkerControls = observer(function WalkerControls({
           </Button>
         </ControlHint>
         <ControlHint
-          enabled={helpEnabled}
+          enabled
           hint={
             rate === Rate.Visits
               ? "Hide the visit-rate view and return to uniform node sizing."
@@ -243,7 +226,7 @@ const WalkerControls = observer(function WalkerControls({
           </Button>
         </ControlHint>
         <ControlHint
-          enabled={helpEnabled}
+          enabled
           hint={
             showLinkWeights
               ? "Switch back to uniform link widths."
@@ -259,7 +242,7 @@ const WalkerControls = observer(function WalkerControls({
           </Button>
         </ControlHint>
         <ControlHint
-          enabled={helpEnabled}
+          enabled
           hint={
             walker.teleportationEnabled
               ? "Keep random teleportation enabled, so the walker can occasionally jump to a different node."
@@ -277,7 +260,7 @@ const WalkerControls = observer(function WalkerControls({
           </Button>
         </ControlHint>
         <ControlHint
-          enabled={helpEnabled}
+          enabled
           hint={
             showOptimized
               ? "Switch to a deliberately worse partition so you can compare it with the optimized one."

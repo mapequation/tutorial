@@ -1,6 +1,7 @@
 // Global stylesheet for the application. Imported at the top-level so styles
 // are applied to every page in the Next.js app.
 import "../../styles/globals.css";
+import "katex/dist/katex.min.css";
 import type { AppProps } from "next/app";
 import { useEffect } from "react";
 
@@ -15,7 +16,7 @@ import { useEffect } from "react";
 function MyApp({ Component, pageProps }: AppProps) {
   useEffect(() => {
     // Set CSS variables based on environment
-    const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "/demo";
+    const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "/map-demo";
     document.documentElement.style.setProperty(
       "--bg-noise-url",
       `url("${basePath}/images/noise-100-90-5.png")`,

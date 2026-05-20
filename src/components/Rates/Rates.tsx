@@ -13,9 +13,22 @@ interface Props {
   duration?: number;
   width?: number | string;
   height?: number | string;
+  monochrome?: boolean;
+  rateScale?: number;
+  rateBaseline?: number;
+  getRateOverride?: (node: Node) => number;
 }
 
-function Rates({ network, rate, showModules = true, duration = 100 }: Props) {
+function Rates({
+  network,
+  rate,
+  showModules = true,
+  duration = 100,
+  monochrome = false,
+  rateScale = 1,
+  rateBaseline,
+  getRateOverride,
+}: Props) {
   const { nodes } = network;
 
   const getNodeRate = getRate(rate);
@@ -52,10 +65,25 @@ function Rates({ network, rate, showModules = true, duration = 100 }: Props) {
   });
 
   const barFillStroke = (node: Node) => {
+    if (monochrome) {
+      return {
+        fill: "#9ca3af",
+        stroke: "#6b7280",
+      };
+    }
+
     return {
       fill: showModules ? scheme[node.topModule] : scheme[0],
       stroke: showModules ? schemeAlt[node.topModule] : schemeAlt[0],
     };
+  };
+
+  const displayRate = (node: Node) => {
+    const targetRate = getRateOverride?.(node) ?? getNodeRate(node);
+
+    return rateBaseline === undefined
+      ? targetRate * rateScale
+      : rateBaseline + (targetRate - rateBaseline) * rateScale;
   };
 
   // Memoize sorted nodes to avoid re-sorting on every render
@@ -141,7 +169,7 @@ function Rates({ network, rate, showModules = true, duration = 100 }: Props) {
             duration={duration}
             opacity={0.6}
             {...barFillStroke(node)}
-            {...barProps(i, getNodeRate(node))}
+            {...barProps(i, displayRate(node))}
           />
         ))}
       <g id="node-axis" stroke="#9ca3af" fill="#6b7280">

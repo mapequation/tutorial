@@ -17,7 +17,7 @@ interface Props {
 function InlineTrace({ network, showModules = false }: Props) {
   const { walker } = network;
 
-  const maxNumCodes = 20;
+  const maxNumCodes = 11;
 
   const trace = walker.trace.slice(-maxNumCodes).map((id) => network.tree.root.getLeaf(id)!);
   const last = trace.pop();
@@ -27,7 +27,7 @@ function InlineTrace({ network, showModules = false }: Props) {
   return (
     <>
       <div
-        className="px-4 py-2 w-full min-h-[3.75rem] overflow-y-auto overscroll-contain leading-snug text-sm font-mono -word-spacing-7"
+        className="h-9 w-full overflow-hidden whitespace-nowrap px-4 py-2 text-left font-mono text-sm leading-5 -word-spacing-7"
       >
         {trace.map((node, i, nodes) => (
           <CodeWord

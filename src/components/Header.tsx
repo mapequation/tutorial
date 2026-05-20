@@ -1,6 +1,3 @@
-// KaTeX stylesheet is required to render the mathematical formula in the
-// header. We import it globally for this component.
-import "katex/dist/katex.min.css";
 import TeX from "@matejmazur/react-katex";
 
 /**
@@ -12,7 +9,7 @@ import TeX from "@matejmazur/react-katex";
  */
 export default function Header() {
   return (
-    <header className="mx-auto my-56">
+    <header className="mx-auto my-24 md:my-32">
       <h1 className="flex flex-row justify-center gap-x-2 md:gap-x-4 lg:gap-x-8">
         <img
           className="h-8 sm:h-10 md:h-12 lg:h-24"
@@ -24,7 +21,7 @@ export default function Header() {
         </div>
       </h1>
       {/* Render the map equation using KaTeX for crisp math typesetting */}
-      <div className="flex justify-center mt-24 md:mt-44 text-xl sm:text-2xl md:text-3xl lg:text-5xl">
+      <div className="mt-12 flex justify-center text-xl sm:text-2xl md:mt-20 md:text-3xl lg:text-5xl">
         <TeX math="L(M) = q_\curvearrowleft H(\mathcal{Q}) + \sum_{i = 1}^{m}{p_{\circlearrowright}^i H(\mathcal{P}^i)}" />
       </div>
     </header>

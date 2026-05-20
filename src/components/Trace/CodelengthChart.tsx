@@ -1,10 +1,19 @@
 import { observer } from "mobx-react";
 import TeX from "@matejmazur/react-katex";
+import type { ReactNode } from "react";
 import type { Network } from "../../model";
 import HelpTooltip from "../HelpTooltip";
 
 interface Props {
   network: Network;
+}
+
+function EquationLine({ children }: { children: ReactNode }) {
+  return (
+    <div className="overflow-x-auto overflow-y-visible py-1 text-base leading-8 text-gray-900">
+      {children}
+    </div>
+  );
 }
 
 function formatRelativeComparison(
@@ -159,18 +168,18 @@ export default observer(function CodelengthChart({ network }: Props) {
           <h5 className="text-base font-semibold text-gray-900">
             One-level partition
           </h5>
-          <div className="text-base text-gray-900">
+          <EquationLine>
             <TeX math="L_1 = H(\mathcal{P}) = -\sum_{\alpha} p_{\alpha} \log_2 p_{\alpha}" />
-          </div>
+          </EquationLine>
           <div className="text-sm leading-relaxed text-gray-600">
             <TeX math="H(\cdot)" /> <HelpTooltip content={entropyHelp} /> means
             entropy in bits.
           </div>
-          <div className="text-base text-gray-900">
+          <EquationLine>
             <TeX
               math={`L_1 = ${oneLevelCodelength.toFixed(3)}\\ \\text{bits}`}
             />
-          </div>
+          </EquationLine>
           <div className="text-sm leading-relaxed text-gray-600">
             <TeX math="L_1" /> is the average bits per step when one shared
             codebook is used for the whole network. Here{" "}
@@ -179,7 +188,7 @@ export default observer(function CodelengthChart({ network }: Props) {
             <HelpTooltip content={nodeVisitRateHelp} /> is the visit rate of
             node <TeX math="\alpha" />.
           </div>
-          <div className="overflow-visible py-1 text-base leading-8 text-gray-900">
+          <EquationLine>
             {estimatedOneLevelCodelength === null ? (
               <span>
                 Start the walker to estimate the one-level codelength
@@ -190,7 +199,7 @@ export default observer(function CodelengthChart({ network }: Props) {
                 math={`\\hat{L}_1 = \\frac{${walker.cumulativeOneLevelBits}}{${walker.totalVisits}} = ${estimatedOneLevelCodelength.toFixed(3)}\\ \\text{bits}`}
               />
             )}
-          </div>
+          </EquationLine>
           <div className="text-sm leading-relaxed text-gray-600">
             A hat such as <TeX math="\hat{L}" />{" "}
             <HelpTooltip content={estimatedHelp} /> means a walker-based
@@ -202,14 +211,14 @@ export default observer(function CodelengthChart({ network }: Props) {
           <h5 className="text-base font-semibold text-gray-900">
             Two-level partition
           </h5>
-          <div className="text-base text-gray-900">
+          <EquationLine>
             <TeX math="L(M) = q_{\curvearrowright} H(\mathcal{Q}) + \sum_{i = 1}^{m} p_{\circlearrowright}^{i} H(\mathcal{P}^{i})" />
-          </div>
-          <div className="text-base text-gray-900">
+          </EquationLine>
+          <EquationLine>
             <TeX
               math={`L(M) = ${indexCodelength.toFixed(3)} + ${moduleCodelength.toFixed(3)} = ${twoLevelCodelength.toFixed(3)}\\ \\text{bits}`}
             />
-          </div>
+          </EquationLine>
           <div className="space-y-1 text-sm leading-relaxed text-gray-600">
             <div>
               <TeX math="M" /> <HelpTooltip content={partitionHelp} /> is the
@@ -232,7 +241,7 @@ export default observer(function CodelengthChart({ network }: Props) {
               that module plus its exit symbol.
             </div>
           </div>
-          <div className="overflow-visible py-1 text-base leading-8 text-gray-900">
+          <EquationLine>
             {estimatedTwoLevelCodelength === null ? (
               <span>
                 Start the walker to estimate the two-level codelength
@@ -243,7 +252,7 @@ export default observer(function CodelengthChart({ network }: Props) {
                 math={`\\hat{L}_{\\mathrm{two}} = \\frac{${walker.cumulativeTwoLevelBits}}{${walker.totalVisits}} = ${estimatedTwoLevelCodelength.toFixed(3)}\\ \\text{bits}`}
               />
             )}
-          </div>
+          </EquationLine>
         </div>
 
         <div className="space-y-2">
