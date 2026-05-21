@@ -24,6 +24,7 @@ import {
 import HelpTooltip from "./HelpTooltip";
 import { CodelengthChart, InlineTrace } from "./Trace";
 import Rates from "./Rates";
+import TwoLevelCodebookRates from "./Rates/TwoLevelCodebookRates";
 import CodeBooks from "./CodeBooks";
 import CodeBookLegend from "./CodeBooks/CodeBookLegend";
 import Network from "./Network/Network";
@@ -488,7 +489,7 @@ export default function Main() {
         title="Can you make the code shorter?"
         className="mb-36"
       >
-        <div className="grid gap-8 xl:grid-cols-[minmax(0,0.72fr)_minmax(0,1fr)] xl:items-start">
+        <div className="grid gap-10 xl:grid-cols-2 xl:items-start">
           <div className="min-w-0 space-y-5">
             <p className="text-lg leading-relaxed text-gray-700">
               Before reading the definitions, try changing the partition. Draw
@@ -519,13 +520,18 @@ export default function Main() {
 
           <div
             ref={firstNetworkRef}
-            className="min-w-0 p-4 xl:sticky xl:top-8"
+            className="-mt-6 min-w-0 p-4 xl:sticky xl:top-8"
           >
             <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
               <div>
                 <h3 className="m-0 text-lg font-bold">Two-level partition</h3>
                 <p className="m-0 text-sm text-gray-600">
                   Directly edit the communities and see the coding cost change.
+                </p>
+                <p className="m-0 mt-1 text-xs leading-relaxed text-gray-500">
+                  Click and drag to draw a free-hand lasso around nodes.
+                  Release to complete the selection and assign selected nodes to
+                  the active community.
                 </p>
               </div>
             </div>
@@ -538,6 +544,7 @@ export default function Main() {
               onActiveCommunityChange={setActiveCommunity}
               showLabels={true}
               showModules={true}
+              showInstructions={false}
               nodeIdLayer="top"
               rate={showVisitRates ? Rate.Visits : Rate.Uniform}
               showVisiting={showVisitRates}
@@ -716,7 +723,14 @@ export default function Main() {
 
           <aside className="min-w-0 xl:sticky xl:top-8">
             <div className="p-5">
-              <h3 className="mb-4 text-lg font-bold">Two-level partition</h3>
+              <div className="mb-4">
+                <h3 className="m-0 text-lg font-bold">Two-level partition</h3>
+                <p className="m-0 mt-1 text-xs leading-relaxed text-gray-500">
+                  Click and drag to draw a free-hand lasso around nodes.
+                  Release to complete the selection and assign selected nodes to
+                  the active community.
+                </p>
+              </div>
               <InteractiveNetwork
                 network={network}
                 numCommunities={NUM_COMMUNITIES}
@@ -726,6 +740,8 @@ export default function Main() {
                 onActiveCommunityChange={setActiveCommunity}
                 showLabels={true}
                 showModules={true}
+                showFeedback={false}
+                showInstructions={false}
                 nodeIdLayer="top"
                 rate={showVisitRates ? Rate.Visits : Rate.Uniform}
                 showVisiting={showVisitRates}
@@ -733,6 +749,7 @@ export default function Main() {
                 width={800}
                 height={830}
                 getNodeIdFill={getDarkerNodeIdFill}
+                showPajekCopyButton
               >
                 <WalkTrace
                   walker={network.walker}
@@ -823,32 +840,80 @@ export default function Main() {
                 getRateOverride={(node) =>
                   oneLevelReceivedFlowRates.get(node.id) ?? node.flow
                 }
+                yAxisLabel="Node visit rate pα"
               />
             </div>
             <div>
               <h3 className="mb-2 text-lg font-bold">
-                Walker node visit rates
+                Two-level codebook rates
               </h3>
               <p className="mb-3 text-sm leading-relaxed text-gray-600">
-                The colored bars show the visit rates measured from the running
-                random walker.
+                The index row is normalized by the total module-switching rate.
+                Each module row is normalized by that module codebook&apos;s use
+                rate: node visits plus one extra exit symbol. These normalized
+                distributions give the entropy terms in the two-level
+                codelength.
               </p>
-              <Rates
-                network={network}
-                rate={Rate.Visits}
-                showModules
-                duration={network.walker.interval}
-              />
+              <TwoLevelCodebookRates network={network} />
             </div>
           </aside>
         </div>
       </ArticleSection>
 
+      <ArticleSection
+        id="beyond-two-levels"
+        eyebrow="Beyond two levels"
+        title="From flat modules to nested maps"
+        className="mb-32"
+      >
+        <div className="grid gap-10 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] xl:items-start">
+          <div className="min-w-0 space-y-5">
+            <p className="text-lg leading-relaxed text-gray-700">
+              The two-level map equation is the simplest useful restriction:
+              use one index codebook to enter a module, then reuse short node
+              names inside that module. But networks can have structure inside
+              structure.
+            </p>
+            <p>
+              Multilevel Infomap removes that restriction. It searches for the
+              number of levels and the module assignments that give the shortest
+              description of flow on the network.
+            </p>
+            <p className="text-gray-700">
+              Extra levels are not chosen by hand. They are kept only when the
+              shorter local codebooks save more bits than the added index
+              codebooks cost.
+            </p>
+          </div>
+          <div className="min-w-0">
+            <ArticleStep label="1" title="Two-level">
+              <p className="m-0">
+                One index codebook chooses among flat modules. Each module has
+                one local codebook for its node and exit symbols.
+              </p>
+            </ArticleStep>
+            <ArticleStep label="2" title="Nested structure">
+              <p className="m-0">
+                A broad module can contain submodules, so a walk step can be
+                described by a path through nested codebooks before naming the
+                node.
+              </p>
+            </ArticleStep>
+            <ArticleStep label="3" title="Keep levels that compress">
+              <p className="m-0">
+                The multilevel map equation keeps exactly the hierarchy that
+                gives the shortest flow description for this network.
+              </p>
+            </ArticleStep>
+          </div>
+        </div>
+      </ArticleSection>
+
+      <HierarchicalCodebooks />
+
       <section className="col-span-4 mb-40">
         <RegularizedInfomap width={700} height={300} />
       </section>
-
-      <HierarchicalCodebooks />
 
       {/* Performance Dashboard */}
       <PerformanceDashboard />

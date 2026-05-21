@@ -17,6 +17,9 @@ interface Props {
   rateScale?: number;
   rateBaseline?: number;
   getRateOverride?: (node: Node) => number;
+  referenceRateOverride?: (node: Node) => number;
+  maxScaleValue?: number;
+  yAxisLabel?: string;
 }
 
 function Rates({
@@ -28,6 +31,9 @@ function Rates({
   rateScale = 1,
   rateBaseline,
   getRateOverride,
+  referenceRateOverride,
+  maxScaleValue = 0.1,
+  yAxisLabel = "Node visit rate",
 }: Props) {
   const { nodes } = network;
 
@@ -43,8 +49,6 @@ function Rates({
   const chartWidth = viewBoxWidth - leftPadding - rightPadding;
   const chartHeight = viewBoxHeight - topPadding - bottomPadding;
   const barWidth = chartWidth / nodes.length;
-  const maxScaleValue = 0.1;
-
   const x = (i: number): number => leftPadding + barWidth * i;
 
   const minHeight = 1;
@@ -86,6 +90,9 @@ function Rates({
       : rateBaseline + (targetRate - rateBaseline) * rateScale;
   };
 
+  const referenceRate = (node: Node) =>
+    referenceRateOverride?.(node) ?? getRateOverride?.(node) ?? node.flow;
+
   // Memoize sorted nodes to avoid re-sorting on every render
   const nodesByFlow = useMemo(
     () =>
@@ -96,10 +103,14 @@ function Rates({
     [nodes],
   );
 
-  const axisTicks = [0, 0.02, 0.04, 0.06, 0.08, 0.1].map((value) => ({
-    label: value.toFixed(2),
-    y: viewBoxHeight - bottomPadding - (value / maxScaleValue) * maxHeight,
-  }));
+  const axisTicks = Array.from({ length: 6 }, (_, index) => {
+    const value = (maxScaleValue * index) / 5;
+
+    return {
+      label: value.toFixed(2),
+      y: viewBoxHeight - bottomPadding - (value / maxScaleValue) * maxHeight,
+    };
+  });
   const axisX = leftPadding - 20;
   const axisCenterY = topPadding + chartHeight / 2;
   const xAxisY = viewBoxHeight - bottomPadding;
@@ -150,7 +161,7 @@ function Rates({
           fill="#4b5563"
           transform={`rotate(-90 20 ${axisCenterY})`}
         >
-          Node visit rate
+          {yAxisLabel}
         </text>
       </g>
       {nodesByFlow.map((node, i) => (
@@ -158,7 +169,7 @@ function Rates({
           key={i}
           fill="transparent"
           stroke="#ccc"
-          {...barProps(i, node.flow)}
+          {...barProps(i, referenceRate(node))}
         />
       ))}
       {rate !== Rate.Uniform &&

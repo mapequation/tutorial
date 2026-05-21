@@ -163,7 +163,7 @@ const WalkerControls = observer(function WalkerControls({
   } as const;
   const solutionButtonStyle = {
     ...compactButtonStyle,
-    width: "8.9rem",
+    width: "11.4rem",
   } as const;
 
   return (

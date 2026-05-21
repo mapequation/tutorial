@@ -71,6 +71,9 @@ interface Props {
   nodeScale?: (value: number) => number;
   scaleLinksByWeight?: boolean;
   baseLinkStrokeWidth?: number;
+  getLinkOpacity?: (link: LinkModel) => number;
+  onNodeMouseEnter?: (node: NodeModel) => void;
+  onNodeMouseLeave?: (node: NodeModel) => void;
   linkBackgroundChildren?: ReactNode;
   underlayChildren?: ReactNode;
 }
@@ -110,6 +113,9 @@ function Network({
   nodeScale = defaultNodeScale,
   scaleLinksByWeight = false,
   baseLinkStrokeWidth = 3,
+  getLinkOpacity,
+  onNodeMouseEnter,
+  onNodeMouseLeave,
   linkBackgroundChildren,
   underlayChildren,
   children,
@@ -291,6 +297,7 @@ function Network({
           link={link}
           stroke={linkStroke(link)}
           strokeWidth={linkStrokeWidth(link)}
+          opacity={getLinkOpacity?.(link)}
           sourceRadius={nodeRadius(link.source)}
           targetRadius={nodeRadius(link.target)}
           markerEnd={markerEnd}
@@ -324,6 +331,8 @@ function Network({
             nodeIdFontSize={nodeIdFontSize}
             nodeIdFill={getNodeIdFill?.(node, fill)}
             isSelected={selectedNodeIds?.has(node.id)}
+            onMouseEnter={() => onNodeMouseEnter?.(node)}
+            onMouseLeave={() => onNodeMouseLeave?.(node)}
           />
         );
       })}

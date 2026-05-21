@@ -17,7 +17,7 @@ interface Props {
 function InlineTrace({ network, showModules = false }: Props) {
   const { walker } = network;
 
-  const maxNumCodes = 11;
+  const maxNumCodes = 10;
 
   const trace = walker.trace.slice(-maxNumCodes).map((id) => network.tree.root.getLeaf(id)!);
   const last = trace.pop();

@@ -12,7 +12,7 @@ import {
 } from "react";
 import { observer } from "mobx-react";
 import { scaleSqrt } from "d3";
-import { Network as NetworkModel, FlowModel } from "../model";
+import { Network as NetworkModel, FlowModel, type Link } from "../model";
 import HelpTooltip from "./HelpTooltip";
 import { isolatedModuleColor, scheme as figColors } from "./scheme";
 import { getAssetPath } from "../lib/basePath";
@@ -34,6 +34,10 @@ type NetworkState = "normal" | "regularized";
 type Partition = Map<number, number>;
 type NodePositionById = Map<number, { x: number; y: number }>;
 type PriorLink = { source: number; target: number };
+type HoveredComparisonNode = {
+  network: NetworkState;
+  nodeId: number;
+} | null;
 
 interface PartitionOutcome {
   moduleByNodeId: Partition;
@@ -185,15 +189,15 @@ const MAX_COLLISION_RELAX_ITERATIONS = 160;
 const EPSILON = 1e-9;
 const getRegularizedNetworkUrl = () =>
   getAssetPath("/data/VII_network_complete.dat");
-const regularizedNodeScale = scaleSqrt().domain([0, 1]).range([3.5, 7]);
+const regularizedNodeScale = scaleSqrt().domain([0, 1]).range([4.6, 8.6]);
 const treeLinePattern =
   /^([0-9:]+)\s+([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)\s+"((?:[^"\\]|\\.)*)"\s+(\d+)\s*$/;
 const ISOLATED_MODULE_COLOR = isolatedModuleColor;
 const COLORBLIND_FRIENDLY_POOL = figColors;
 const LINK_REMOVAL_HELP =
-  "Removes the selected share of links at random to simulate incomplete data in both the standard and regularized networks.";
+  "Removes the selected share of observed links to simulate incomplete data. The hidden reference partition still comes from the complete network.";
 const REGULARIZATION_HELP =
-  "Regularization strength controls how strongly Infomap uses the uniform prior when running with --regularized. The uniform prior acts like a weak background assumption that gently links all nodes together before the observed network is taken into account. Increasing this strength makes Infomap rely a bit less on sparse or noisy edge evidence and a bit more on that neutral baseline, instead of interpreting every missing link as strong evidence that nodes should be separated.";
+  "Regularization strength controls how strongly Infomap mixes the observed sparse network with a weak Bayesian estimate of transition rates. Higher values make missing links count less as evidence for separating nodes, which can reduce spurious fragmentation.";
 const AMI_HELP =
   "Adjusted mutual information (AMI) compares the current non-isolated-node partition with the reference partition from the complete 0% network while correcting for agreement expected by chance. A value of 1 means the partitions match exactly up to relabeling, values near 0 mean no better agreement than random partitions with similar module sizes, and negative values mean worse-than-chance agreement.";
 const MODULE_COUNT_HELP =
@@ -222,6 +226,27 @@ const CONTROL_TEXT_CLASS =
 const CONTROL_VALUE_CLASS = "whitespace-nowrap tabular-nums";
 const CONTROL_RANGE_CLASS = "h-4 w-32 flex-none";
 const PRIOR_LINK_STROKE = "#d1d5db";
+const INCIDENT_LINK_OPACITY = 1;
+const NON_INCIDENT_LINK_OPACITY = 0.14;
+const MINI_NETWORK_NODES = [
+  { id: 0, x: 42, y: 42, module: 0 },
+  { id: 1, x: 100, y: 28, module: 0 },
+  { id: 2, x: 76, y: 88, module: 0 },
+  { id: 3, x: 154, y: 42, module: 1 },
+  { id: 4, x: 212, y: 28, module: 1 },
+  { id: 5, x: 188, y: 88, module: 1 },
+] as const;
+const MINI_NETWORK_LINKS = [
+  { source: 0, target: 1 },
+  { source: 1, target: 2 },
+  { source: 2, target: 0 },
+  { source: 3, target: 4 },
+  { source: 4, target: 5 },
+  { source: 5, target: 3 },
+  { source: 2, target: 3 },
+  { source: 1, target: 4 },
+] as const;
+const MINI_OBSERVED_LINK_KEYS = new Set(["0:1", "1:2", "3:4", "4:5", "2:3"]);
 
 const formatPrecomputeStatusMessage = (
   label: string,
@@ -333,6 +358,84 @@ const buildLineSegments = (
 
   return segments;
 };
+
+function MiniMissingDataNetwork({ observed = false }: { observed?: boolean }) {
+  const visibleLinks = observed
+    ? MINI_NETWORK_LINKS.filter(({ source, target }) =>
+        MINI_OBSERVED_LINK_KEYS.has(linkKey(source, target)),
+      )
+    : MINI_NETWORK_LINKS;
+  const missingLinks = observed
+    ? MINI_NETWORK_LINKS.filter(
+        ({ source, target }) => !MINI_OBSERVED_LINK_KEYS.has(linkKey(source, target)),
+      )
+    : [];
+  const nodeById = new Map(MINI_NETWORK_NODES.map((node) => [node.id, node]));
+
+  return (
+    <svg
+      viewBox="0 0 254 118"
+      className="block w-full overflow-visible"
+      role="img"
+      aria-label={observed ? "Observed network with missing links" : "True network"}
+    >
+      <g fill="none" strokeLinecap="round" vectorEffect="non-scaling-stroke">
+        {missingLinks.map(({ source, target }) => {
+          const sourceNode = nodeById.get(source);
+          const targetNode = nodeById.get(target);
+          if (!sourceNode || !targetNode) return null;
+
+          return (
+            <line
+              key={`missing-${source}-${target}`}
+              x1={sourceNode.x}
+              y1={sourceNode.y}
+              x2={targetNode.x}
+              y2={targetNode.y}
+              stroke="#d1d5db"
+              strokeDasharray="5 7"
+              strokeWidth={2}
+              opacity={0.42}
+            />
+          );
+        })}
+        {visibleLinks.map(({ source, target }) => {
+          const sourceNode = nodeById.get(source);
+          const targetNode = nodeById.get(target);
+          if (!sourceNode || !targetNode) return null;
+
+          return (
+            <line
+              key={`visible-${source}-${target}`}
+              x1={sourceNode.x}
+              y1={sourceNode.y}
+              x2={targetNode.x}
+              y2={targetNode.y}
+              stroke="#8aa29e"
+              strokeWidth={2.6}
+              opacity={0.78}
+            />
+          );
+        })}
+      </g>
+      {MINI_NETWORK_NODES.map((node) => {
+        const color = COLORBLIND_FRIENDLY_POOL[node.module] ?? "#8aa29e";
+        return (
+          <circle
+            key={node.id}
+            cx={node.x}
+            cy={node.y}
+            r={8.5}
+            fill={color}
+            stroke="#ffffff"
+            strokeWidth={2.2}
+            vectorEffect="non-scaling-stroke"
+          />
+        );
+      })}
+    </svg>
+  );
+}
 
 function SweepChart({
   title,
@@ -1653,6 +1756,8 @@ export default observer(function RegularizedInfomap({
   const [sparsePercentage, setSparsePercentage] = useState(0);
   const [regularizationStrength, setRegularizationStrength] = useState(1);
   const [showPriorLinks, setShowPriorLinks] = useState(false);
+  const [hoveredComparisonNode, setHoveredComparisonNode] =
+    useState<HoveredComparisonNode>(null);
   const [linksCopyStatus, setLinksCopyStatus] = useState("");
   const [treeCopyStatus, setTreeCopyStatus] = useState<
     Record<NetworkState, string>
@@ -1980,7 +2085,7 @@ export default observer(function RegularizedInfomap({
   );
 
   const networkWidth = Math.max(320, Math.round(width / 2));
-  const networkHeight = Math.max(280, Math.round(height * 0.82));
+  const networkHeight = Math.max(250, Math.round(height * 0.92));
   const lockedNodePositions = useMemo<NodePositionById | undefined>(() => {
     if (datasetState.status !== "ready") {
       return undefined;
@@ -2333,12 +2438,12 @@ export default observer(function RegularizedInfomap({
     </div>
   );
   const priorLinksButtonStyle = {
-    padding: "0.25rem 0.5rem",
-    fontSize: "0.7rem",
+    padding: "0.18rem 0.36rem",
+    fontSize: "0.62rem",
     textAlign: "center",
     justifyContent: "center",
-    letterSpacing: "0.02em",
-    width: "7.4rem",
+    letterSpacing: "0.01em",
+    width: "6.2rem",
   } as const;
   const renderPriorLinksToggleButton = () => (
     <button
@@ -2374,41 +2479,87 @@ export default observer(function RegularizedInfomap({
       </div>
     </div>
   );
+  const getComparisonLinkOpacity = useCallback(
+    (networkType: NetworkState) => (link: Link) => {
+      if (!hoveredComparisonNode || hoveredComparisonNode.network !== networkType) {
+        return INCIDENT_LINK_OPACITY;
+      }
+
+      return link.source.id === hoveredComparisonNode.nodeId ||
+        link.target.id === hoveredComparisonNode.nodeId
+        ? INCIDENT_LINK_OPACITY
+        : NON_INCIDENT_LINK_OPACITY;
+    },
+    [hoveredComparisonNode],
+  );
 
   return (
     <div className="space-y-6">
-      <div className="prose max-w-none">
-        <h2 className="text-2xl font-bold mb-4">Regularized Infomap</h2>
-        <p>
-          In real life you often deal with incomplete data, such as missing
-          links or inaccurate link weights. Regularized Infomap is useful in
-          those settings because it can make the detected modules less brittle
-          when the observed network is only a partial or noisy picture of the
-          underlying system.
+      <div className="mb-12 grid gap-8 xl:grid-cols-[minmax(0,0.86fr)_minmax(0,1.14fr)] xl:items-center">
+        <div className="max-w-3xl">
+          <p className="mb-2 text-sm font-black uppercase tracking-[0.22em] text-[#b22222]">
+            Incomplete data
+          </p>
+          <h2 className="mb-4 mt-0">
+            What if the observed network is missing links?
+          </h2>
+          <div className="space-y-4 text-base leading-relaxed text-gray-700">
+            <p>
+              The standard map equation compresses flow on the network it is
+              given. It works best when the observed links are complete enough
+              to estimate that flow reliably.
+            </p>
+            <p>
+              When many links are missing, standard Infomap can interpret the
+              gaps as real barriers and split the network into spurious small
+              modules. Missing links are not always evidence that two parts of
+              the system are truly unrelated.
+            </p>
+          </div>
+        </div>
+        <div className="grid min-w-0 gap-5 sm:grid-cols-2">
+          <div>
+            <h3 className="mb-2 text-center text-sm font-semibold uppercase tracking-[0.12em] text-gray-600">
+              True network
+            </h3>
+            <MiniMissingDataNetwork />
+          </div>
+          <div>
+            <h3 className="mb-2 text-center text-sm font-semibold uppercase tracking-[0.12em] text-gray-600">
+              Observed network
+            </h3>
+            <MiniMissingDataNetwork observed />
+          </div>
+        </div>
+      </div>
+
+      <div className="mb-8 max-w-3xl">
+        <p className="mb-2 text-sm font-black uppercase tracking-[0.22em] text-[#b22222]">
+          Regularized Infomap
         </p>
-        <p>
-          This example uses a complete network
-          {completeNetworkNodeCount > 0 && (
-            <>
-              {" "}
-              with {completeNetworkNodeCount} nodes, where each node has about{" "}
-              {completeNetworkAvgLinksPerNode.toFixed(1)} links on average
-            </>
-          )}
-          . We first run standard Infomap on that complete network and use the
-          resulting partition as the reference structure. We then remove a
-          fraction of links at random to simulate incomplete data and ask
-          Infomap to recover that reference partition.
-        </p>
-        <p>
-          <strong>Regularized Infomap</strong> adds a weak structural prior that
-          makes the partition less eager to overreact to missing links and noisy
-          evidence. When the observed network is sparse, that incorporated prior
-          assumption can stabilize the solution by balancing the measured flow
-          against a simpler baseline model, instead of trusting every missing
-          edge as a strong signal. Here we use the <strong>Infomap API</strong>{" "}
-          and compare regularized and non-regularized solutions directly.
-        </p>
+        <h2 className="mb-4 mt-0">Regularized Infomap</h2>
+        <div className="space-y-4 text-base leading-relaxed text-gray-700">
+          <p>
+            Regularized Infomap compensates for incomplete observations with a
+            weak Bayesian estimate of transition rates. In simple terms, it
+            balances the observed sparse network against a neutral baseline
+            before searching for modules.
+          </p>
+          <p>
+            This example starts from a complete network
+            {completeNetworkNodeCount > 0 && (
+              <>
+                {" "}
+                with {completeNetworkNodeCount} nodes, where each node has
+                about {completeNetworkAvgLinksPerNode.toFixed(1)} links on
+                average
+              </>
+            )}
+            . We remove links to simulate incomplete data, then compare whether
+            standard or regularized Infomap recovers the complete-network
+            partition.
+          </p>
+        </div>
       </div>
 
       <div className="space-y-3">
@@ -2503,13 +2654,18 @@ export default observer(function RegularizedInfomap({
               showLabels={false}
               showModules={true}
               colorIntraModuleLinks={true}
-              baseLinkStrokeWidth={1}
+              baseLinkStrokeWidth={0.72}
               showNodeId={false}
               nodeStroke="#fff"
-              nodeStrokeWidth={1.5}
+              nodeStrokeWidth={1.2}
               width={networkWidth}
               height={networkHeight}
               nodeScale={regularizedNodeScale}
+              getLinkOpacity={getComparisonLinkOpacity("normal")}
+              onNodeMouseEnter={(node) =>
+                setHoveredComparisonNode({ network: "normal", nodeId: node.id })
+              }
+              onNodeMouseLeave={() => setHoveredComparisonNode(null)}
             />
 
             {datasetState.status === "ready" &&
@@ -2558,13 +2714,21 @@ export default observer(function RegularizedInfomap({
               showLabels={false}
               showModules={true}
               colorIntraModuleLinks={true}
-              baseLinkStrokeWidth={1}
+              baseLinkStrokeWidth={0.72}
               showNodeId={false}
               nodeStroke="#fff"
-              nodeStrokeWidth={1.5}
+              nodeStrokeWidth={1.2}
               width={networkWidth}
               height={networkHeight}
               nodeScale={regularizedNodeScale}
+              getLinkOpacity={getComparisonLinkOpacity("regularized")}
+              onNodeMouseEnter={(node) =>
+                setHoveredComparisonNode({
+                  network: "regularized",
+                  nodeId: node.id,
+                })
+              }
+              onNodeMouseLeave={() => setHoveredComparisonNode(null)}
               linkBackgroundChildren={
                 showPriorLinks ? (
                   <PriorLinksOverlay
@@ -2753,33 +2917,44 @@ export default observer(function RegularizedInfomap({
         )}
       </div>
 
-      <div className="prose max-w-none">
-        <h3 className="text-xl font-bold">How it works</h3>
-        <ol>
-          <li>
-            <strong>Complete Network:</strong> We load the edge list from{" "}
-            <code>VII_network_complete.dat</code> and run standard Infomap at 0%
-            link removal to get the reference partition.
-          </li>
-          <li>
-            <strong>Standard Infomap:</strong> Runs{" "}
-            <code>@mapequation/infomap</code> with two-level optimization and{" "}
-            <code>-N {NUM_TRIALS}</code> trials.
-          </li>
-          <li>
-            <strong>Regularized Infomap:</strong> Runs the same API with
+      <div className="mx-auto max-w-4xl pt-2 text-sm leading-relaxed text-gray-600">
+        <p className="mb-2 text-xs font-black uppercase tracking-[0.18em] text-[#b22222]">
+          What is being compared?
+        </p>
+        <h3 className="mb-3 mt-0 text-xl font-bold text-gray-900">
+          The experiment behind the sliders
+        </h3>
+        <div className="grid gap-3 md:grid-cols-2">
+          <p className="m-0">
+            <span className="font-semibold text-gray-800">
+              Reference map:
+            </span>{" "}
+            the complete edge list in <code>VII_network_complete.dat</code> is
+            clustered once at 0% link removal and used as the target partition.
+          </p>
+          <p className="m-0">
+            <span className="font-semibold text-gray-800">
+              Standard run:
+            </span>{" "}
+            <code>@mapequation/infomap</code> runs with two-level optimization
+            and <code>-N {NUM_TRIALS}</code> trials on the link-removed network.
+          </p>
+          <p className="m-0">
+            <span className="font-semibold text-gray-800">
+              Regularized run:
+            </span>{" "}
+            the same API also uses <code>--regularized</code> and{" "}
             <code>
-              {" "}
-              --regularized --regularization-strength{" "}
-              {regularizationStrength.toFixed(2)}
-            </code>{" "}
-            and <code>-N {NUM_TRIALS}</code> trials.
-          </li>
-          <li>
-            <strong>Evaluation:</strong> A run passes only if it recovers
-            exactly the reference partition from the complete network.
-          </li>
-        </ol>
+              --regularization-strength {regularizationStrength.toFixed(2)}
+            </code>
+            .
+          </p>
+          <p className="m-0">
+            <span className="font-semibold text-gray-800">Evaluation:</span>{" "}
+            AMI compares each recovered partition with the complete-network
+            reference, while the pass/fail text marks exact recovery.
+          </p>
+        </div>
       </div>
     </div>
   );

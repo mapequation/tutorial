@@ -198,11 +198,11 @@ const RECURSIVE_VIEWBOX = {
   height: 400,
 } as const;
 const MULTILEVEL_MAP_EQUATION_HELP =
-  "The multilevel map equation recursively asks whether adding coarser or finer index codebooks makes the random-walk description shorter. The number of useful levels is therefore part of the solution.";
+  "The hierarchical map equation compresses a random-walk description used as a proxy for real flow. It searches for both the module partition and the number of useful levels.";
 const HIERARCHICAL_CODEBOOK_HELP =
-  "A hierarchical codebook is a nested set of codebooks: broad index codebooks choose large modules, lower index codebooks choose submodules, and the finest module codebooks describe node visits and exits.";
+  "A hierarchical codebook is a nested set of codebooks. The code first names broad modules, then lower-level modules, and finally the node or exit event in the local module codebook.";
 const TWO_LEVEL_LIMIT_HELP =
-  "A two-level description is restricted to one index codebook plus module codebooks. It can show one useful cross-section of the network, but it cannot simultaneously encode modules, submodules, and deeper substructure.";
+  "A two-level description is restricted to one index codebook plus local module codebooks. It is useful, but it forces all modules to live in one flat layer.";
 const CODELENGTH_HELP =
   "Codelength is the expected number of bits printed per step of the random walker. A lower codelength means the partition describes the walk more efficiently.";
 const RECURSIVE_STRUCTURE_HELP =
@@ -384,6 +384,16 @@ function getTrianglePoints(
 
 function formatPolygonPoints(points: PositionedNode[]) {
   return points.map((point) => `${point.x},${point.y}`).join(" ");
+}
+
+function expandTrianglePoints(points: PositionedNode[], scale: number) {
+  const center = getCentroid(points);
+
+  return points.map((point) => ({
+    ...point,
+    x: center.x + (point.x - center.x) * scale,
+    y: center.y + (point.y - center.y) * scale,
+  }));
 }
 
 function getCentroid(points: PositionedNode[]) {
@@ -1183,6 +1193,10 @@ function getCodebookActivationForTransition(
 function getCodebookActiveItemKeys(walker: RandomWalker) {
   const activeKeys = new Set<string>();
 
+  if (walker.totalVisits <= 1) {
+    return activeKeys;
+  }
+
   (["multilevel", "two-level"] as const).forEach((variant) => {
     const activation = getCodebookActivationForTransition(
       variant,
@@ -1218,7 +1232,7 @@ function useCodebookColumnActivationTotals(walker: RandomWalker) {
   trace.forEach((currentNodeId, traceIndex) => {
     const stepNumber = firstVisibleStep + traceIndex;
 
-    if (stepNumber <= lastProcessedStepRef.current) {
+    if (stepNumber <= 1 || stepNumber <= lastProcessedStepRef.current) {
       return;
     }
 
@@ -1251,8 +1265,15 @@ function getCodebookColumnCounters(
 ) {
   const lastUsedStep = new Map<CodebookColumnKey, number>();
   const trace = Array.from(walker.trace);
+  const firstVisibleStep = walker.totalVisits - trace.length + 1;
 
   trace.forEach((currentNodeId, traceIndex) => {
+    const stepNumber = firstVisibleStep + traceIndex;
+
+    if (stepNumber <= 1) {
+      return;
+    }
+
     const previousNodeId = traceIndex > 0 ? trace[traceIndex - 1] : null;
 
     (["multilevel", "two-level"] as const).forEach((variant) => {
@@ -1316,7 +1337,7 @@ function buildCodelengthGroups(): CodelengthGroup[] {
       title: "Multilevel codelength",
       total: multilevelNetwork.mapequation.codelength,
       note:
-        "The multilevel sum uses one top index codebook, lower index codebooks inside top modules, and local node-module codebooks.",
+        "The multilevel sum combines the top index, lower indexes inside top modules, and local module codebooks for node visits and exits.",
       formula: (
         <TeX math="L_{\mathrm{multi}}(M)=q_{\curvearrowright}H(\mathcal{Q})+\sum_i q_{\curvearrowright}^{i}H(\mathcal{Q}^{i})+\sum_{ij}p_{\circlearrowright}^{ij}H(\mathcal{P}^{ij})" />
       ),
@@ -1351,7 +1372,7 @@ function buildCodelengthGroups(): CodelengthGroup[] {
       title: "Two-level codelength",
       total: twoLevelNetwork.mapequation.codelength,
       note:
-        "The two-level sum is the page-3 map equation calculation: index-codebook use plus all module-codebook use.",
+        "The two-level sum has one flat index term plus the local module-codebook terms for node visits and exits.",
       formula: (
         <TeX math="L_{\mathrm{two}}(M)=q_{\curvearrowright}H(\mathcal{Q})+\sum_i p_{\circlearrowright}^{i}H(\mathcal{P}^{i})" />
       ),
@@ -1914,6 +1935,67 @@ const CodebookComparison = observer(function CodebookComparison({
     <div className={`-mt-6 p-0 ${HIERARCHICAL_COMPARISON_GRID_CLASS}`}>
       <h3 className="sr-only">Codebook comparison</h3>
       <svg
+        viewBox={`0 0 ${twoLevelSvgWidth} ${codebookSvgHeight}`}
+        className="mx-auto block w-full max-w-[23rem] overflow-visible"
+        role="img"
+        aria-label="Two-level codebook comparison"
+      >
+        {fineModules.map((module_, fineIndex) => {
+          return (
+            <g key={`two-level-module-connectors-${module_.key}`}>
+              {[0, 1, 2, 3].map((localIndex) => (
+                <Connector
+                  key={`two-level-index-to-node-${module_.key}-${localIndex}`}
+                  x1={twoLevelIndexX + CODEBOOK_BLOCK.width}
+                  y1={getStackBlockCenterY({
+                    stackY: panelY,
+                    itemIndex: fineIndex,
+                    itemCount: twoLevelIndexItems.length,
+                  })}
+                  x2={twoLevelModuleX}
+                  y2={getStackBlockCenterY({
+                    stackY: panelY,
+                    itemIndex: moduleItemIndex(fineIndex, localIndex),
+                    itemCount: twoLevelModuleItems.length,
+                  })}
+                  color={module_.color}
+                  opacity={localIndex === 3 ? 0.58 : 0.42}
+                  strokeWidth={localIndex === 3 ? 1.85 : 1.3}
+                />
+              ))}
+            </g>
+          );
+        })}
+        <CodebookStack
+          x={twoLevelIndexX}
+          y={panelY}
+          items={twoLevelIndexItems}
+          hoveredTarget={hoveredTarget}
+          activeItemKeys={activeItemKeys}
+          onHoverTargetChange={onHoverTargetChange}
+        />
+        <CodebookStack
+          x={twoLevelModuleX}
+          y={panelY}
+          items={twoLevelModuleItems}
+          hoveredTarget={hoveredTarget}
+          activeItemKeys={activeItemKeys}
+          onHoverTargetChange={onHoverTargetChange}
+        />
+        <CodebookColumnCounter
+          x={twoLevelIndexX + CODEBOOK_BLOCK.width / 2}
+          y={250}
+          counter={columnCounters.get("two-level-index")}
+        />
+        <CodebookColumnCounter
+          x={twoLevelModuleX + CODEBOOK_BLOCK.width / 2}
+          y={250}
+          counter={columnCounters.get("two-level-module")}
+          showLastUsed={false}
+        />
+      </svg>
+      <div className="hidden lg:block" aria-hidden="true" />
+      <svg
         viewBox={`0 0 ${multilevelSvgWidth} ${codebookSvgHeight}`}
         className="mx-auto block w-full max-w-[27rem] overflow-visible"
         role="img"
@@ -2019,67 +2101,6 @@ const CodebookComparison = observer(function CodebookComparison({
           x={moduleX + CODEBOOK_BLOCK.width / 2}
           y={250}
           counter={columnCounters.get("multilevel-module")}
-          showLastUsed={false}
-        />
-      </svg>
-      <div className="hidden lg:block" aria-hidden="true" />
-      <svg
-        viewBox={`0 0 ${twoLevelSvgWidth} ${codebookSvgHeight}`}
-        className="mx-auto block w-full max-w-[23rem] overflow-visible"
-        role="img"
-        aria-label="Two-level codebook comparison"
-      >
-        {fineModules.map((module_, fineIndex) => {
-          return (
-            <g key={`two-level-module-connectors-${module_.key}`}>
-              {[0, 1, 2, 3].map((localIndex) => (
-                <Connector
-                  key={`two-level-index-to-node-${module_.key}-${localIndex}`}
-                  x1={twoLevelIndexX + CODEBOOK_BLOCK.width}
-                  y1={getStackBlockCenterY({
-                    stackY: panelY,
-                    itemIndex: fineIndex,
-                    itemCount: twoLevelIndexItems.length,
-                  })}
-                  x2={twoLevelModuleX}
-                  y2={getStackBlockCenterY({
-                    stackY: panelY,
-                    itemIndex: moduleItemIndex(fineIndex, localIndex),
-                    itemCount: twoLevelModuleItems.length,
-                  })}
-                  color={module_.color}
-                  opacity={localIndex === 3 ? 0.58 : 0.42}
-                  strokeWidth={localIndex === 3 ? 1.85 : 1.3}
-                />
-              ))}
-            </g>
-          );
-        })}
-        <CodebookStack
-          x={twoLevelIndexX}
-          y={panelY}
-          items={twoLevelIndexItems}
-          hoveredTarget={hoveredTarget}
-          activeItemKeys={activeItemKeys}
-          onHoverTargetChange={onHoverTargetChange}
-        />
-        <CodebookStack
-          x={twoLevelModuleX}
-          y={panelY}
-          items={twoLevelModuleItems}
-          hoveredTarget={hoveredTarget}
-          activeItemKeys={activeItemKeys}
-          onHoverTargetChange={onHoverTargetChange}
-        />
-        <CodebookColumnCounter
-          x={twoLevelIndexX + CODEBOOK_BLOCK.width / 2}
-          y={250}
-          counter={columnCounters.get("two-level-index")}
-        />
-        <CodebookColumnCounter
-          x={twoLevelModuleX + CODEBOOK_BLOCK.width / 2}
-          y={250}
-          counter={columnCounters.get("two-level-module")}
           showLastUsed={false}
         />
       </svg>
@@ -2465,14 +2486,12 @@ function RecursiveTriangleZoomNetwork() {
 
 const RawTopologyNetworkView = observer(function RawTopologyNetworkView({
   title,
-  description,
   variant,
   walker,
   hoveredTarget,
   onHoverTargetChange,
 }: {
   title: string;
-  description: string;
   variant: NetworkViewVariant;
   walker: RandomWalker;
   hoveredTarget: HoverTarget | null;
@@ -2488,7 +2507,6 @@ const RawTopologyNetworkView = observer(function RawTopologyNetworkView({
     <div className="space-y-3 text-center">
       <div className="mb-3">
         <h3 className="m-0 text-base font-bold text-gray-900">{title}</h3>
-        <p className="m-0 mt-1 text-sm text-gray-600">{description}</p>
       </div>
       <div className="relative">
         {variant === "two-level" && (
@@ -2505,38 +2523,37 @@ const RawTopologyNetworkView = observer(function RawTopologyNetworkView({
           role="img"
           aria-label={title}
         >
-        {topModules.map((module_) => {
-          const points = getTrianglePoints(nodeById, module_.cornerNodeIds);
-          const active =
-            hoveredTarget?.variant === variant &&
-            hoveredTarget.kind === "top" &&
-            hoveredTarget.topIndex === module_.topIndex;
+          {variant === "multilevel" &&
+            topModules.map((module_) => {
+              const points = getTrianglePoints(nodeById, module_.cornerNodeIds);
+              const topPoints = expandTrianglePoints(points, 1.32);
+              const active =
+                hoveredTarget?.variant === variant &&
+                hoveredTarget.kind === "top" &&
+                hoveredTarget.topIndex === module_.topIndex;
 
-          if (points.length !== 3) {
-            return null;
-          }
-
-          return (
-            <polygon
-              key={module_.key}
-              points={formatPolygonPoints(points)}
-              fill={module_.color}
-              fillOpacity={active ? 0.18 : 0.075}
-              stroke={darkenHexColor(module_.color, 0.18)}
-              strokeWidth={active ? 2 : 1.35}
-              strokeLinejoin="round"
-              vectorEffect="non-scaling-stroke"
-              onMouseEnter={() =>
-                onHoverTargetChange({
-                  variant,
-                  kind: "top",
-                  topIndex: module_.topIndex,
-                })
+              if (points.length !== 3) {
+                return null;
               }
-              onMouseLeave={() => onHoverTargetChange(null)}
-            />
-          );
-        })}
+
+              return (
+                <polygon
+                  key={module_.key}
+                  points={formatPolygonPoints(topPoints)}
+                  fill={module_.color}
+                  fillOpacity={active ? 0.4 : 0.26}
+                  stroke="none"
+                  onMouseEnter={() =>
+                    onHoverTargetChange({
+                      variant,
+                      kind: "top",
+                      topIndex: module_.topIndex,
+                    })
+                  }
+                  onMouseLeave={() => onHoverTargetChange(null)}
+                />
+              );
+            })}
         {fineModules.map((module_, fineIndex) => {
           const points = getTrianglePoints(nodeById, module_.nodeIds);
           const active =
@@ -2790,47 +2807,45 @@ function HierarchicalCodebooks() {
 
   return (
     <section id="hierarchical-codebooks" className="col-span-4 mb-48">
-      <div className="mb-8">
-        <h2>Hierarchical codebooks</h2>
+      <div className="mb-8 max-w-3xl">
+        <p className="mb-2 text-sm font-black uppercase tracking-[0.22em] text-[#b22222]">
+          Hierarchical codebooks
+        </p>
+        <h2 className="mb-4 mt-0">Codebooks can be nested too</h2>
         <p>
-          The Huffman coding example above introduced one-level and two-level
-          codebooks. The two-level view is useful for learning the mechanics,
-          but it is a restriction{" "}
-          <HelpTooltip content={TWO_LEVEL_LIMIT_HELP} />. The map equation is
-          naturally multilevel: it can choose as many
-          nested module levels as are useful for describing the random walker.
+          A two-level description is useful for learning the mechanics, but it
+          is still a restriction <HelpTooltip content={TWO_LEVEL_LIMIT_HELP} />.
+          The hierarchical map equation asks whether nested codebooks describe
+          the same flow with fewer bits.
         </p>
         <p>
           Hierarchical codebooks{" "}
           <HelpTooltip content={HIERARCHICAL_CODEBOOK_HELP} /> make that
-          possible. Instead of naming every node from one flat list, the walker
-          can name a path through nested modules before naming the node. If the
-          network really has nested flow structure, those smaller local
-          codebooks can reduce the total codelength.
+          possible. Instead of naming every node from one flat list, the code
+          names a path through nested modules before naming the final node or
+          exit event. If the network has nested flow structure, those smaller
+          local codebooks can reduce the total codelength.
         </p>
         <p className="text-gray-700">
           The multilevel map equation{" "}
           <HelpTooltip content={MULTILEVEL_MAP_EQUATION_HELP} /> searches for
-          the shortest description across nested partitions instead of forcing a
-          single flat partition. The two network views below use the same nodes
-          and links. The multilevel view keeps small triangle modules nested
-          inside larger roman-numbered modules, while the two-level view
-          flattens the same small modules into one layer labeled a-i.
+          the shortest description across nested partitions. The hierarchy is
+          part of the solution: extra levels appear only when they improve
+          compression.
         </p>
       </div>
 
       <div className="space-y-1">
         <p className="mx-auto max-w-4xl text-center text-sm text-gray-600">
-          Compare the two descriptions of the same network. The left view keeps
-          the nested structure: top-level modules I-III contain smaller modules
-          a-c. The right view forces the nine small modules into one flat
-          two-level partition.
+          Compare the two descriptions of the same network. The left view
+          forces the nine small modules into one flat two-level partition. The
+          right view keeps the nested structure: top-level modules I-III contain
+          smaller modules a-c.
         </p>
         <div className={HIERARCHICAL_COMPARISON_GRID_CLASS}>
           <RawTopologyNetworkView
-            title="Multilevel network view"
-            description="Small triangles are fine modules; each large triangle is a top-level module."
-            variant="multilevel"
+            title="Two-level network view"
+            variant="two-level"
             walker={walkerNetwork.walker}
             hoveredTarget={hoveredTarget}
             onHoverTargetChange={setHoveredTarget}
@@ -2843,9 +2858,8 @@ function HierarchicalCodebooks() {
             />
           </div>
           <RawTopologyNetworkView
-            title="Two-level network view"
-            description="The same raw topology, ready for the flat two-level grouping comparison."
-            variant="two-level"
+            title="Multilevel network view"
+            variant="multilevel"
             walker={walkerNetwork.walker}
             hoveredTarget={hoveredTarget}
             onHoverTargetChange={setHoveredTarget}
@@ -2854,8 +2868,8 @@ function HierarchicalCodebooks() {
         <p className="mx-auto max-w-4xl pt-3 text-center text-sm text-gray-600">
           The codebook visualization turns those module labels into codebook
           stacks. Multilevel coding chooses a top module, then a submodule, then
-          a node. Two-level coding has no top index, so all small modules are
-          chosen from one flat index.
+          the local node or exit symbol. Two-level coding has no top index, so
+          all small modules are chosen from one flat index.
         </p>
         <CodebookComparison
           walker={walkerNetwork.walker}
@@ -2867,9 +2881,8 @@ function HierarchicalCodebooks() {
             Each codebook contributes a use rate multiplied by an entropy. The
             random walker can estimate the use rate by counting how often that
             codebook is activated per step. The entropy is calculated from the
-            symbol probabilities inside the codebook and can be interpreted as
-            the optimal average bits per use; an actual Huffman code approximates
-            this with its observed average codeword length.
+            symbol probabilities inside the codebook: broad-module entries,
+            submodule entries, node visits, and exits.
           </p>
           <div className="overflow-x-auto py-2 text-center text-base leading-8 text-gray-900">
             <TeX math="L(M)=\sum_{\mathrm{codebooks}} \mathrm{use\ rate}\times H(\mathrm{codebook})" />
@@ -2880,27 +2893,27 @@ function HierarchicalCodebooks() {
                 Top index:
               </span>{" "}
               <TeX math="q_{\curvearrowright}H(\mathcal{Q})" />.{" "}
-              <TeX math="q_{\curvearrowright}" /> is estimated as top-index
-              uses per walker step. <TeX math="H(\mathcal{Q})" /> is the
-              entropy of the top-index symbols.
+              <TeX math="q_{\curvearrowright}" /> is how often the top index is
+              used per step. <TeX math="H(\mathcal{Q})" /> is the entropy of
+              the broad-module entry symbols.
             </p>
             <p className="m-0">
               <span className="font-semibold text-gray-800">
                 Lower indexes:
               </span>{" "}
               <TeX math="\sum_i q_{\curvearrowright}^{i}H(\mathcal{Q}^{i})" />
-              . Each <TeX math="q_{\curvearrowright}^{i}" /> is how often the
-              walker uses the lower index inside top module{" "}
-              <TeX math="i" />; <TeX math="H(\mathcal{Q}^{i})" /> is the
-              entropy of that lower index.
+              . Each <TeX math="q_{\curvearrowright}^{i}" /> is how often a
+              lower index inside top module <TeX math="i" /> is used;{" "}
+              <TeX math="H(\mathcal{Q}^{i})" /> is the entropy of its submodule
+              entry symbols.
             </p>
             <p className="m-0">
               <span className="font-semibold text-gray-800">
                 Module codebooks:
               </span>{" "}
               <TeX math="\sum_{ij}p_{\circlearrowright}^{ij}H(\mathcal{P}^{ij})" />
-              . <TeX math="p_{\circlearrowright}^{ij}" /> counts how often the
-              local node-and-exit codebook is used per step;{" "}
+              . <TeX math="p_{\circlearrowright}^{ij}" /> is how often the
+              local codebook for submodule <TeX math="ij" /> is used;{" "}
               <TeX math="H(\mathcal{P}^{ij})" /> is the entropy of its node and
               exit symbols.
             </p>
@@ -2908,9 +2921,9 @@ function HierarchicalCodebooks() {
               <span className="font-semibold text-gray-800">Two-level:</span>{" "}
               the same idea becomes{" "}
               <TeX math="q_{\curvearrowright}H(\mathcal{Q})+\sum_i p_{\circlearrowright}^{i}H(\mathcal{P}^{i})" />
-              : one flat index plus the module codebooks. Shortening a codebook
-              that is used often saves more total codelength than shortening a
-              rarely used one.
+              : one flat index plus local module codebooks. It cannot represent
+              the top-module step separately, so nested structure must be
+              flattened.
             </p>
           </div>
         </div>
@@ -2920,14 +2933,6 @@ function HierarchicalCodebooks() {
           local module codebooks than they cost to use.
         </p>
         <CodelengthBreakdown />
-        <p className="mx-auto max-w-4xl pt-6 text-center text-sm text-gray-600">
-          The Sierpiński triangle{" "}
-          <HelpTooltip content={RECURSIVE_STRUCTURE_HELP} /> is a larger example
-          of the same principle. Zooming in shows that the same triangular
-          pattern keeps repeating, which is exactly the kind of nested structure
-          hierarchical codebooks are meant to describe.
-        </p>
-        <RecursiveTriangleZoomNetwork />
       </div>
     </section>
   );

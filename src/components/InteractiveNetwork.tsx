@@ -31,8 +31,31 @@ interface Props {
   height?: number;
   scaleLinksByWeight?: boolean;
   getNodeIdFill?: (node: NodeModel, fill: string) => string;
+  showPajekCopyButton?: boolean;
   underlayChildren?: React.ReactNode;
   children?: React.ReactNode;
+}
+
+function serializeNetworkToPajek(network: NetworkModel) {
+  const vertices = network.nodes
+    .slice()
+    .sort((left, right) => left.id - right.id)
+    .map((node) => `${node.id} "${node.name || node.id}"`);
+  const edges = network.links
+    .slice()
+    .sort((left, right) =>
+      left.source.id === right.source.id
+        ? left.target.id - right.target.id
+        : left.source.id - right.source.id,
+    )
+    .map((link) => `${link.source.id} ${link.target.id} ${link.weight}`);
+
+  return [
+    `*Vertices ${network.numNodes}`,
+    ...vertices,
+    network.directed ? "*Arcs" : "*Edges",
+    ...edges,
+  ].join("\n");
 }
 
 /**
@@ -62,6 +85,7 @@ export default observer(function InteractiveNetwork({
   height = 800,
   scaleLinksByWeight = false,
   getNodeIdFill,
+  showPajekCopyButton = false,
   underlayChildren,
   children,
 }: Props) {
@@ -73,6 +97,9 @@ export default observer(function InteractiveNetwork({
   const [lassoPoints, setLassoPoints] = useState<[number, number][]>([]);
   const [selectedNodes, setSelectedNodes] = useState<Set<number>>(new Set());
   const [feedback, setFeedback] = useState<string>("");
+  const [pajekCopyStatus, setPajekCopyStatus] = useState<
+    "idle" | "copied" | "failed"
+  >("idle");
   const currentActiveCommunity = activeCommunity ?? uncontrolledActiveCommunity;
   const setCurrentActiveCommunity = useCallback(
     (community: number) => {
@@ -345,6 +372,22 @@ export default observer(function InteractiveNetwork({
     [currentActiveCommunity, scheme, schemeAlt],
   );
 
+  const pajekNetwork = useMemo(
+    () => serializeNetworkToPajek(network),
+    [network, network.treeUpdateCounter],
+  );
+
+  const handleCopyPajek = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(pajekNetwork);
+      setPajekCopyStatus("copied");
+      window.setTimeout(() => setPajekCopyStatus("idle"), 1500);
+    } catch {
+      setPajekCopyStatus("failed");
+      window.setTimeout(() => setPajekCopyStatus("idle"), 2000);
+    }
+  }, [pajekNetwork]);
+
   const getLabel = useCallback(
     (node: NodeModel) =>
       showModules && network.treeUpdateCounter
@@ -366,7 +409,17 @@ export default observer(function InteractiveNetwork({
           }}
         >
           <strong>Select Community:</strong>
-          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+          <div
+            style={
+              showPajekCopyButton
+                ? {
+                    display: "grid",
+                    gridTemplateColumns: `repeat(${numCommunities}, 2rem)`,
+                    gap: "0.5rem",
+                  }
+                : { display: "flex", gap: "0.5rem", flexWrap: "wrap" }
+            }
+          >
             {Array.from({ length: numCommunities }).map((_, i) => (
               <button
                 key={i}
@@ -377,6 +430,34 @@ export default observer(function InteractiveNetwork({
                 {i}
               </button>
             ))}
+            {showPajekCopyButton && (
+              <button
+                type="button"
+                onClick={handleCopyPajek}
+                style={{
+                  gridColumn: `${Math.max(1, numCommunities - 1)} / span 2`,
+                  width: "4.5rem",
+                  minHeight: "1.45rem",
+                  border: "1px solid #4b5563",
+                  borderRadius: "0.45rem",
+                  backgroundColor: "#ffffff",
+                  boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
+                  color: "#1f2937",
+                  cursor: "pointer",
+                  fontSize: "0.62rem",
+                  fontWeight: 700,
+                  lineHeight: 1,
+                  padding: "0.15rem 0.2rem",
+                  textAlign: "center",
+                }}
+              >
+                {pajekCopyStatus === "copied"
+                  ? "Copied"
+                  : pajekCopyStatus === "failed"
+                    ? "Failed"
+                    : "Copy Pajek"}
+              </button>
+            )}
           </div>
         </div>
       )}
