@@ -197,7 +197,7 @@ const COLORBLIND_FRIENDLY_POOL = figColors;
 const LINK_REMOVAL_HELP =
   "Removes the selected share of observed links to simulate incomplete data. The hidden reference partition still comes from the complete network.";
 const REGULARIZATION_HELP =
-  "Regularization strength controls how strongly Infomap mixes the observed sparse network with a weak Bayesian estimate of transition rates. Higher values make missing links count less as evidence for separating nodes, which can reduce spurious fragmentation.";
+  "Regularization strength controls how strongly Infomap mixes the observed sparse network with a uniform prior. The uniform prior is a neutral background assumption that any node could connect to any other node with a small amount of flow. Higher values make missing links count less as evidence for separating nodes, which can reduce spurious fragmentation.";
 const AMI_HELP =
   "Adjusted mutual information (AMI) compares the current non-isolated-node partition with the reference partition from the complete 0% network while correcting for agreement expected by chance. A value of 1 means the partitions match exactly up to relabeling, values near 0 mean no better agreement than random partitions with similar module sizes, and negative values mean worse-than-chance agreement.";
 const MODULE_COUNT_HELP =
@@ -228,13 +228,99 @@ const CONTROL_RANGE_CLASS = "h-4 w-32 flex-none";
 const PRIOR_LINK_STROKE = "#d1d5db";
 const INCIDENT_LINK_OPACITY = 1;
 const NON_INCIDENT_LINK_OPACITY = 0.14;
-const MINI_NETWORK_NODES = [
-  { id: 0, x: 42, y: 42, module: 0 },
-  { id: 1, x: 100, y: 28, module: 0 },
-  { id: 2, x: 76, y: 88, module: 0 },
-  { id: 3, x: 154, y: 42, module: 1 },
-  { id: 4, x: 212, y: 28, module: 1 },
-  { id: 5, x: 188, y: 88, module: 1 },
+const MINI_ZOOMED_OVERVIEW_NODE_SCALE = 0.44;
+const MINI_ZOOMED_OVERVIEW_CENTER = { x: 155, y: 58 };
+const scaleMiniZoomedOverviewPoint = (x: number, y: number) => ({
+  x: MINI_ZOOMED_OVERVIEW_CENTER.x + (x - MINI_ZOOMED_OVERVIEW_CENTER.x) * MINI_ZOOMED_OVERVIEW_NODE_SCALE,
+  y: MINI_ZOOMED_OVERVIEW_CENTER.y + (y - MINI_ZOOMED_OVERVIEW_CENTER.y) * MINI_ZOOMED_OVERVIEW_NODE_SCALE,
+});
+const MINI_OVERVIEW_NODES = [
+  { id: 0, ...scaleMiniZoomedOverviewPoint(112, 55), module: 0, zoomed: true },
+  { id: 1, ...scaleMiniZoomedOverviewPoint(138, 39), module: 0, zoomed: true },
+  { id: 2, ...scaleMiniZoomedOverviewPoint(130, 76), module: 0, zoomed: true },
+  { id: 3, ...scaleMiniZoomedOverviewPoint(171, 56), module: 1, zoomed: true },
+  { id: 4, ...scaleMiniZoomedOverviewPoint(198, 40), module: 1, zoomed: true },
+  { id: 5, ...scaleMiniZoomedOverviewPoint(190, 77), module: 1, zoomed: true },
+  { id: 6, x: 30, y: 37, module: 2, zoomed: false },
+  { id: 7, x: 55, y: 70, module: 2, zoomed: false },
+  { id: 8, x: 75, y: 31, module: 2, zoomed: false },
+  { id: 9, x: 44, y: 111, module: 2, zoomed: false },
+  { id: 10, x: 88, y: 105, module: 2, zoomed: false },
+  { id: 11, x: 244, y: 34, module: 3, zoomed: false },
+  { id: 12, x: 276, y: 61, module: 3, zoomed: false },
+  { id: 13, x: 235, y: 94, module: 3, zoomed: false },
+  { id: 14, x: 295, y: 104, module: 3, zoomed: false },
+  { id: 15, x: 262, y: 125, module: 3, zoomed: false },
+  { id: 16, x: 130, y: 123, module: 4, zoomed: false },
+  { id: 17, x: 171, y: 124, module: 4, zoomed: false },
+  { id: 18, x: 153, y: 103, module: 4, zoomed: false },
+  { id: 19, x: 25, y: 146, module: 5, zoomed: false },
+  { id: 20, x: 72, y: 151, module: 5, zoomed: false },
+  { id: 21, x: 112, y: 150, module: 5, zoomed: false },
+  { id: 22, x: 206, y: 149, module: 6, zoomed: false },
+  { id: 23, x: 251, y: 156, module: 6, zoomed: false },
+  { id: 24, x: 300, y: 150, module: 6, zoomed: false },
+  { id: 25, x: 15, y: 72, module: 2, zoomed: false },
+  { id: 26, x: 16, y: 118, module: 5, zoomed: false },
+  { id: 27, x: 38, y: 16, module: 2, zoomed: false },
+  { id: 28, x: 93, y: 14, module: 2, zoomed: false },
+  { id: 29, x: 138, y: 15, module: 7, zoomed: false },
+  { id: 30, x: 183, y: 14, module: 7, zoomed: false },
+  { id: 31, x: 226, y: 14, module: 3, zoomed: false },
+  { id: 32, x: 290, y: 20, module: 3, zoomed: false },
+  { id: 33, x: 309, y: 72, module: 3, zoomed: false },
+  { id: 34, x: 315, y: 120, module: 6, zoomed: false },
+  { id: 35, x: 281, y: 177, module: 6, zoomed: false },
+  { id: 36, x: 224, y: 177, module: 6, zoomed: false },
+  { id: 37, x: 154, y: 166, module: 4, zoomed: false },
+  { id: 38, x: 96, y: 178, module: 5, zoomed: false },
+  { id: 39, x: 41, y: 179, module: 5, zoomed: false },
+  { id: 40, x: 8, y: 28, module: 2, zoomed: false },
+  { id: 41, x: 3, y: 88, module: 2, zoomed: false },
+  { id: 42, x: 10, y: 164, module: 5, zoomed: false },
+  { id: 43, x: 61, y: 203, module: 5, zoomed: false },
+  { id: 44, x: 125, y: 194, module: 5, zoomed: false },
+  { id: 45, x: 181, y: 196, module: 6, zoomed: false },
+  { id: 46, x: 243, y: 203, module: 6, zoomed: false },
+  { id: 47, x: 312, y: 188, module: 6, zoomed: false },
+  { id: 48, x: 319, y: 32, module: 3, zoomed: false },
+  { id: 49, x: 306, y: 3, module: 3, zoomed: false },
+  { id: 50, x: 246, y: 0, module: 3, zoomed: false },
+  { id: 51, x: 199, y: 2, module: 7, zoomed: false },
+  { id: 52, x: 155, y: 1, module: 7, zoomed: false },
+  { id: 53, x: 108, y: 0, module: 7, zoomed: false },
+  { id: 54, x: 62, y: 1, module: 2, zoomed: false },
+  { id: 55, x: 24, y: 5, module: 2, zoomed: false },
+  { id: 56, x: 318, y: 142, module: 6, zoomed: false },
+  { id: 57, x: 286, y: 209, module: 6, zoomed: false },
+  { id: 58, x: 16, y: 205, module: 5, zoomed: false },
+  { id: 59, x: 152, y: 214, module: 4, zoomed: false },
+] as const;
+const MINI_EXTRA_OVERVIEW_NODES = Array.from({ length: 120 }, (_, index) => {
+  const column = index % 24;
+  const row = Math.floor(index / 24);
+  const xJitter = ((index * 37) % 11) - 5;
+  const yJitter = ((index * 29) % 13) - 6;
+
+  return {
+    id: 60 + index,
+    x: 7 + column * 13.1 + (row % 2) * 4.7 + xJitter * 0.55,
+    y: 7 + row * 27 + ((column * 5) % 9) + yJitter * 0.5,
+    module: 2 + ((column + row * 2) % 6),
+    zoomed: false,
+  };
+});
+const MINI_ALL_OVERVIEW_NODES = [
+  ...MINI_OVERVIEW_NODES,
+  ...MINI_EXTRA_OVERVIEW_NODES,
+];
+const MINI_ZOOM_NODES = [
+  { id: 0, x: 72, y: 190, module: 0 },
+  { id: 1, x: 136, y: 172, module: 0 },
+  { id: 2, x: 112, y: 232, module: 0 },
+  { id: 3, x: 208, y: 190, module: 1 },
+  { id: 4, x: 272, y: 172, module: 1 },
+  { id: 5, x: 248, y: 232, module: 1 },
 ] as const;
 const MINI_NETWORK_LINKS = [
   { source: 0, target: 1 },
@@ -246,7 +332,221 @@ const MINI_NETWORK_LINKS = [
   { source: 2, target: 3 },
   { source: 1, target: 4 },
 ] as const;
-const MINI_OBSERVED_LINK_KEYS = new Set(["0:1", "1:2", "3:4", "4:5", "2:3"]);
+const MINI_OVERVIEW_LINKS = [
+  ...MINI_NETWORK_LINKS,
+  { source: 6, target: 0 },
+  { source: 6, target: 7 },
+  { source: 7, target: 8 },
+  { source: 7, target: 9 },
+  { source: 8, target: 0 },
+  { source: 9, target: 10 },
+  { source: 10, target: 2 },
+  { source: 9, target: 19 },
+  { source: 10, target: 21 },
+  { source: 19, target: 20 },
+  { source: 20, target: 21 },
+  { source: 21, target: 16 },
+  { source: 16, target: 18 },
+  { source: 17, target: 18 },
+  { source: 16, target: 17 },
+  { source: 18, target: 2 },
+  { source: 18, target: 3 },
+  { source: 17, target: 22 },
+  { source: 5, target: 13 },
+  { source: 4, target: 11 },
+  { source: 11, target: 12 },
+  { source: 12, target: 13 },
+  { source: 11, target: 13 },
+  { source: 12, target: 14 },
+  { source: 13, target: 15 },
+  { source: 14, target: 15 },
+  { source: 15, target: 23 },
+  { source: 22, target: 23 },
+  { source: 23, target: 24 },
+  { source: 14, target: 24 },
+  { source: 25, target: 6 },
+  { source: 25, target: 7 },
+  { source: 26, target: 9 },
+  { source: 26, target: 19 },
+  { source: 27, target: 6 },
+  { source: 27, target: 8 },
+  { source: 28, target: 8 },
+  { source: 28, target: 1 },
+  { source: 29, target: 1 },
+  { source: 29, target: 30 },
+  { source: 30, target: 4 },
+  { source: 30, target: 31 },
+  { source: 31, target: 11 },
+  { source: 31, target: 32 },
+  { source: 32, target: 11 },
+  { source: 32, target: 33 },
+  { source: 33, target: 12 },
+  { source: 33, target: 14 },
+  { source: 34, target: 14 },
+  { source: 34, target: 24 },
+  { source: 34, target: 35 },
+  { source: 35, target: 23 },
+  { source: 35, target: 36 },
+  { source: 36, target: 22 },
+  { source: 36, target: 37 },
+  { source: 37, target: 17 },
+  { source: 37, target: 21 },
+  { source: 38, target: 20 },
+  { source: 38, target: 21 },
+  { source: 39, target: 19 },
+  { source: 39, target: 38 },
+  { source: 40, target: 6 },
+  { source: 40, target: 55 },
+  { source: 40, target: 41 },
+  { source: 41, target: 25 },
+  { source: 41, target: 26 },
+  { source: 42, target: 26 },
+  { source: 42, target: 39 },
+  { source: 42, target: 58 },
+  { source: 43, target: 39 },
+  { source: 43, target: 38 },
+  { source: 43, target: 58 },
+  { source: 44, target: 38 },
+  { source: 44, target: 21 },
+  { source: 44, target: 59 },
+  { source: 45, target: 22 },
+  { source: 45, target: 37 },
+  { source: 45, target: 59 },
+  { source: 46, target: 23 },
+  { source: 46, target: 36 },
+  { source: 46, target: 57 },
+  { source: 47, target: 24 },
+  { source: 47, target: 56 },
+  { source: 47, target: 57 },
+  { source: 48, target: 32 },
+  { source: 48, target: 33 },
+  { source: 48, target: 49 },
+  { source: 49, target: 32 },
+  { source: 49, target: 50 },
+  { source: 50, target: 31 },
+  { source: 50, target: 51 },
+  { source: 51, target: 30 },
+  { source: 51, target: 52 },
+  { source: 52, target: 29 },
+  { source: 52, target: 53 },
+  { source: 53, target: 28 },
+  { source: 53, target: 54 },
+  { source: 54, target: 27 },
+  { source: 54, target: 55 },
+  { source: 56, target: 34 },
+  { source: 56, target: 24 },
+  { source: 57, target: 35 },
+  { source: 58, target: 43 },
+  { source: 59, target: 37 },
+  { source: 40, target: 27 },
+  { source: 40, target: 28 },
+  { source: 40, target: 53 },
+  { source: 41, target: 7 },
+  { source: 41, target: 10 },
+  { source: 41, target: 38 },
+  { source: 42, target: 20 },
+  { source: 42, target: 44 },
+  { source: 43, target: 21 },
+  { source: 43, target: 44 },
+  { source: 44, target: 16 },
+  { source: 44, target: 45 },
+  { source: 45, target: 17 },
+  { source: 45, target: 46 },
+  { source: 46, target: 22 },
+  { source: 46, target: 47 },
+  { source: 47, target: 34 },
+  { source: 47, target: 14 },
+  { source: 48, target: 12 },
+  { source: 48, target: 14 },
+  { source: 49, target: 31 },
+  { source: 49, target: 11 },
+  { source: 50, target: 4 },
+  { source: 50, target: 30 },
+  { source: 51, target: 4 },
+  { source: 51, target: 29 },
+  { source: 52, target: 1 },
+  { source: 52, target: 28 },
+  { source: 53, target: 1 },
+  { source: 53, target: 8 },
+  { source: 54, target: 8 },
+  { source: 54, target: 6 },
+  { source: 55, target: 27 },
+  { source: 55, target: 25 },
+  { source: 56, target: 15 },
+  { source: 56, target: 47 },
+  { source: 57, target: 46 },
+  { source: 57, target: 24 },
+  { source: 58, target: 39 },
+  { source: 58, target: 20 },
+  { source: 59, target: 44 },
+  { source: 59, target: 45 },
+  { source: 25, target: 28 },
+  { source: 26, target: 38 },
+  { source: 27, target: 53 },
+  { source: 28, target: 29 },
+  { source: 29, target: 52 },
+  { source: 30, target: 50 },
+  { source: 31, target: 48 },
+  { source: 32, target: 50 },
+  { source: 33, target: 56 },
+  { source: 34, target: 47 },
+  { source: 35, target: 24 },
+  { source: 36, target: 23 },
+  { source: 37, target: 59 },
+  { source: 38, target: 58 },
+  { source: 39, target: 43 },
+  { source: 6, target: 10 },
+  { source: 7, target: 19 },
+  { source: 8, target: 28 },
+  { source: 9, target: 21 },
+  { source: 10, target: 38 },
+  { source: 11, target: 30 },
+  { source: 12, target: 48 },
+  { source: 13, target: 56 },
+  { source: 14, target: 23 },
+  { source: 15, target: 47 },
+  { source: 16, target: 44 },
+  { source: 17, target: 45 },
+  { source: 18, target: 37 },
+  { source: 19, target: 58 },
+  { source: 20, target: 44 },
+  { source: 21, target: 59 },
+  { source: 22, target: 46 },
+  { source: 23, target: 57 },
+  { source: 24, target: 56 },
+  { source: 25, target: 10 },
+  { source: 26, target: 20 },
+  { source: 27, target: 29 },
+  { source: 31, target: 12 },
+  { source: 32, target: 14 },
+  { source: 33, target: 15 },
+  { source: 34, target: 23 },
+  { source: 35, target: 47 },
+  { source: 36, target: 45 },
+  { source: 37, target: 44 },
+  { source: 38, target: 42 },
+  { source: 39, target: 26 },
+] as const;
+const MINI_EXTRA_OVERVIEW_LINKS = MINI_EXTRA_OVERVIEW_NODES.flatMap((node, index) => {
+  const localTargetA = 60 + ((index + 1) % MINI_EXTRA_OVERVIEW_NODES.length);
+  const localTargetB = 60 + ((index + 9) % MINI_EXTRA_OVERVIEW_NODES.length);
+  const localTargetC = 60 + ((index + 31) % MINI_EXTRA_OVERVIEW_NODES.length);
+  const anchors = [6, 8, 10, 11, 13, 16, 18, 21, 23, 25, 28, 30, 33, 37, 39, 48, 52, 56];
+  const anchor = anchors[index % anchors.length];
+
+  return [
+    { source: node.id, target: localTargetA },
+    { source: node.id, target: localTargetB },
+    { source: node.id, target: localTargetC },
+    { source: node.id, target: anchor },
+  ];
+});
+const MINI_ALL_OVERVIEW_LINKS = [
+  ...MINI_OVERVIEW_LINKS,
+  ...MINI_EXTRA_OVERVIEW_LINKS,
+];
+const MINI_OBSERVED_MISSING_LINK_KEYS = new Set(["0:2", "1:4", "3:5"]);
+const MINI_ZOOM_REGION = { x: 133, y: 43, width: 48, height: 28 };
 
 const formatPrecomputeStatusMessage = (
   label: string,
@@ -360,75 +660,141 @@ const buildLineSegments = (
 };
 
 function MiniMissingDataNetwork({ observed = false }: { observed?: boolean }) {
-  const visibleLinks = observed
-    ? MINI_NETWORK_LINKS.filter(({ source, target }) =>
-        MINI_OBSERVED_LINK_KEYS.has(linkKey(source, target)),
-      )
-    : MINI_NETWORK_LINKS;
-  const missingLinks = observed
-    ? MINI_NETWORK_LINKS.filter(
-        ({ source, target }) => !MINI_OBSERVED_LINK_KEYS.has(linkKey(source, target)),
-      )
-    : [];
-  const nodeById = new Map(MINI_NETWORK_NODES.map((node) => [node.id, node]));
+  const overviewNodeById = new Map(
+    MINI_ALL_OVERVIEW_NODES.map((node) => [node.id, node]),
+  );
+  const zoomNodeById = new Map(MINI_ZOOM_NODES.map((node) => [node.id, node]));
+  const isMissing = (source: number, target: number) =>
+    observed && MINI_OBSERVED_MISSING_LINK_KEYS.has(linkKey(source, target));
 
   return (
     <svg
-      viewBox="0 0 254 118"
+      viewBox="0 0 320 252"
       className="block w-full overflow-visible"
       role="img"
-      aria-label={observed ? "Observed network with missing links" : "True network"}
+      aria-label={
+        observed
+          ? "Observed larger network with missing links in a zoomed region"
+          : "True larger network with zoomed region"
+      }
     >
       <g fill="none" strokeLinecap="round" vectorEffect="non-scaling-stroke">
-        {missingLinks.map(({ source, target }) => {
-          const sourceNode = nodeById.get(source);
-          const targetNode = nodeById.get(target);
+        {MINI_ALL_OVERVIEW_LINKS.map(({ source, target }) => {
+          const sourceNode = overviewNodeById.get(source);
+          const targetNode = overviewNodeById.get(target);
           if (!sourceNode || !targetNode) return null;
+          const missing = isMissing(source, target);
 
           return (
             <line
-              key={`missing-${source}-${target}`}
+              key={`overview-${source}-${target}`}
               x1={sourceNode.x}
               y1={sourceNode.y}
               x2={targetNode.x}
               y2={targetNode.y}
-              stroke="#d1d5db"
-              strokeDasharray="5 7"
-              strokeWidth={2}
-              opacity={0.42}
-            />
-          );
-        })}
-        {visibleLinks.map(({ source, target }) => {
-          const sourceNode = nodeById.get(source);
-          const targetNode = nodeById.get(target);
-          if (!sourceNode || !targetNode) return null;
-
-          return (
-            <line
-              key={`visible-${source}-${target}`}
-              x1={sourceNode.x}
-              y1={sourceNode.y}
-              x2={targetNode.x}
-              y2={targetNode.y}
-              stroke="#8aa29e"
-              strokeWidth={2.6}
-              opacity={0.78}
+              stroke={missing ? "#b22222" : "#9ca3af"}
+              strokeDasharray={missing ? "4 5" : undefined}
+              strokeWidth={sourceNode.zoomed && targetNode.zoomed ? 0.62 : 0.62}
+              opacity={missing ? 0.18 : sourceNode.zoomed && targetNode.zoomed ? 0.11 : 0.1}
             />
           );
         })}
       </g>
-      {MINI_NETWORK_NODES.map((node) => {
+      <rect
+        x={MINI_ZOOM_REGION.x}
+        y={MINI_ZOOM_REGION.y}
+        width={MINI_ZOOM_REGION.width}
+        height={MINI_ZOOM_REGION.height}
+        rx={12}
+        fill="#f9fafb"
+        fillOpacity={0.38}
+        stroke="#6b7280"
+        strokeOpacity={0.55}
+        strokeWidth={1.8}
+        vectorEffect="non-scaling-stroke"
+      />
+      {MINI_ALL_OVERVIEW_NODES.map((node) => {
         const color = COLORBLIND_FRIENDLY_POOL[node.module] ?? "#8aa29e";
         return (
           <circle
-            key={node.id}
+            key={`overview-node-${node.id}`}
             cx={node.x}
             cy={node.y}
-            r={8.5}
+            r={node.zoomed ? 2.05 : 2.1}
             fill={color}
             stroke="#ffffff"
-            strokeWidth={2.2}
+            strokeWidth={0.45}
+            opacity={node.zoomed ? 0.18 : 0.16}
+            vectorEffect="non-scaling-stroke"
+          />
+        );
+      })}
+      <line
+        x1={MINI_ZOOM_REGION.x}
+        y1={MINI_ZOOM_REGION.y + MINI_ZOOM_REGION.height}
+        x2={26}
+        y2={153}
+        stroke="#9ca3af"
+        strokeWidth={1.2}
+        strokeOpacity={0.42}
+        vectorEffect="non-scaling-stroke"
+      />
+      <line
+        x1={MINI_ZOOM_REGION.x + MINI_ZOOM_REGION.width}
+        y1={MINI_ZOOM_REGION.y + MINI_ZOOM_REGION.height}
+        x2={294}
+        y2={153}
+        stroke="#9ca3af"
+        strokeWidth={1.2}
+        strokeOpacity={0.42}
+        vectorEffect="non-scaling-stroke"
+      />
+      <rect
+        x={24}
+        y={150}
+        width={272}
+        height={92}
+        rx={18}
+        fill="#ffffff"
+        fillOpacity={0.04}
+        stroke="#9ca3af"
+        strokeOpacity={0.5}
+        strokeWidth={1.4}
+        vectorEffect="non-scaling-stroke"
+      />
+      <g fill="none" strokeLinecap="round" vectorEffect="non-scaling-stroke">
+        {MINI_NETWORK_LINKS.map(({ source, target }) => {
+          const sourceNode = zoomNodeById.get(source);
+          const targetNode = zoomNodeById.get(target);
+          if (!sourceNode || !targetNode) return null;
+          const missing = isMissing(source, target);
+
+          return (
+            <line
+              key={`zoom-${source}-${target}`}
+              x1={sourceNode.x}
+              y1={sourceNode.y}
+              x2={targetNode.x}
+              y2={targetNode.y}
+              stroke={missing ? "#b22222" : "#8aa29e"}
+              strokeDasharray={missing ? "6 7" : undefined}
+              strokeWidth={missing ? 2.1 : 2.8}
+              opacity={missing ? 0.4 : 0.82}
+            />
+          );
+        })}
+      </g>
+      {MINI_ZOOM_NODES.map((node) => {
+        const color = COLORBLIND_FRIENDLY_POOL[node.module] ?? "#8aa29e";
+        return (
+          <circle
+            key={`zoom-node-${node.id}`}
+            cx={node.x}
+            cy={node.y}
+            r={8.2}
+            fill={color}
+            stroke="#ffffff"
+            strokeWidth={2.1}
             vectorEffect="non-scaling-stroke"
           />
         );
@@ -2540,10 +2906,11 @@ export default observer(function RegularizedInfomap({
         <h2 className="mb-4 mt-0">Regularized Infomap</h2>
         <div className="space-y-4 text-base leading-relaxed text-gray-700">
           <p>
-            Regularized Infomap compensates for incomplete observations with a
-            weak Bayesian estimate of transition rates. In simple terms, it
-            balances the observed sparse network against a neutral baseline
-            before searching for modules.
+            When links are missing, the observed network can make groups look
+            more separate than they really are. Regularized Infomap adds a weak
+            prior: a small amount of expected background flow between nodes.
+            The prior does not replace the data; it softens the evidence from
+            missing links before Infomap searches for modules.
           </p>
           <p>
             This example starts from a complete network
@@ -2929,8 +3296,8 @@ export default observer(function RegularizedInfomap({
             <span className="font-semibold text-gray-800">
               Reference map:
             </span>{" "}
-            the complete edge list in <code>VII_network_complete.dat</code> is
-            clustered once at 0% link removal and used as the target partition.
+            the complete network is clustered once before any links are removed.
+            That partition is used as the target for the slider experiment.
           </p>
           <p className="m-0">
             <span className="font-semibold text-gray-800">

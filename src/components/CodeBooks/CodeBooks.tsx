@@ -247,9 +247,8 @@ export default observer(function CodeBooks({ barWidth = 200, network }: Props) {
   const x = 45;
   const horizontalSpace = width - barWidth - 140;
   const minFlow = 0.001;
-  const titleY = 24;
-  const headingY = 58;
-  const contentTop = 88;
+  const headingY = 34;
+  const contentTop = 64;
   const bottomPadding = 18;
   const availableHeight = height - contentTop - bottomPadding;
   const moduleHeightRatio = 0.3;
@@ -453,16 +452,6 @@ export default observer(function CodeBooks({ barWidth = 200, network }: Props) {
       viewBox={viewBox}
       data-tree-version={treeVersion}
     >
-      <text
-        x={(x + nodeX + barWidth) / 2}
-        y={titleY}
-        textAnchor="middle"
-        fontSize={18}
-        fontWeight={700}
-        fill="#4b5563"
-      >
-        Two-level codebooks
-      </text>
       <text
         x={x + barWidth / 2}
         y={headingY}

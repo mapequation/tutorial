@@ -5,6 +5,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import TeX from "@matejmazur/react-katex";
 import { observer } from "mobx-react";
 import {
   Network as NetworkModel,
@@ -23,14 +24,11 @@ import {
 } from "./scheme";
 import HelpTooltip from "./HelpTooltip";
 import { CodelengthChart, InlineTrace } from "./Trace";
-import Rates from "./Rates";
-import TwoLevelCodebookRates from "./Rates/TwoLevelCodebookRates";
 import CodeBooks from "./CodeBooks";
 import CodeBookLegend from "./CodeBooks/CodeBookLegend";
 import Network from "./Network/Network";
 import InteractiveNetwork from "./InteractiveNetwork";
 import WalkerControls from "./WalkerControls";
-import PerformanceDashboard from "./PerformanceDashboard";
 import RegularizedInfomap from "./RegularizedInfomap";
 import HierarchicalCodebooks from "./HierarchicalCodebooks";
 import Walker from "./Network/Walker";
@@ -62,35 +60,6 @@ function applyBadSolution(targetNetwork: NetworkModel) {
 applyBadSolution(network);
 network.finalize();
 
-function CodelengthOverlay({
-  x,
-  y,
-  width,
-  lines,
-}: {
-  x: number;
-  y: number;
-  width: number;
-  lines: ReactNode[];
-}) {
-  return (
-    <foreignObject
-      x={x}
-      y={y}
-      width={width}
-      height={Math.max(32, lines.length * 28)}
-    >
-      <div className="pointer-events-none space-y-1 text-base leading-6 text-gray-900">
-        {lines.map((line, index) => (
-          <div key={index} className="pointer-events-none">
-            {line}
-          </div>
-        ))}
-      </div>
-    </foreignObject>
-  );
-}
-
 function formatRelativeCodelength(
   oneLevelCodelength: number,
   totalCodelength: number,
@@ -113,10 +82,6 @@ function formatRelativeCodelength(
 
 const NUM_COMMUNITIES = 8;
 const NODE_ID_DARKEN_AMOUNT = 0.42;
-const ONE_LEVEL_FLOW_PULSE_INTERVAL_MS = 3000;
-const ONE_LEVEL_FLOW_BLOB_ARRIVAL_MS = 2250;
-const ONE_LEVEL_FLOW_RATE_STEPS = 5;
-const ONE_LEVEL_FLOW_RATE_BASELINE = 0.02;
 const CODEBOOK_HELP =
   "A codebook is the list of symbols the walker can print and the binary code assigned to each symbol. Short codes are used for common events, and longer codes are used for rarer events.";
 const INDEX_CODELENGTH_HELP =
@@ -139,116 +104,7 @@ function getModuleTraceStroke(source: NodeModel, target: NodeModel) {
   };
 }
 
-const ONE_LEVEL_FLOW_NODE_RADIUS = 28;
-
-function linkEndpoints(
-  source: NodeModel,
-  target: NodeModel,
-  radius = ONE_LEVEL_FLOW_NODE_RADIUS,
-) {
-  const x1 = source.x || 0;
-  const y1 = source.y || 0;
-  const x2 = target.x || 0;
-  const y2 = target.y || 0;
-  const dx = x2 - x1 || 1e-6;
-  const dy = y2 - y1 || 1e-6;
-  const length = Math.sqrt(dx * dx + dy * dy);
-  const unitX = dx / length;
-  const unitY = dy / length;
-
-  return {
-    x1: x1 + radius * unitX,
-    y1: y1 + radius * unitY,
-    x2: x2 - radius * unitX,
-    y2: y2 - radius * unitY,
-  };
-}
-
-function getOneLevelReceivedFlowRates(network: NetworkModel) {
-  const rates = new Map(network.nodes.map((node) => [node.id, 0]));
-
-  network.links.forEach((link) => {
-    if (network.directed) {
-      rates.set(link.target.id, (rates.get(link.target.id) ?? 0) + link.flow);
-      return;
-    }
-
-    const flowPerDirection = link.flow / 2;
-    rates.set(
-      link.source.id,
-      (rates.get(link.source.id) ?? 0) + flowPerDirection,
-    );
-    rates.set(
-      link.target.id,
-      (rates.get(link.target.id) ?? 0) + flowPerDirection,
-    );
-  });
-
-  return rates;
-}
-
-function OneLevelFlowPulses({
-  network,
-  animationKey,
-}: {
-  network: NetworkModel;
-  animationKey: number;
-}) {
-  const maxFlow = Math.max(...network.links.map((link) => link.flow), 1e-6);
-
-  const pulses = network.links.flatMap((link, index) => [
-    { link, source: link.source, target: link.target, key: `${index}-forward` },
-    { link, source: link.target, target: link.source, key: `${index}-back` },
-  ]);
-
-  return (
-    <g key={`one-level-flow-pulses-${animationKey}`} pointerEvents="none">
-      {pulses.map(({ link, source, target, key }, index) => {
-        const { x1, y1, x2, y2 } = linkEndpoints(source, target);
-        const radius = 4.5 + 11 * Math.sqrt(link.flow / maxFlow);
-        const begin = `${(index % 8) * 0.035}s`;
-
-        return (
-          <circle
-            key={key}
-            cx={x1}
-            cy={y1}
-            r={radius}
-            fill="#4b5563"
-            opacity={0}
-          >
-            <animate
-              attributeName="cx"
-              values={`${x1};${x2};${x2}`}
-              keyTimes="0;0.667;1"
-              dur="3s"
-              begin={begin}
-              repeatCount="indefinite"
-            />
-            <animate
-              attributeName="cy"
-              values={`${y1};${y2};${y2}`}
-              keyTimes="0;0.667;1"
-              dur="3s"
-              begin={begin}
-              repeatCount="indefinite"
-            />
-            <animate
-              attributeName="opacity"
-              values="0;0.72;0.72;0;0"
-              keyTimes="0;0.05;0.6;0.667;1"
-              dur="3s"
-              begin={begin}
-              repeatCount="indefinite"
-            />
-          </circle>
-        );
-      })}
-    </g>
-  );
-}
-
-const OneLevelCodelengthOverlay = observer(function OneLevelCodelengthOverlay({
+const OneLevelCodelengthSummary = observer(function OneLevelCodelengthSummary({
   network,
 }: {
   network: NetworkModel;
@@ -256,28 +112,23 @@ const OneLevelCodelengthOverlay = observer(function OneLevelCodelengthOverlay({
   // Read the update counter so this summary refreshes after partition edits
   // trigger `network.finalize()`, even though `Main` itself is not observed.
   network.treeUpdateCounter;
-  const anchorNode = network.getNode(15);
-  const x = (anchorNode?.x ?? 500) - 120;
-  const y = (anchorNode?.y ?? 700) + 54;
   const relativeCodelength = formatRelativeCodelength(
     network.mapequation.oneLevelCodelength,
     network.mapequation.codelength,
   );
 
   return (
-    <CodelengthOverlay
-      x={x}
-      y={y}
-      width={240}
-      lines={[
-        `One-level codelength ${network.mapequation.oneLevelCodelength.toFixed(3)} bits`,
-        relativeCodelength,
-      ]}
-    />
+    <div className="space-y-1 text-sm leading-6 text-gray-900">
+      <div className="font-semibold">
+        One-level codelength{" "}
+        {network.mapequation.oneLevelCodelength.toFixed(3)} bits
+      </div>
+      <div>{relativeCodelength}</div>
+    </div>
   );
 });
 
-const TwoLevelCodelengthOverlay = observer(function TwoLevelCodelengthOverlay({
+const TwoLevelCodelengthSummary = observer(function TwoLevelCodelengthSummary({
   network,
 }: {
   network: NetworkModel;
@@ -285,27 +136,23 @@ const TwoLevelCodelengthOverlay = observer(function TwoLevelCodelengthOverlay({
   // Read the update counter so this summary refreshes after partition edits
   // trigger `network.finalize()`, even though `Main` itself is not observed.
   network.treeUpdateCounter;
-  const anchorNode = network.getNode(15);
-  const x = (anchorNode?.x ?? 500) - 120;
-  const y = (anchorNode?.y ?? 700) + 54;
 
   return (
-    <CodelengthOverlay
-      x={x}
-      y={y}
-      width={280}
-      lines={[
+    <div className="space-y-1 text-sm leading-6 text-gray-900">
+      <div className="font-semibold">
+        Total codelength {network.mapequation.codelength.toFixed(3)} bits
+      </div>
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
         <span>
           <HelpTooltip content={INDEX_CODELENGTH_HELP} /> Index codelength{" "}
           {network.mapequation.indexCodelength.toFixed(3)} bits
-        </span>,
+        </span>
         <span>
           <HelpTooltip content={MODULE_CODELENGTH_HELP} /> Module codelength{" "}
           {network.mapequation.moduleCodelength.toFixed(3)} bits
-        </span>,
-        `Total codelength ${network.mapequation.codelength.toFixed(3)} bits`,
-      ]}
-    />
+        </span>
+      </div>
+    </div>
   );
 });
 
@@ -364,6 +211,1404 @@ function ArticleStep({
   );
 }
 
+type TwoTriangleTerm =
+  | "one-level"
+  | "q-total"
+  | "exit-a"
+  | "exit-b"
+  | "enter-a"
+  | "enter-b"
+  | "module-a"
+  | "module-b"
+  | "h-q"
+  | "h-pa"
+  | "h-pb"
+  | "node-1"
+  | "node-2"
+  | "node-3"
+  | "node-4"
+  | "node-5"
+  | "node-6";
+
+const EQUATION_TOOLTIP_CLASS =
+  "pointer-events-none absolute left-1/2 bottom-full z-50 mb-2 hidden w-72 -translate-x-1/2 rounded-md border border-gray-300 bg-white px-3 py-2 text-left text-xs font-normal leading-relaxed text-gray-700 shadow-lg group-hover:block group-focus:block group-focus-within:block";
+
+const TWO_TRIANGLE_NODE_POSITIONS = {
+  1: { x: 230, y: 145, module: "a" },
+  2: { x: 95, y: 65, module: "a" },
+  3: { x: 95, y: 225, module: "a" },
+  4: { x: 330, y: 145, module: "b" },
+  5: { x: 465, y: 65, module: "b" },
+  6: { x: 465, y: 225, module: "b" },
+} as const;
+const TWO_TRIANGLE_INTERNAL_EDGES = [
+  [1, 2],
+  [1, 3],
+  [2, 3],
+  [4, 5],
+  [4, 6],
+  [5, 6],
+] as const;
+const TWO_TRIANGLE_EDGES = [
+  ...TWO_TRIANGLE_INTERNAL_EDGES,
+  [1, 4],
+] as const;
+const DEGREE_HELP =
+  "The degree of a node is the number of links attached to it. In this undirected example, each link can be counted in both directions, so a node's degree is also the number of directed link directions that arrive at it.";
+const TWO_TRIANGLE_AREA_BLOCKS = [
+  {
+    id: "q-total",
+    label: "Index",
+    formula: "q_{\\curvearrowright}H(\\mathcal{Q})",
+    useRateNumerator: "2",
+    useRateDenominator: "14",
+    entropy: "1.000",
+    entropyInline: "1",
+    contribution: "0.143 bits",
+    x: 38,
+    width: 60,
+    height: 64,
+    fill: "#b22222",
+  },
+  {
+    id: "module-a",
+    label: "Module A",
+    formula: "p_{\\circlearrowright}^{A}H(\\mathcal{P}^{A})",
+    useRateNumerator: "8",
+    useRateDenominator: "14",
+    entropy: "1.906",
+    entropyInline: "1.906",
+    contribution: "1.089 bits",
+    x: 158,
+    width: 235,
+    height: 122,
+    fill: scheme[0],
+  },
+  {
+    id: "module-b",
+    label: "Module B",
+    formula: "p_{\\circlearrowright}^{B}H(\\mathcal{P}^{B})",
+    useRateNumerator: "8",
+    useRateDenominator: "14",
+    entropy: "1.906",
+    entropyInline: "1.906",
+    contribution: "1.089 bits",
+    x: 480,
+    width: 235,
+    height: 122,
+    fill: scheme[1],
+  },
+] as const;
+const TWO_TRIANGLE_AREA_SLICES = {
+  "q-total": [
+    { id: "enter-a", label: "enter A", widthFraction: 1 / 2 },
+    { id: "enter-b", label: "enter B", widthFraction: 1 / 2 },
+  ],
+  "module-a": [
+    { id: "exit-a", label: "exit", widthFraction: 1 / 8 },
+    { id: "node-1", label: "1", widthFraction: 3 / 8 },
+    { id: "node-2", label: "2", widthFraction: 2 / 8 },
+    { id: "node-3", label: "3", widthFraction: 2 / 8 },
+  ],
+  "module-b": [
+    { id: "exit-b", label: "exit", widthFraction: 1 / 8 },
+    { id: "node-4", label: "4", widthFraction: 3 / 8 },
+    { id: "node-5", label: "5", widthFraction: 2 / 8 },
+    { id: "node-6", label: "6", widthFraction: 2 / 8 },
+  ],
+} as const;
+
+function termIsActive(
+  activeTerm: TwoTriangleTerm | null,
+  ...terms: TwoTriangleTerm[]
+) {
+  return activeTerm !== null && terms.includes(activeTerm);
+}
+
+function getTwoTriangleNodeTerm(nodeId: number): TwoTriangleTerm {
+  return `node-${nodeId}` as TwoTriangleTerm;
+}
+
+function getNodeIdFromTwoTriangleTerm(term: TwoTriangleTerm | null) {
+  if (!term?.startsWith("node-")) {
+    return null;
+  }
+
+  const nodeId = Number(term.slice(5));
+
+  return Number.isInteger(nodeId) ? nodeId : null;
+}
+
+function getTwoTriangleTermExplanation(term: TwoTriangleTerm) {
+  const nodeId = getNodeIdFromTwoTriangleTerm(term);
+
+  if (nodeId !== null) {
+    const degree = nodeId === 1 || nodeId === 4 ? 3 : 2;
+    const moduleLabel = nodeId <= 3 ? "A" : "B";
+    const localDistribution = moduleLabel === "A" ? "Pᴬ" : "Pᴮ";
+    const localRate = degree === 3 ? "3/8" : "2/8";
+
+    return `Inside module ${moduleLabel}, node ${nodeId}'s full-network rate ${degree}/14 is divided by that module codebook's use rate 8/14 and becomes ${localRate}. ${localDistribution} describes the choices after module ${moduleLabel}'s codebook is already active, so its exit and node probabilities must add up to one.`;
+  }
+
+  switch (term) {
+    case "one-level":
+      return "The one-level codebook names every node from one shared list. This gives the baseline codelength before using module structure.";
+    case "q-total":
+      return "q↷ is the use rate of the index codebook, here 2/14. Every inter-module move uses the index codebook to name the module entered next.";
+    case "exit-a":
+      return "The exit rate from module A is 1/14. Module A's local codebook needs an exit symbol so the code can say that the walker leaves A.";
+    case "exit-b":
+      return "The exit rate from module B is 1/14. Module B's local codebook needs an exit symbol so the code can say that the walker leaves B.";
+    case "enter-a":
+      return "This is the probability of entering module A within the index codebook: (1/14)/(2/14)=1/2. Once the index codebook is used, it only chooses among entered modules.";
+    case "enter-b":
+      return "This is the probability of entering module B within the index codebook. It is also 1/2 by symmetry. The index entropy depends on this distribution of module entries.";
+    case "module-a":
+      return "p⟳ᴬ is the use rate of module A's codebook: node visits in A plus the exit from A, here 8/14. It is also the denominator used to normalize Pᴬ, because Pᴬ describes probabilities conditional on using module A's codebook.";
+    case "module-b":
+      return "p⟳ᴮ is the use rate of module B's codebook, here 8/14. It weights module B's local average code length and normalizes Pᴮ into probabilities that sum to one.";
+    case "h-q":
+      return "H(Q) is the entropy of the index codebook. We calculate it with the entropy formula -∑p log₂p, using the entry probabilities Q=(1/2,1/2). It is the average number of bits needed to name the entered module whenever the index codebook is used.";
+    case "h-pa":
+      return "Pᴬ is the local distribution after module A's codebook has been selected. Since we are already inside A for this codebook, its exit and node rates are divided by p⟳ᴬ=8/14 so the probabilities sum to one. H(Pᴬ) uses the same entropy formula -∑p log₂p to get the average bits needed inside A.";
+    case "h-pb":
+      return "Pᴮ is the local distribution after module B's codebook has been selected. Its exit and node rates are divided by p⟳ᴮ=8/14 so the probabilities sum to one. H(Pᴮ) uses the same entropy formula -∑p log₂p to get the average bits needed inside B; here it equals H(Pᴬ) because the modules are symmetric.";
+    default:
+      return null;
+  }
+}
+
+function getOneLevelNodeExplanation(nodeId: number) {
+  const degree = nodeId === 1 || nodeId === 4 ? 3 : 2;
+
+  return `Node ${nodeId} has ${degree} links attached to it. Because the toy network is unweighted and undirected, every link direction carries 1/14 of the flow. In the one-level calculation, this node's probability is therefore ${degree}/14: count the link directions arriving at the node and divide by 14 total directions.`;
+}
+
+function getNormalizedExitExplanation(moduleLabel: "A" | "B") {
+  return `This is the normalized exit probability inside module ${moduleLabel}'s codebook. The full-network exit rate is 1/14, but this local codebook is used at rate 8/14, so the exit symbol gets probability (1/14)/(8/14)=1/8.`;
+}
+
+function getAreaBlockIdForTerm(term: TwoTriangleTerm | null) {
+  if (!term) {
+    return null;
+  }
+
+  if (
+    term === "q-total" ||
+    term === "h-q"
+  ) {
+    return "q-total";
+  }
+
+  if (
+    term === "module-a" ||
+    term === "h-pa"
+  ) {
+    return "module-a";
+  }
+
+  if (
+    term === "module-b" ||
+    term === "h-pb"
+  ) {
+    return "module-b";
+  }
+
+  return null;
+}
+
+function termHighlightsWidth(
+  term: TwoTriangleTerm | null,
+  blockId: (typeof TWO_TRIANGLE_AREA_BLOCKS)[number]["id"],
+) {
+  return (
+    (blockId === "q-total" && term === "q-total") ||
+    (blockId === "module-a" && term === "module-a") ||
+    (blockId === "module-b" && term === "module-b")
+  );
+}
+
+function termHighlightsHeight(
+  term: TwoTriangleTerm | null,
+  blockId: (typeof TWO_TRIANGLE_AREA_BLOCKS)[number]["id"],
+) {
+  return (
+    (blockId === "q-total" && term === "h-q") ||
+    (blockId === "module-a" && term === "h-pa") ||
+    (blockId === "module-b" && term === "h-pb")
+  );
+}
+
+function SvgFraction({
+  numerator,
+  denominator,
+  x,
+  y,
+  fill = "#111827",
+  fontSize = 11,
+  fontWeight = 800,
+}: {
+  numerator: string;
+  denominator: string;
+  x: number;
+  y: number;
+  fill?: string;
+  fontSize?: number;
+  fontWeight?: number;
+}) {
+  return (
+    <g fill={fill} fontSize={fontSize} fontWeight={fontWeight} textAnchor="middle">
+      <text x={x} y={y - 5} pointerEvents="none">
+        {numerator}
+      </text>
+      <line
+        x1={x - 8}
+        x2={x + 8}
+        y1={y - 1}
+        y2={y - 1}
+        stroke={fill}
+        strokeWidth={1.1}
+        pointerEvents="none"
+      />
+      <text x={x} y={y + 11} pointerEvents="none">
+        {denominator}
+      </text>
+    </g>
+  );
+}
+
+type TwoTriangleAreaBlockId = (typeof TWO_TRIANGLE_AREA_BLOCKS)[number]["id"];
+
+function getAreaWidthTerm(blockId: TwoTriangleAreaBlockId): TwoTriangleTerm {
+  if (blockId === "q-total") {
+    return "q-total";
+  }
+
+  return blockId;
+}
+
+function getAreaHeightTerm(blockId: TwoTriangleAreaBlockId): TwoTriangleTerm {
+  if (blockId === "q-total") {
+    return "h-q";
+  }
+
+  return blockId === "module-a" ? "h-pa" : "h-pb";
+}
+
+function SvgUseRateLabel({
+  blockId,
+  x,
+  y,
+  fill,
+  fontSize = 10,
+  fontWeight = 800,
+}: {
+  blockId: TwoTriangleAreaBlockId;
+  x: number;
+  y: number;
+  fill: string;
+  fontSize?: number;
+  fontWeight?: number;
+}) {
+  const moduleLabel =
+    blockId === "module-a" ? "A" : blockId === "module-b" ? "B" : null;
+
+  return (
+    <text
+      x={x}
+      y={y}
+      textAnchor="middle"
+      fontSize={fontSize}
+      fontWeight={fontWeight}
+      fill={fill}
+      pointerEvents="none"
+    >
+      {moduleLabel === null ? (
+        <>
+          <tspan>q</tspan>
+          <tspan baselineShift="sub" fontSize={fontSize * 0.72}>
+            ↷
+          </tspan>
+        </>
+      ) : (
+        <>
+          <tspan>p</tspan>
+          <tspan baselineShift="sub" fontSize={fontSize * 0.72}>
+            ⟳
+          </tspan>
+          <tspan baselineShift="super" fontSize={fontSize * 0.72}>
+            {moduleLabel}
+          </tspan>
+        </>
+      )}
+    </text>
+  );
+}
+
+function SvgEntropyLabel({
+  blockId,
+  x,
+  y,
+  fill,
+  transform,
+  fontSize = 10,
+  fontWeight = 800,
+}: {
+  blockId: TwoTriangleAreaBlockId;
+  x: number;
+  y: number;
+  fill: string;
+  transform?: string;
+  fontSize?: number;
+  fontWeight?: number;
+}) {
+  const moduleLabel =
+    blockId === "module-a" ? "A" : blockId === "module-b" ? "B" : null;
+  const value = blockId === "q-total" ? "1" : "1.906";
+
+  return (
+    <text
+      x={x}
+      y={y}
+      textAnchor="middle"
+      dominantBaseline="middle"
+      fontSize={fontSize}
+      fontWeight={fontWeight}
+      fill={fill}
+      transform={transform}
+      pointerEvents="none"
+    >
+      <tspan>H(</tspan>
+      {moduleLabel === null ? (
+        <tspan>Q</tspan>
+      ) : (
+        <>
+          <tspan>P</tspan>
+          <tspan baselineShift="super" fontSize={fontSize * 0.72}>
+            {moduleLabel}
+          </tspan>
+        </>
+      )}
+      <tspan>)={value}</tspan>
+    </text>
+  );
+}
+
+function FormulaTerm({
+  id,
+  activeTerm,
+  setHoveredTerm,
+  explanation,
+  children,
+}: {
+  id: TwoTriangleTerm;
+  activeTerm: TwoTriangleTerm | null;
+  setHoveredTerm: (term: TwoTriangleTerm | null) => void;
+  explanation?: ReactNode;
+  children: ReactNode;
+}) {
+  const active = activeTerm === id;
+  const termExplanation = explanation ?? getTwoTriangleTermExplanation(id);
+
+  return (
+    <button
+      type="button"
+      className={`group relative mx-px inline-flex rounded-md border px-1 py-px align-baseline transition ${
+        active
+          ? "border-[#b22222] bg-[#b22222]/10 text-gray-950"
+          : "border-transparent bg-transparent text-gray-900 hover:border-[#b22222]/40 hover:bg-[#b22222]/5"
+      }`}
+      onMouseEnter={() => setHoveredTerm(id)}
+      onMouseLeave={() => setHoveredTerm(null)}
+      onFocus={() => setHoveredTerm(id)}
+      onBlur={() => setHoveredTerm(null)}
+    >
+      {children}
+      {termExplanation && (
+        <span className={EQUATION_TOOLTIP_CLASS}>{termExplanation}</span>
+      )}
+    </button>
+  );
+}
+
+function EquationInfo({
+  children,
+  explanation,
+  active = false,
+}: {
+  children: ReactNode;
+  explanation: ReactNode;
+  active?: boolean;
+}) {
+  return (
+    <span
+      tabIndex={0}
+      className={`group relative inline-flex cursor-help rounded-md border px-1 py-px align-baseline transition ${
+        active
+          ? "border-[#b22222] bg-[#b22222]/10 text-gray-950"
+          : "border-transparent hover:border-[#b22222]/40 hover:bg-[#b22222]/5 focus:border-[#b22222]/40 focus:bg-[#b22222]/5"
+      }`}
+    >
+      {children}
+      <span className={EQUATION_TOOLTIP_CLASS}>{explanation}</span>
+    </span>
+  );
+}
+
+function TwoTriangleNetwork({
+  activeTerm,
+  setHoveredTerm,
+}: {
+  activeTerm: TwoTriangleTerm | null;
+  setHoveredTerm: (term: TwoTriangleTerm | null) => void;
+}) {
+  const moduleAActive = termIsActive(activeTerm, "module-a", "h-pa");
+  const moduleBActive = termIsActive(activeTerm, "module-b", "h-pb");
+  const indexActive = termIsActive(activeTerm, "q-total", "h-q");
+  const bridgeAHalfActive =
+    moduleAActive || indexActive || termIsActive(activeTerm, "exit-a", "enter-a");
+  const bridgeBHalfActive =
+    moduleBActive || indexActive || termIsActive(activeTerm, "exit-b", "enter-b");
+  const oneLevelActive = termIsActive(activeTerm, "one-level");
+  const activeDegreeNodeId = getNodeIdFromTwoTriangleTerm(activeTerm);
+  const bridgeSource = TWO_TRIANGLE_NODE_POSITIONS[1];
+  const bridgeTarget = TWO_TRIANGLE_NODE_POSITIONS[4];
+  const bridgeMidpoint = {
+    x: (bridgeSource.x + bridgeTarget.x) / 2,
+    y: (bridgeSource.y + bridgeTarget.y) / 2,
+  };
+
+  return (
+    <svg
+      viewBox="0 0 560 305"
+      className="block w-full overflow-visible"
+      role="img"
+      aria-label="Two triangles connected by one bridge link"
+    >
+      <polygon
+        points="230,145 95,65 95,225"
+        fill={scheme[0]}
+        fillOpacity={moduleAActive || oneLevelActive ? 0.2 : 0.09}
+        stroke="none"
+      />
+      <polygon
+        points="330,145 465,65 465,225"
+        fill={scheme[1]}
+        fillOpacity={moduleBActive || oneLevelActive ? 0.2 : 0.09}
+        stroke="none"
+      />
+      {TWO_TRIANGLE_EDGES.map(([sourceId, targetId]) => {
+        const source = TWO_TRIANGLE_NODE_POSITIONS[sourceId];
+        const target = TWO_TRIANGLE_NODE_POSITIONS[targetId];
+        const isBridge = sourceId === 1 && targetId === 4;
+        const degreeMode = activeDegreeNodeId !== null;
+        const incidentToDegreeNode =
+          sourceId === activeDegreeNodeId || targetId === activeDegreeNodeId;
+        const active =
+          oneLevelActive ||
+          (isBridge
+            ? false
+            : source.module === "a"
+              ? moduleAActive
+              : moduleBActive);
+
+        return (
+          <line
+            key={`${sourceId}-${targetId}`}
+            x1={source.x}
+            y1={source.y}
+            x2={target.x}
+            y2={target.y}
+            stroke={active ? "#4b5563" : neutralLinkColor}
+            strokeWidth={active ? 4.2 : degreeMode ? 2 : 2.6}
+            strokeLinecap="round"
+            opacity={
+              active ? 0.95 : degreeMode ? (incidentToDegreeNode ? 0.22 : 0.14) : 0.5
+            }
+          />
+        );
+      })}
+      {[
+        {
+          id: "bridge-a-half",
+          active: bridgeAHalfActive,
+          source: bridgeSource,
+        },
+        {
+          id: "bridge-b-half",
+          active: bridgeBHalfActive,
+          source: bridgeTarget,
+        },
+      ].map((bridgeHalf) =>
+        bridgeHalf.active ? (
+          <line
+            key={bridgeHalf.id}
+            x1={bridgeHalf.source.x}
+            y1={bridgeHalf.source.y}
+            x2={bridgeMidpoint.x}
+            y2={bridgeMidpoint.y}
+            stroke="#b22222"
+            strokeWidth={7}
+            strokeLinecap="round"
+            opacity={0.92}
+          />
+        ) : null,
+      )}
+      {activeDegreeNodeId !== null &&
+        TWO_TRIANGLE_EDGES.map(([sourceId, targetId]) => {
+          if (sourceId !== activeDegreeNodeId && targetId !== activeDegreeNodeId) {
+            return null;
+          }
+
+          const source = TWO_TRIANGLE_NODE_POSITIONS[sourceId];
+          const target = TWO_TRIANGLE_NODE_POSITIONS[targetId];
+          const activeNode =
+            sourceId === activeDegreeNodeId ? source : target;
+          const otherNode =
+            sourceId === activeDegreeNodeId ? target : source;
+          const midX = (activeNode.x + otherNode.x) / 2;
+          const midY = (activeNode.y + otherNode.y) / 2;
+
+          return (
+            <line
+              key={`degree-half-${sourceId}-${targetId}`}
+              x1={activeNode.x}
+              y1={activeNode.y}
+              x2={midX}
+              y2={midY}
+              stroke="#b22222"
+              strokeWidth={7}
+              strokeLinecap="round"
+              opacity={0.92}
+            />
+          );
+        })}
+      {Object.entries(TWO_TRIANGLE_NODE_POSITIONS).map(([id, node]) => {
+        const numericId = Number(id);
+        const active =
+          oneLevelActive ||
+          activeDegreeNodeId === numericId ||
+          (node.module === "a" ? moduleAActive : moduleBActive);
+
+        return (
+          <g
+            key={id}
+            tabIndex={0}
+            role="button"
+            onMouseEnter={() => setHoveredTerm(getTwoTriangleNodeTerm(numericId))}
+            onMouseLeave={() => setHoveredTerm(null)}
+            onFocus={() => setHoveredTerm(getTwoTriangleNodeTerm(numericId))}
+            onBlur={() => setHoveredTerm(null)}
+            className="cursor-pointer outline-none"
+          >
+            <circle
+              cx={node.x}
+              cy={node.y}
+              r={active ? 20 : 17}
+              fill={node.module === "a" ? scheme[0] : scheme[1]}
+              stroke={active ? schemeAlt[node.module === "a" ? 0 : 1] : "#ffffff"}
+              strokeWidth={active ? 3.2 : 2}
+              opacity={active ? 1 : 0.94}
+            />
+            <text
+              x={node.x}
+              y={node.y + 1}
+              textAnchor="middle"
+              dominantBaseline="middle"
+              fontSize={15}
+              fontWeight={900}
+              fill="#111827"
+              pointerEvents="none"
+            >
+              {id}
+            </text>
+          </g>
+        );
+      })}
+      {[
+        {
+          id: "exit-a" as const,
+          kind: "exit" as const,
+          x: 218,
+          y: 96,
+          label: "exit A",
+          accent: schemeAlt[0],
+        },
+        {
+          id: "enter-b" as const,
+          kind: "enter" as const,
+          x: 358,
+          y: 96,
+          label: "enter B",
+          accent: "#b22222",
+        },
+        {
+          id: "exit-b" as const,
+          kind: "exit" as const,
+          x: 358,
+          y: 220,
+          label: "exit B",
+          accent: schemeAlt[1],
+        },
+        {
+          id: "enter-a" as const,
+          kind: "enter" as const,
+          x: 218,
+          y: 220,
+          label: "enter A",
+          accent: "#b22222",
+        },
+      ].map((item) => {
+        const labelActive =
+          activeTerm === item.id ||
+          (item.kind === "enter" && indexActive) ||
+          (item.id === "exit-a" && moduleAActive) ||
+          (item.id === "exit-b" && moduleBActive);
+
+        return (
+          <g
+            key={item.id}
+            tabIndex={0}
+            role="button"
+            onMouseEnter={() => setHoveredTerm(item.id)}
+            onMouseLeave={() => setHoveredTerm(null)}
+            onFocus={() => setHoveredTerm(item.id)}
+            onBlur={() => setHoveredTerm(null)}
+            className="cursor-pointer outline-none"
+          >
+            <rect
+              x={item.x - 43}
+              y={item.y - 17}
+              width={86}
+              height={30}
+              rx={15}
+              fill={labelActive ? item.accent : "#ffffff"}
+              stroke={item.accent}
+              strokeOpacity={0.5}
+            />
+            <SvgFraction
+              numerator="1"
+              denominator="14"
+              x={item.x - 16}
+              y={item.y - 3}
+              fill={labelActive ? "#ffffff" : item.accent}
+              fontSize={8}
+              fontWeight={900}
+            />
+            <text
+              x={item.x + 14}
+              y={item.y - 1}
+              textAnchor="middle"
+              fontSize={11}
+              fontWeight={800}
+              fill={labelActive ? "#ffffff" : item.accent}
+              pointerEvents="none"
+            >
+              {item.label}
+            </text>
+          </g>
+        );
+      })}
+      <text x={140} y={282} textAnchor="middle" fontSize={13} fill="#4b5563">
+        Module A
+      </text>
+      <text x={420} y={282} textAnchor="middle" fontSize={13} fill="#4b5563">
+        Module B
+      </text>
+    </svg>
+  );
+}
+
+function TwoTriangleUseArea({
+  activeTerm,
+  setHoveredTerm,
+}: {
+  activeTerm: TwoTriangleTerm | null;
+  setHoveredTerm: (term: TwoTriangleTerm | null) => void;
+}) {
+  const baseline = 190;
+
+  return (
+    <svg
+      viewBox="0 0 760 245"
+      className="block w-full overflow-visible"
+      role="img"
+      aria-label="Use-rate by entropy area diagram"
+    >
+      <line
+        x1={20}
+        x2={742}
+        y1={baseline}
+        y2={baseline}
+        stroke="#d1d5db"
+        strokeWidth={1.4}
+      />
+      <text x={20} y={26} fontSize={13} fontWeight={800} fill="#4b5563">
+        Height = entropy
+      </text>
+      <text x={165} y={26} fontSize={13} fontWeight={800} fill="#4b5563">
+        Width = codebook use rate
+      </text>
+      {TWO_TRIANGLE_AREA_BLOCKS.map((block) => {
+        const blockId = block.id;
+        const blockIsTarget = getAreaBlockIdForTerm(activeTerm) === blockId;
+        const active =
+          blockIsTarget ||
+          activeTerm === block.id;
+        const heightActive = termHighlightsHeight(activeTerm, blockId);
+        const widthActive = termHighlightsWidth(activeTerm, blockId);
+        const termId = blockId as TwoTriangleTerm;
+        const widthTerm = getAreaWidthTerm(blockId);
+        const heightTerm = getAreaHeightTerm(blockId);
+        const y = baseline - block.height;
+        const slices = TWO_TRIANGLE_AREA_SLICES[blockId];
+        const heightGuideX = block.x + block.width + 10;
+        const heightLabelX = block.x + block.width + 23;
+        const heightLabelY = y + block.height / 2;
+        const heightColor = heightActive ? "#b22222" : "#6b7280";
+        const widthColor = widthActive ? "#b22222" : "#6b7280";
+        const blockCenterX = block.x + block.width / 2;
+        const isNarrowBlock = block.width < 90;
+        const inlineFractionX = blockCenterX - (isNarrowBlock ? 9 : 8);
+        const inlineEntropyX = blockCenterX + (isNarrowBlock ? 3 : 7);
+        const inlineFontSize = isNarrowBlock ? 10 : 12;
+        const useRateLabelX = blockCenterX - (isNarrowBlock ? 12 : 20);
+        const useRateFractionX = blockCenterX + (isNarrowBlock ? 16 : 28);
+        const useRateLabelY = baseline + 44;
+        let sliceX = block.x;
+
+        return (
+          <g key={block.id}>
+            <rect
+              x={block.x}
+              y={y}
+              width={block.width}
+              height={block.height}
+              rx={7}
+              fill="#ffffff"
+              opacity={0.001}
+            />
+            {slices.map((slice, index) => {
+              const width =
+                index === slices.length - 1
+                  ? block.x + block.width - sliceX
+                  : block.width * slice.widthFraction;
+              const sliceActive = activeTerm === slice.id;
+              const sliceElement = (
+                <g
+                  key={slice.id}
+                  tabIndex={0}
+                  role="button"
+                  onMouseEnter={(event) => {
+                    event.stopPropagation();
+                    setHoveredTerm(slice.id as TwoTriangleTerm);
+                  }}
+                  onMouseLeave={(event) => {
+                    event.stopPropagation();
+                    setHoveredTerm(null);
+                  }}
+                  onFocus={() => setHoveredTerm(slice.id as TwoTriangleTerm)}
+                  onBlur={() => setHoveredTerm(null)}
+                  className="cursor-pointer outline-none"
+                >
+                  <rect
+                    x={sliceX}
+                    y={y}
+                    width={width}
+                    height={block.height}
+                    rx={7}
+                    ry={7}
+                    fill={block.fill}
+                    opacity={
+                      sliceActive ? 0.9 : active ? 0.7 : 0.34
+                    }
+                    stroke={sliceActive ? "#111827" : "#ffffff"}
+                    strokeWidth={sliceActive ? 2.2 : 1}
+                  />
+                </g>
+              );
+
+              sliceX += width;
+              return sliceElement;
+            })}
+            <rect
+              x={block.x}
+              y={y}
+              width={block.width}
+              height={block.height}
+              rx={7}
+              fill="none"
+              stroke={active ? "#111827" : "transparent"}
+              strokeWidth={2}
+            />
+            <g
+              tabIndex={0}
+              role="button"
+              onMouseEnter={(event) => {
+                event.stopPropagation();
+                setHoveredTerm(heightTerm);
+              }}
+              onMouseLeave={(event) => {
+                event.stopPropagation();
+                setHoveredTerm(null);
+              }}
+              onFocus={() => setHoveredTerm(heightTerm)}
+              onBlur={() => setHoveredTerm(null)}
+              className="cursor-pointer outline-none"
+            >
+              <rect
+                x={heightGuideX - 16}
+                y={y - 8}
+                width={52}
+                height={block.height + 16}
+                fill="#ffffff"
+                opacity={0.001}
+              />
+              <line
+                x1={heightGuideX}
+                x2={heightGuideX}
+                y1={y}
+                y2={baseline}
+                stroke={heightColor}
+                strokeWidth={heightActive ? 3 : 1.6}
+                strokeLinecap="round"
+              />
+              <line
+                x1={heightGuideX - 4}
+                x2={heightGuideX + 4}
+                y1={y}
+                y2={y}
+                stroke={heightColor}
+                strokeWidth={heightActive ? 3 : 1.6}
+                strokeLinecap="round"
+              />
+              <line
+                x1={heightGuideX - 4}
+                x2={heightGuideX + 4}
+                y1={baseline}
+                y2={baseline}
+                stroke={heightColor}
+                strokeWidth={heightActive ? 3 : 1.6}
+                strokeLinecap="round"
+              />
+              <SvgEntropyLabel
+                blockId={blockId}
+                x={heightLabelX}
+                y={heightLabelY}
+                fill={heightColor}
+                transform={`rotate(-90 ${heightLabelX} ${heightLabelY})`}
+                fontSize={10}
+                fontWeight={heightActive ? 900 : 700}
+              />
+            </g>
+            <g
+              tabIndex={0}
+              role="button"
+              onMouseEnter={(event) => {
+                event.stopPropagation();
+                setHoveredTerm(widthTerm);
+              }}
+              onMouseLeave={(event) => {
+                event.stopPropagation();
+                setHoveredTerm(null);
+              }}
+              onFocus={() => setHoveredTerm(widthTerm)}
+              onBlur={() => setHoveredTerm(null)}
+              className="cursor-pointer outline-none"
+            >
+              <rect
+                x={block.x - 4}
+                y={baseline + 8}
+                width={block.width + 8}
+                height={58}
+                fill="#ffffff"
+                opacity={0.001}
+              />
+              <line
+                x1={block.x}
+                x2={block.x + block.width}
+                y1={baseline + 18}
+                y2={baseline + 18}
+                stroke={widthColor}
+                strokeWidth={widthActive ? 3 : 1.6}
+                strokeLinecap="round"
+              />
+              <line
+                x1={block.x}
+                x2={block.x}
+                y1={baseline + 14}
+                y2={baseline + 22}
+                stroke={widthColor}
+                strokeWidth={widthActive ? 3 : 1.6}
+                strokeLinecap="round"
+              />
+              <line
+                x1={block.x + block.width}
+                x2={block.x + block.width}
+                y1={baseline + 14}
+                y2={baseline + 22}
+                stroke={widthColor}
+                strokeWidth={widthActive ? 3 : 1.6}
+                strokeLinecap="round"
+              />
+              <SvgUseRateLabel
+                blockId={blockId}
+                x={useRateLabelX}
+                y={useRateLabelY}
+                fill={widthColor}
+                fontSize={12}
+                fontWeight={widthActive ? 900 : 700}
+              />
+              <SvgFraction
+                numerator={block.useRateNumerator}
+                denominator={block.useRateDenominator}
+                x={useRateFractionX}
+                y={useRateLabelY - 1}
+                fill={widthColor}
+                fontSize={10}
+                fontWeight={widthActive ? 900 : 700}
+              />
+            </g>
+            <g
+              tabIndex={0}
+              role="button"
+              onMouseEnter={() => setHoveredTerm(termId)}
+              onMouseLeave={() => setHoveredTerm(null)}
+              onFocus={() => setHoveredTerm(termId)}
+              onBlur={() => setHoveredTerm(null)}
+              className="cursor-pointer outline-none"
+            >
+              <rect
+                x={blockCenterX - 54}
+                y={y - 30}
+                width={108}
+                height={24}
+                rx={12}
+                fill="#ffffff"
+                opacity={0.001}
+              />
+              <text
+                x={blockCenterX}
+                y={y - 12}
+                textAnchor="middle"
+                fontSize={13}
+                fontWeight={900}
+                fill="#111827"
+                pointerEvents="none"
+              >
+                {block.label}
+              </text>
+            </g>
+            <text
+              x={inlineEntropyX}
+              y={y + block.height / 2 - 10}
+              textAnchor="start"
+              fontSize={inlineFontSize}
+              fontWeight={800}
+              fill="#111827"
+              pointerEvents="none"
+            >
+              ×{block.entropyInline}
+            </text>
+            <SvgFraction
+              numerator={block.useRateNumerator}
+              denominator={block.useRateDenominator}
+              x={inlineFractionX}
+              y={y + block.height / 2 - 10}
+              fill="#111827"
+              fontSize={isNarrowBlock ? 8 : 10}
+              fontWeight={800}
+            />
+            <text
+              x={blockCenterX}
+              y={y + block.height / 2 + 10}
+              textAnchor="middle"
+              fontSize={11}
+              fontWeight={700}
+              fill="#374151"
+              pointerEvents="none"
+            >
+              {block.contribution}
+            </text>
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+function TwoTriangleCodelengthWalkthrough() {
+  const [hoveredTerm, setHoveredTerm] = useState<TwoTriangleTerm | null>(null);
+  const activeTerm = hoveredTerm;
+  const entropyFormulaActive = termIsActive(activeTerm, "h-q", "h-pa", "h-pb");
+  const termProps = {
+    activeTerm,
+    setHoveredTerm,
+  };
+
+  return (
+    <div className="mb-12 space-y-8">
+      <div className="max-w-4xl space-y-3">
+        <h3 className="mb-2 text-lg font-bold text-gray-900">
+          How codelength is calculated
+        </h3>
+        <p className="m-0 text-sm leading-relaxed text-gray-600">
+          This toy network is unweighted and undirected: every link counts the
+          same, and the walker can traverse each link both ways. Seven links
+          become fourteen equally likely link directions, so the fractions in
+          the equations can be counted directly.
+        </p>
+        <p className="m-0 text-sm leading-relaxed text-gray-600">
+          Each term is a use rate multiplied by an entropy: how often a
+          codebook is used times the average number of bits needed when it is
+          used. Hover a formula part to see where that term appears in the
+          network and in the area diagram.
+        </p>
+      </div>
+
+      <div className="grid gap-8 xl:grid-cols-[minmax(0,0.72fr)_minmax(0,1.28fr)] xl:items-start">
+        <div className="min-w-0">
+          <h4 className="mb-3 text-base font-semibold text-gray-900">
+            Two triangles, one bridge
+          </h4>
+          <TwoTriangleNetwork {...termProps} />
+        </div>
+        <div className="min-w-0">
+          <h4 className="mb-3 text-base font-semibold text-gray-900">
+            Area = codelength contribution
+          </h4>
+          <TwoTriangleUseArea {...termProps} />
+        </div>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] xl:items-start">
+        <div className="min-w-0 space-y-1.5">
+          <h4 className="m-0 text-base font-semibold text-gray-900">
+            One-level calculation
+          </h4>
+          <div className="mt-1 space-y-0.5">
+              <div className="flex flex-wrap items-center gap-y-0 py-0 text-[0.95rem] leading-7 text-gray-900">
+                <EquationInfo explanation="The one-level codelength is the entropy of the full node-visit distribution P. With one shared codebook, every step is encoded by naming the next node from one global list.">
+                  <TeX math="L_1=H(P)=" />
+                </EquationInfo>
+                <EquationInfo
+                  active={entropyFormulaActive}
+                  explanation="This is the entropy formula. We use this same calculation for H(P), H(Q), H(Pᴬ), and H(Pᴮ): multiply each probability by its log₂ code length contribution and add the terms."
+                >
+                  <TeX math="-\sum_{\alpha}p_{\alpha}\log_2 p_{\alpha}" />
+                </EquationInfo>
+              </div>
+              <p className="m-0 text-sm leading-snug text-gray-600">
+                Hover equation parts for the counting behind each number. In
+                one level, each <TeX math="p_{\alpha}" /> is the node&apos;s
+                degree <HelpTooltip content={DEGREE_HELP} /> divided by 14 link
+                directions; no module codebooks are involved yet.
+              </p>
+              <div className="flex flex-wrap items-center gap-y-0 py-0 text-[0.95rem] leading-7 text-gray-900">
+                <EquationInfo explanation="P is the one-level node-visit distribution. Entropy needs probabilities, so each node's flow rate becomes one entry in P.">
+                  <TeX math="P=(" />
+                </EquationInfo>
+                <FormulaTerm
+                  id="node-1"
+                  {...termProps}
+                  explanation={getOneLevelNodeExplanation(1)}
+                >
+                  <TeX math="\frac{3}{14}" />
+                </FormulaTerm>
+                <TeX math="," />
+                <FormulaTerm
+                  id="node-2"
+                  {...termProps}
+                  explanation={getOneLevelNodeExplanation(2)}
+                >
+                  <TeX math="\frac{2}{14}" />
+                </FormulaTerm>
+                <TeX math="," />
+                <FormulaTerm
+                  id="node-3"
+                  {...termProps}
+                  explanation={getOneLevelNodeExplanation(3)}
+                >
+                  <TeX math="\frac{2}{14}" />
+                </FormulaTerm>
+                <TeX math="," />
+                <FormulaTerm
+                  id="node-4"
+                  {...termProps}
+                  explanation={getOneLevelNodeExplanation(4)}
+                >
+                  <TeX math="\frac{3}{14}" />
+                </FormulaTerm>
+                <TeX math="," />
+                <FormulaTerm
+                  id="node-5"
+                  {...termProps}
+                  explanation={getOneLevelNodeExplanation(5)}
+                >
+                  <TeX math="\frac{2}{14}" />
+                </FormulaTerm>
+                <TeX math="," />
+                <FormulaTerm
+                  id="node-6"
+                  {...termProps}
+                  explanation={getOneLevelNodeExplanation(6)}
+                >
+                  <TeX math="\frac{2}{14}" />
+                </FormulaTerm>
+                <TeX math=")" />
+              </div>
+              <div className="flex flex-wrap items-center gap-y-0 py-0 text-[0.95rem] leading-7 text-gray-900">
+                <EquationInfo explanation="This substitutes every probability in P into the entropy formula. Each term is the codelength contribution of one node in the one-level codebook.">
+                  <TeX math="L_1=H(P)=-[" />
+                </EquationInfo>
+                <FormulaTerm
+                  id="node-1"
+                  {...termProps}
+                  explanation={getOneLevelNodeExplanation(1)}
+                >
+                  <TeX math="\frac{3}{14}\log_2(\frac{3}{14})" />
+                </FormulaTerm>
+                <TeX math="+" />
+                <FormulaTerm
+                  id="node-2"
+                  {...termProps}
+                  explanation={getOneLevelNodeExplanation(2)}
+                >
+                  <TeX math="\frac{2}{14}\log_2(\frac{2}{14})" />
+                </FormulaTerm>
+                <TeX math="+" />
+                <FormulaTerm
+                  id="node-3"
+                  {...termProps}
+                  explanation={getOneLevelNodeExplanation(3)}
+                >
+                  <TeX math="\frac{2}{14}\log_2(\frac{2}{14})" />
+                </FormulaTerm>
+                <TeX math="+" />
+                <FormulaTerm
+                  id="node-4"
+                  {...termProps}
+                  explanation={getOneLevelNodeExplanation(4)}
+                >
+                  <TeX math="\frac{3}{14}\log_2(\frac{3}{14})" />
+                </FormulaTerm>
+                <TeX math="+" />
+                <FormulaTerm
+                  id="node-5"
+                  {...termProps}
+                  explanation={getOneLevelNodeExplanation(5)}
+                >
+                  <TeX math="\frac{2}{14}\log_2(\frac{2}{14})" />
+                </FormulaTerm>
+                <TeX math="+" />
+                <FormulaTerm
+                  id="node-6"
+                  {...termProps}
+                  explanation={getOneLevelNodeExplanation(6)}
+                >
+                  <TeX math="\frac{2}{14}\log_2(\frac{2}{14})" />
+                </FormulaTerm>
+                <EquationInfo explanation="2.557 bits is the average one-level code length per walker step. It is the baseline used to judge whether two-level coding finds regularities in the network. If a structured description is shorter than this flat one, the partition is capturing useful flow structure.">
+                  <TeX math="]=2.557\ \text{bits}" />
+                </EquationInfo>
+              </div>
+          </div>
+        </div>
+
+        <div className="min-w-0 space-y-1.5">
+          <h4 className="m-0 text-base font-semibold text-gray-900">
+            Two-level calculation
+          </h4>
+          <div className="mt-1 space-y-0.5">
+              <div className="flex flex-wrap items-center gap-y-0 py-0 text-[0.95rem] leading-7 text-gray-900">
+                <EquationInfo explanation="This is the general two-level map equation. The first term is the index-codebook cost, and the sum adds the cost of every module codebook.">
+                  <TeX math="L(M)=q_{\curvearrowright}H(Q)+\sum_i p_{\circlearrowright}^{i}H(P^i)" />
+                </EquationInfo>
+              </div>
+              <div className="flex flex-wrap items-center gap-y-0 py-0 text-[0.95rem] leading-7 text-gray-900">
+                <EquationInfo explanation="L(M) is the two-level codelength for partition M. It adds the cost of using the index codebook and the local module codebooks.">
+                  <TeX math="L(M)=" />
+                </EquationInfo>
+                <FormulaTerm id="q-total" {...termProps}>
+                  <TeX math="q_{\curvearrowright}" />
+                </FormulaTerm>
+                <FormulaTerm id="h-q" {...termProps}>
+                  <TeX math="H(Q)" />
+                </FormulaTerm>
+                <TeX math="+" />
+                <FormulaTerm id="module-a" {...termProps}>
+                  <TeX math="p_{\circlearrowright}^{A}" />
+                </FormulaTerm>
+                <FormulaTerm id="h-pa" {...termProps}>
+                  <TeX math="H(P^A)" />
+                </FormulaTerm>
+                <TeX math="+" />
+                <FormulaTerm id="module-b" {...termProps}>
+                  <TeX math="p_{\circlearrowright}^{B}" />
+                </FormulaTerm>
+                <FormulaTerm id="h-pb" {...termProps}>
+                  <TeX math="H(P^B)" />
+                </FormulaTerm>
+              </div>
+              <div className="flex flex-wrap items-center gap-y-0 py-0 text-[0.95rem] leading-7 text-gray-900">
+                <FormulaTerm id="exit-a" {...termProps}>
+                  <TeX math="q_A=\frac{1}{14}" />
+                </FormulaTerm>
+                <TeX math="," />
+                <FormulaTerm id="exit-b" {...termProps}>
+                  <TeX math="q_B=\frac{1}{14}" />
+                </FormulaTerm>
+                <TeX math=",\quad" />
+                <FormulaTerm id="q-total" {...termProps}>
+                  <TeX math="q_{\curvearrowright}=\frac{2}{14}" />
+                </FormulaTerm>
+              </div>
+              <div className="flex flex-wrap items-center gap-y-0 py-0 text-[0.95rem] leading-7 text-gray-900">
+                <FormulaTerm id="enter-a" {...termProps}>
+                  <TeX math="Q_A=\frac{1}{14}\div\frac{2}{14}=\frac{1}{2}" />
+                </FormulaTerm>
+                <TeX math="," />
+                <FormulaTerm id="enter-b" {...termProps}>
+                  <TeX math="Q_B=\frac{1}{2}" />
+                </FormulaTerm>
+                <TeX math=",\quad" />
+                <FormulaTerm id="h-q" {...termProps}>
+                  <TeX math="H(Q)=1" />
+                </FormulaTerm>
+              </div>
+              <p className="m-0 text-sm leading-snug text-gray-600">
+                Once module A&apos;s codebook is active, we only choose among A&apos;s
+                exit and node symbols. Dividing by
+                <TeX math="p_{\circlearrowright}^{A}" /> makes{" "}
+                <TeX math="P^A" /> sum to one.
+              </p>
+              <div className="flex flex-wrap items-center gap-y-0 py-0 text-[0.95rem] leading-7 text-gray-900">
+                <FormulaTerm id="module-a" {...termProps}>
+                  <TeX math="p_{\circlearrowright}^{A}=\frac{1}{14}+\frac{7}{14}=\frac{8}{14}" />
+                </FormulaTerm>
+                <TeX math="," />
+                <FormulaTerm id="module-b" {...termProps}>
+                  <TeX math="p_{\circlearrowright}^{B}=\frac{8}{14}" />
+                </FormulaTerm>
+              </div>
+              <div className="flex flex-wrap items-center gap-y-0 py-0 text-[0.95rem] leading-7 text-gray-900">
+                <FormulaTerm id="h-pa" {...termProps}>
+                  <TeX math="P^A" />
+                </FormulaTerm>
+                <TeX math="=(" />
+                <FormulaTerm
+                  id="exit-a"
+                  {...termProps}
+                  explanation={getNormalizedExitExplanation("A")}
+                >
+                  <TeX math="\frac{1}{8}" />
+                </FormulaTerm>
+                <TeX math="," />
+                <FormulaTerm id="node-1" {...termProps}>
+                  <TeX math="\frac{3}{8}" />
+                </FormulaTerm>
+                <TeX math="," />
+                <FormulaTerm id="node-2" {...termProps}>
+                  <TeX math="\frac{2}{8}" />
+                </FormulaTerm>
+                <TeX math="," />
+                <FormulaTerm id="node-3" {...termProps}>
+                  <TeX math="\frac{2}{8}" />
+                </FormulaTerm>
+                <TeX math="),\quad" />
+                <FormulaTerm id="h-pb" {...termProps}>
+                  <TeX math="P^B" />
+                </FormulaTerm>
+                <TeX math="=(" />
+                <FormulaTerm
+                  id="exit-b"
+                  {...termProps}
+                  explanation={getNormalizedExitExplanation("B")}
+                >
+                  <TeX math="\frac{1}{8}" />
+                </FormulaTerm>
+                <TeX math="," />
+                <FormulaTerm id="node-4" {...termProps}>
+                  <TeX math="\frac{3}{8}" />
+                </FormulaTerm>
+                <TeX math="," />
+                <FormulaTerm id="node-5" {...termProps}>
+                  <TeX math="\frac{2}{8}" />
+                </FormulaTerm>
+                <TeX math="," />
+                <FormulaTerm id="node-6" {...termProps}>
+                  <TeX math="\frac{2}{8}" />
+                </FormulaTerm>
+                <TeX math=")" />
+              </div>
+              <div className="flex flex-wrap items-center gap-y-0 py-0 text-[0.88rem] leading-7 text-gray-900">
+                <FormulaTerm id="h-pa" {...termProps}>
+                  <TeX math="H(P^A)" />
+                </FormulaTerm>
+                <TeX math="=-[" />
+                <FormulaTerm
+                  id="exit-a"
+                  {...termProps}
+                  explanation={getNormalizedExitExplanation("A")}
+                >
+                  <TeX math="\frac{1}{8}\log_2(\frac{1}{8})" />
+                </FormulaTerm>
+                <TeX math="+" />
+                <FormulaTerm id="node-1" {...termProps}>
+                  <TeX math="\frac{3}{8}\log_2(\frac{3}{8})" />
+                </FormulaTerm>
+                <TeX math="+" />
+                <FormulaTerm id="node-2" {...termProps}>
+                  <TeX math="\frac{2}{8}\log_2(\frac{2}{8})" />
+                </FormulaTerm>
+                <TeX math="+" />
+                <FormulaTerm id="node-3" {...termProps}>
+                  <TeX math="\frac{2}{8}\log_2(\frac{2}{8})" />
+                </FormulaTerm>
+                <TeX math="]=H(P^B)=1.906" />
+              </div>
+              <div className="flex flex-wrap items-center gap-y-0 py-0 text-[0.95rem] leading-7 text-gray-900">
+                <EquationInfo explanation="This line substitutes the measured use rates and entropies into the two-level map equation. It turns the abstract equation into the predicted average bits per step.">
+                  <TeX math="L(M)=" />
+                </EquationInfo>
+                <FormulaTerm id="q-total" {...termProps}>
+                  <TeX math="\frac{2}{14}" />
+                </FormulaTerm>
+                <TeX math="\cdot" />
+                <FormulaTerm id="h-q" {...termProps}>
+                  <TeX math="1" />
+                </FormulaTerm>
+                <TeX math="+" />
+                <FormulaTerm id="module-a" {...termProps}>
+                  <TeX math="\frac{8}{14}" />
+                </FormulaTerm>
+                <TeX math="\cdot" />
+                <FormulaTerm id="h-pa" {...termProps}>
+                  <TeX math="1.906" />
+                </FormulaTerm>
+                <TeX math="+" />
+                <FormulaTerm id="module-b" {...termProps}>
+                  <TeX math="\frac{8}{14}" />
+                </FormulaTerm>
+                <TeX math="\cdot" />
+                <FormulaTerm id="h-pb" {...termProps}>
+                  <TeX math="1.906" />
+                </FormulaTerm>
+                <EquationInfo explanation="2.321 bits is the two-level average codelength per step. Because it is lower than the one-level value, the module partition gives a shorter description. That tells us the partition reveals regularities and structure in the network flow.">
+                  <TeX math="=2.321\ \text{bits}" />
+                </EquationInfo>
+              </div>
+              <p className="m-0 font-semibold text-gray-700">
+                Two-level coding is about 9.2% shorter than one-level.
+              </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /**
  * Main demo component embedding the interactive visualizations and
  * explanatory text. This component is NOT observed to prevent re-rendering
@@ -375,14 +1620,7 @@ export default function Main() {
   const [showVisitRates, setShowVisitRates] = useState(false);
   const [showLinkWeights, setShowLinkWeights] = useState(false);
   const [activeCommunity, setActiveCommunity] = useState(0);
-  const [oneLevelFlowPulseIndex, setOneLevelFlowPulseIndex] = useState(0);
-  const [oneLevelFlowActive, setOneLevelFlowActive] = useState(false);
-  const [oneLevelFlowAnimationKey, setOneLevelFlowAnimationKey] = useState(0);
   const firstNetworkRef = useRef<HTMLDivElement>(null);
-  const oneLevelFlowRef = useRef<HTMLDivElement>(null);
-  const oneLevelFlowRateScale =
-    oneLevelFlowPulseIndex / ONE_LEVEL_FLOW_RATE_STEPS;
-  const oneLevelReceivedFlowRates = getOneLevelReceivedFlowRates(network);
 
   const setWalkerSpeed = (value: number) => {
     setSpeed(value);
@@ -415,53 +1653,6 @@ export default function Main() {
     return () => observer.disconnect();
   }, [startRandomWalk]);
 
-  useEffect(() => {
-    const currentRef = oneLevelFlowRef.current;
-    if (!currentRef) return;
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        const isVisible = entry.isIntersecting;
-        setOneLevelFlowActive(isVisible);
-
-        if (isVisible) {
-          setOneLevelFlowPulseIndex(0);
-          setOneLevelFlowAnimationKey((key) => key + 1);
-        }
-      },
-      { threshold: 0.05 },
-    );
-
-    observer.observe(currentRef);
-
-    return () => observer.disconnect();
-  }, []);
-
-  useEffect(() => {
-    if (!oneLevelFlowActive) return;
-
-    let intervalId: number | undefined;
-    const updateBarsAfterBlobArrival = () => {
-      setOneLevelFlowPulseIndex(
-        (pulseIndex) => (pulseIndex + 1) % (ONE_LEVEL_FLOW_RATE_STEPS + 1),
-      );
-    };
-    const arrivalTimeoutId = window.setTimeout(() => {
-      updateBarsAfterBlobArrival();
-      intervalId = window.setInterval(
-        updateBarsAfterBlobArrival,
-        ONE_LEVEL_FLOW_PULSE_INTERVAL_MS,
-      );
-    }, ONE_LEVEL_FLOW_BLOB_ARRIVAL_MS);
-
-    return () => {
-      window.clearTimeout(arrivalTimeoutId);
-      if (intervalId !== undefined) {
-        window.clearInterval(intervalId);
-      }
-    };
-  }, [oneLevelFlowActive]);
-
   const toggleSolution = () => {
     const wasStarted = network.walker.isStarted;
     network.walker.reset();
@@ -486,7 +1677,7 @@ export default function Main() {
       <ArticleSection
         id="node-selection"
         eyebrow="Learn the Map Equation"
-        title="Can you make the code shorter?"
+        title="Can you compress the code?"
         className="mb-36"
       >
         <div className="grid gap-10 xl:grid-cols-2 xl:items-start">
@@ -522,19 +1713,6 @@ export default function Main() {
             ref={firstNetworkRef}
             className="-mt-6 min-w-0 p-4 xl:sticky xl:top-8"
           >
-            <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
-              <div>
-                <h3 className="m-0 text-lg font-bold">Two-level partition</h3>
-                <p className="m-0 text-sm text-gray-600">
-                  Directly edit the communities and see the coding cost change.
-                </p>
-                <p className="m-0 mt-1 text-xs leading-relaxed text-gray-500">
-                  Click and drag to draw a free-hand lasso around nodes.
-                  Release to complete the selection and assign selected nodes to
-                  the active community.
-                </p>
-              </div>
-            </div>
             <InteractiveNetwork
               network={network}
               numCommunities={NUM_COMMUNITIES}
@@ -542,6 +1720,10 @@ export default function Main() {
               schemeAlt={schemeAlt}
               activeCommunity={activeCommunity}
               onActiveCommunityChange={setActiveCommunity}
+              communitySelectorPlacement="overlay"
+              communitySelectorOverlay={{ x: 0, y: 748, width: 785, height: 74 }}
+              communitySelectorScale={1.35}
+              topContent={<TwoLevelCodelengthSummary network={network} />}
               showLabels={true}
               showModules={true}
               showInstructions={false}
@@ -567,8 +1749,7 @@ export default function Main() {
                 r={12}
                 fill={neutralNodeColorAlt}
               />
-              <EnterExitCodes network={network} x={200} y={660} />
-              <TwoLevelCodelengthOverlay network={network} />
+              <EnterExitCodes network={network} x={610} y={390} />
             </InteractiveNetwork>
           </div>
         </div>
@@ -665,6 +1846,9 @@ export default function Main() {
           <div className="min-w-0 space-y-8">
             <div className="p-5">
               <h3 className="mb-4 text-lg font-bold">One-level reference</h3>
+              <div className="mb-4">
+                <OneLevelCodelengthSummary network={network} />
+              </div>
               <Network
                 network={network}
                 scheme={[neutralNodeColor]}
@@ -693,7 +1877,6 @@ export default function Main() {
                   r={12}
                   fill={neutralNodeColorAlt}
                 />
-                <OneLevelCodelengthOverlay network={network} />
               </Network>
             </div>
 
@@ -716,6 +1899,7 @@ export default function Main() {
             </div>
 
             <div className="p-5">
+              <h3 className="mb-4 text-lg font-bold">Two-level codebooks</h3>
               <CodeBooks network={network} />
               <CodeBookLegend />
             </div>
@@ -725,11 +1909,6 @@ export default function Main() {
             <div className="p-5">
               <div className="mb-4">
                 <h3 className="m-0 text-lg font-bold">Two-level partition</h3>
-                <p className="m-0 mt-1 text-xs leading-relaxed text-gray-500">
-                  Click and drag to draw a free-hand lasso around nodes.
-                  Release to complete the selection and assign selected nodes to
-                  the active community.
-                </p>
               </div>
               <InteractiveNetwork
                 network={network}
@@ -738,6 +1917,10 @@ export default function Main() {
                 schemeAlt={schemeAlt}
                 activeCommunity={activeCommunity}
                 onActiveCommunityChange={setActiveCommunity}
+                communitySelectorPlacement="overlay"
+                communitySelectorOverlay={{ x: 0, y: 748, width: 785, height: 74 }}
+                communitySelectorScale={1.35}
+                topContent={<TwoLevelCodelengthSummary network={network} />}
                 showLabels={true}
                 showModules={true}
                 showFeedback={false}
@@ -765,8 +1948,7 @@ export default function Main() {
                   r={12}
                   fill={neutralNodeColorAlt}
                 />
-                <EnterExitCodes network={network} x={200} y={660} />
-                <TwoLevelCodelengthOverlay network={network} />
+                <EnterExitCodes network={network} x={610} y={390} />
               </InteractiveNetwork>
             </div>
           </aside>
@@ -776,133 +1958,69 @@ export default function Main() {
       <ArticleSection
         id="map-equation-codelength"
         eyebrow="Codelength"
-        title="Start with one-level codelength"
+        title="From printed codes to codelength"
         className="mb-36"
       >
         <p className="max-w-4xl">
-          A one-level code uses one shared codebook for the whole network. The
-          codelength is the average number of bits needed to name the next node
-          visited by flow on the network: common nodes should get short codes,
-          and rare nodes can afford longer codes.
+          The code printer shows the symbols produced by a particular walk.
+          Codelength asks for the average cost of that description: how many
+          bits are needed per step for the one-level or two-level code. The map
+          equation computes that average directly from flow rates and the
+          current partition.
         </p>
-        <div
-          ref={oneLevelFlowRef}
-          className="grid gap-10 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] xl:items-start"
-        >
-          <div className="min-w-0 p-5">
-            <CodelengthChart network={network} />
-          </div>
-          <aside className="min-w-0 space-y-6 p-5 xl:sticky xl:top-8">
-            <div>
-              <h3 className="mb-2 text-lg font-bold">
-                One-level flow reference
-              </h3>
-              <p className="mb-4 text-sm leading-relaxed text-gray-600">
-                Every three seconds, each node sends flow along its links.
-                Larger blobs mark links with higher flow.
-              </p>
-              <Network
-                network={network}
-                scheme={[neutralNodeColor]}
-                schemeAlt={[neutralNodeColorAlt]}
-                rate={Rate.Uniform}
-                showLabels={false}
-                showModules={false}
-                showNodeId={true}
-                nodeIdLayer="top"
-                showVisiting={false}
-                width={800}
-                height={830}
-                getNodeIdFill={getDarkerNodeIdFill}
-                underlayChildren={
-                  <OneLevelFlowPulses
-                    network={network}
-                    animationKey={oneLevelFlowAnimationKey}
-                  />
-                }
-              />
-            </div>
-            <div>
-              <h3 className="mb-2 text-lg font-bold">Node visit rates</h3>
-              <p className="mb-3 text-sm leading-relaxed text-gray-600">
-                These grey bars start from an even 0.02 baseline and move
-                toward the visit-rate probabilities used in the one-level
-                entropy calculation as the flow pulses repeat.
-              </p>
-              <Rates
-                network={network}
-                rate={Rate.Flow}
-                showModules={false}
-                duration={900}
-                monochrome
-                rateScale={oneLevelFlowRateScale}
-                rateBaseline={ONE_LEVEL_FLOW_RATE_BASELINE}
-                getRateOverride={(node) =>
-                  oneLevelReceivedFlowRates.get(node.id) ?? node.flow
-                }
-                yAxisLabel="Node visit rate pα"
-              />
-            </div>
-            <div>
-              <h3 className="mb-2 text-lg font-bold">
-                Two-level codebook rates
-              </h3>
-              <p className="mb-3 text-sm leading-relaxed text-gray-600">
-                The index row is normalized by the total module-switching rate.
-                Each module row is normalized by that module codebook&apos;s use
-                rate: node visits plus one extra exit symbol. These normalized
-                distributions give the entropy terms in the two-level
-                codelength.
-              </p>
-              <TwoLevelCodebookRates network={network} />
-            </div>
-          </aside>
+        <div className="mt-8 min-w-0 p-5">
+          <CodelengthChart network={network} />
         </div>
+        <p className="max-w-4xl">
+          Those formulas use the full weighted network. To make the counting
+          easier to see, we next use a small unweighted network where every link
+          contributes equally.
+        </p>
+        <TwoTriangleCodelengthWalkthrough />
       </ArticleSection>
 
       <ArticleSection
         id="beyond-two-levels"
         eyebrow="Beyond two levels"
-        title="From flat modules to nested maps"
+        title="When two levels are not enough"
         className="mb-32"
       >
         <div className="grid gap-10 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] xl:items-start">
           <div className="min-w-0 space-y-5">
             <p className="text-lg leading-relaxed text-gray-700">
-              The two-level map equation is the simplest useful restriction:
-              use one index codebook to enter a module, then reuse short node
-              names inside that module. But networks can have structure inside
+              The two-level map equation is a useful flat restriction: one
+              index codebook chooses a module, then a local codebook names the
+              node or exit. But real networks can have structure inside
               structure.
             </p>
             <p>
-              Multilevel Infomap removes that restriction. It searches for the
-              number of levels and the module assignments that give the shortest
-              description of flow on the network.
+              Multilevel Infomap asks the same compression question again
+              inside modules. If a module can be described more cheaply by
+              splitting it into submodules, that level becomes part of the map.
             </p>
             <p className="text-gray-700">
-              Extra levels are not chosen by hand. They are kept only when the
-              shorter local codebooks save more bits than the added index
-              codebooks cost.
+              The hierarchy is therefore not fixed in advance. Extra levels
+              stay only when the savings from smaller, more specific codebooks
+              are larger than the cost of using another index codebook.
             </p>
           </div>
           <div className="min-w-0">
             <ArticleStep label="1" title="Two-level">
               <p className="m-0">
-                One index codebook chooses among flat modules. Each module has
-                one local codebook for its node and exit symbols.
+                One index codebook chooses among flat modules. Each module then
+                uses one local codebook for node and exit symbols.
               </p>
             </ArticleStep>
             <ArticleStep label="2" title="Nested structure">
               <p className="m-0">
-                A broad module can contain submodules, so a walk step can be
-                described by a path through nested codebooks before naming the
-                node.
+                A broad module can contain submodules, so the code can name a
+                path through nested codebooks before naming the node.
               </p>
             </ArticleStep>
             <ArticleStep label="3" title="Keep levels that compress">
               <p className="m-0">
-                The multilevel map equation keeps exactly the hierarchy that
-                gives the shortest flow description for this network.
+                Infomap keeps the nested structure only if it shortens the full
+                flow description.
               </p>
             </ArticleStep>
           </div>
@@ -914,9 +2032,6 @@ export default function Main() {
       <section className="col-span-4 mb-40">
         <RegularizedInfomap width={700} height={300} />
       </section>
-
-      {/* Performance Dashboard */}
-      <PerformanceDashboard />
     </>
   );
 }

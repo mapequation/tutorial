@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import TeX from "@matejmazur/react-katex";
+import { motion } from "framer-motion";
 import { observer } from "mobx-react";
 import { Network } from "../model";
 import type RandomWalker from "../model/algorithms/RandomWalker";
@@ -19,7 +20,6 @@ import {
 import Button from "./Button";
 import { EnterFlow, ExitFlow } from "./CodeBooks";
 import Flow from "./CodeBooks/Flow";
-import HelpTooltip from "./HelpTooltip";
 import Walker from "./Network/Walker";
 import WalkTrace from "./Network/WalkTrace";
 import { darkenHexColor, scheme } from "./scheme";
@@ -99,7 +99,8 @@ type HoverTarget =
 
 interface CodebookActivation {
   itemKeys: Set<string>;
-  columnKeys: Set<CodebookColumnKey>;
+  connectorKeys: Set<string>;
+  columnUseCounts: Map<CodebookColumnKey, number>;
 }
 
 interface CodebookColumnCounterState {
@@ -140,7 +141,7 @@ const TWO_LEVEL_MODULE_LABELS = [
 ] as const;
 const MODULE_COLOR_INDEXES = [
   [0, 3, 7],
-  [1, 8, 6],
+  [1, 15, 26],
   [2, 5, 4],
 ] as const;
 const CODEBOOK_BLOCK = {
@@ -149,6 +150,8 @@ const CODEBOOK_BLOCK = {
   gap: 1,
   pointer: 6.4,
 } as const;
+const CODEBOOK_PULSE_FADE_STEPS = 5;
+const CODEBOOK_PULSE_JITTER_X = [0, 1.6, -1.2, 0.8, 0];
 const HIERARCHICAL_COMPARISON_GRID_CLASS =
   "mx-auto grid w-full max-w-6xl gap-x-4 gap-y-6 lg:grid-cols-[minmax(0,1fr)_7rem_minmax(0,1fr)] lg:items-start";
 const CODEBOOK_COLUMN_KEYS: CodebookColumnKey[] = [
@@ -197,14 +200,6 @@ const RECURSIVE_VIEWBOX = {
   width: 460,
   height: 400,
 } as const;
-const MULTILEVEL_MAP_EQUATION_HELP =
-  "The hierarchical map equation compresses a random-walk description used as a proxy for real flow. It searches for both the module partition and the number of useful levels.";
-const HIERARCHICAL_CODEBOOK_HELP =
-  "A hierarchical codebook is a nested set of codebooks. The code first names broad modules, then lower-level modules, and finally the node or exit event in the local module codebook.";
-const TWO_LEVEL_LIMIT_HELP =
-  "A two-level description is restricted to one index codebook plus local module codebooks. It is useful, but it forces all modules to live in one flat layer.";
-const CODELENGTH_HELP =
-  "Codelength is the expected number of bits printed per step of the random walker. A lower codelength means the partition describes the walk more efficiently.";
 const RECURSIVE_STRUCTURE_HELP =
   "The Sierpiński triangle is a recursive structure: the same triangular pattern repeats inside itself at smaller and smaller scales.";
 const RECURSIVE_ROOT_CORNERS: [TrianglePoint, TrianglePoint, TrianglePoint] = [
@@ -489,6 +484,57 @@ function rgbToHex({ r, g, b }: { r: number; g: number; b: number }) {
         .padStart(2, "0"),
     )
     .join("")}`;
+}
+
+function interpolateHexColor(start: string, end: string, progress: number) {
+  const clampedProgress = Math.max(0, Math.min(1, progress));
+  const from = hexToRgb(start);
+  const to = hexToRgb(end);
+
+  return rgbToHex({
+    r: from.r + (to.r - from.r) * clampedProgress,
+    g: from.g + (to.g - from.g) * clampedProgress,
+    b: from.b + (to.b - from.b) * clampedProgress,
+  });
+}
+
+function getCodebookPulseProgress(age: number | null) {
+  if (age === null) {
+    return null;
+  }
+
+  return Math.max(
+    0,
+    Math.min(1, age / Math.max(CODEBOOK_PULSE_FADE_STEPS - 1, 1)),
+  );
+}
+
+function getCodebookPulseFill(baseColor: string, age: number | null) {
+  const progress = getCodebookPulseProgress(age);
+
+  if (progress === null) {
+    return baseColor;
+  }
+
+  return interpolateHexColor(darkenHexColor(baseColor, 0.42), baseColor, progress);
+}
+
+function getCodebookPulseOpacity(
+  baseOpacity: number,
+  activeOpacity: number,
+  age: number | null,
+) {
+  const progress = getCodebookPulseProgress(age);
+
+  if (progress === null) {
+    return baseOpacity;
+  }
+
+  return activeOpacity + (baseOpacity - activeOpacity) * progress;
+}
+
+function getCodebookPulseJitterX(age: number | null) {
+  return age === 0 ? CODEBOOK_PULSE_JITTER_X : 0;
 }
 
 function weightedMixHexColors(parts: { color: string; weight: number }[]) {
@@ -1108,25 +1154,36 @@ function createHierarchicalWalkerNetwork() {
   return network;
 }
 
+function addColumnUse(
+  columnUseCounts: Map<CodebookColumnKey, number>,
+  columnKey: CodebookColumnKey,
+) {
+  columnUseCounts.set(columnKey, (columnUseCounts.get(columnKey) ?? 0) + 1);
+}
+
 function getCodebookActivationForTransition(
   variant: NetworkViewVariant,
   currentNodeId: number | null,
   previousNodeId: number | null,
 ): CodebookActivation {
   const itemKeys = new Set<string>();
-  const columnKeys = new Set<CodebookColumnKey>();
+  const connectorKeys = new Set<string>();
+  const columnUseCounts = new Map<CodebookColumnKey, number>();
 
   if (currentNodeId === null) {
-    return { itemKeys, columnKeys };
+    return { itemKeys, connectorKeys, columnUseCounts };
   }
 
   const currentFineIndex = getFineModuleIndexForNodeId(currentNodeId);
   const currentFineModule = fineModules[currentFineIndex];
 
   if (!currentFineModule) {
-    return { itemKeys, columnKeys };
+    return { itemKeys, connectorKeys, columnUseCounts };
   }
 
+  const currentNodeLocalIndex = currentFineModule.nodeIds.indexOf(
+    currentNodeId,
+  );
   const previousFineIndex =
     previousNodeId === null ? null : getFineModuleIndexForNodeId(previousNodeId);
   const previousFineModule =
@@ -1141,16 +1198,23 @@ function getCodebookActivationForTransition(
 
   if (variant === "multilevel") {
     itemKeys.add(`multilevel-node-${currentFineModule.key}-${currentNodeId}`);
-    columnKeys.add("multilevel-module");
+    connectorKeys.add(
+      `multilevel-sub-to-node-${currentFineModule.key}-${currentNodeLocalIndex}`,
+    );
+    addColumnUse(columnUseCounts, "multilevel-module");
 
     if (changedFineModule) {
       itemKeys.add(`subindex-enter-${currentFineModule.key}`);
-      columnKeys.add("multilevel-sub-index");
+      connectorKeys.add(
+        `multilevel-top-to-sub-${currentTopIndex}-${currentFineModule.localIndex}`,
+      );
+      addColumnUse(columnUseCounts, "multilevel-sub-index");
     }
 
     if (previousFineModule && changedFineModule) {
       itemKeys.add(`multilevel-exit-${previousFineModule.key}`);
-      columnKeys.add("multilevel-module");
+      connectorKeys.add(`multilevel-sub-to-node-${previousFineModule.key}-3`);
+      addColumnUse(columnUseCounts, "multilevel-module");
     }
 
     if (changedTopModule) {
@@ -1158,7 +1222,7 @@ function getCodebookActivationForTransition(
 
       if (currentTopModule) {
         itemKeys.add(`top-index-${currentTopModule.key}`);
-        columnKeys.add("multilevel-top-index");
+        addColumnUse(columnUseCounts, "multilevel-top-index");
       }
     }
 
@@ -1167,27 +1231,32 @@ function getCodebookActivationForTransition(
 
       if (previousTopModule) {
         itemKeys.add(`subindex-exit-${previousTopModule.key}`);
-        columnKeys.add("multilevel-sub-index");
+        connectorKeys.add(`multilevel-top-to-sub-${previousTopIndex}-3`);
+        addColumnUse(columnUseCounts, "multilevel-sub-index");
       }
     }
 
-    return { itemKeys, columnKeys };
+    return { itemKeys, connectorKeys, columnUseCounts };
   }
 
   itemKeys.add(`two-level-node-${currentFineModule.key}-${currentNodeId}`);
-  columnKeys.add("two-level-module");
+  connectorKeys.add(
+    `two-level-index-to-node-${currentFineModule.key}-${currentNodeLocalIndex}`,
+  );
+  addColumnUse(columnUseCounts, "two-level-module");
 
   if (changedFineModule) {
     itemKeys.add(`two-level-index-${currentFineModule.key}`);
-    columnKeys.add("two-level-index");
+    addColumnUse(columnUseCounts, "two-level-index");
   }
 
   if (previousFineModule && changedFineModule) {
     itemKeys.add(`two-level-exit-${previousFineModule.key}`);
-    columnKeys.add("two-level-module");
+    connectorKeys.add(`two-level-index-to-node-${previousFineModule.key}-3`);
+    addColumnUse(columnUseCounts, "two-level-module");
   }
 
-  return { itemKeys, columnKeys };
+  return { itemKeys, connectorKeys, columnUseCounts };
 }
 
 function getCodebookActiveItemKeys(walker: RandomWalker) {
@@ -1208,6 +1277,46 @@ function getCodebookActiveItemKeys(walker: RandomWalker) {
   });
 
   return activeKeys;
+}
+
+function getRecentCodebookPulseAges(walker: RandomWalker) {
+  const itemAges = new Map<string, number>();
+  const connectorAges = new Map<string, number>();
+  const trace = Array.from(walker.trace);
+  const firstVisibleStep = walker.totalVisits - trace.length + 1;
+
+  for (let traceIndex = trace.length - 1; traceIndex >= 0; traceIndex--) {
+    const stepNumber = firstVisibleStep + traceIndex;
+    const age = walker.totalVisits - stepNumber;
+
+    if (stepNumber <= 1 || age >= CODEBOOK_PULSE_FADE_STEPS) {
+      continue;
+    }
+
+    const currentNodeId = trace[traceIndex];
+    const previousNodeId = traceIndex > 0 ? trace[traceIndex - 1] : null;
+
+    (["multilevel", "two-level"] as const).forEach((variant) => {
+      const activation = getCodebookActivationForTransition(
+        variant,
+        currentNodeId,
+        previousNodeId,
+      );
+
+      activation.itemKeys.forEach((key) => {
+        if (!itemAges.has(key)) {
+          itemAges.set(key, age);
+        }
+      });
+      activation.connectorKeys.forEach((key) => {
+        if (!connectorAges.has(key)) {
+          connectorAges.set(key, age);
+        }
+      });
+    });
+  }
+
+  return { itemAges, connectorAges };
 }
 
 function createEmptyColumnActivationTotals() {
@@ -1245,10 +1354,10 @@ function useCodebookColumnActivationTotals(walker: RandomWalker) {
         previousNodeId,
       );
 
-      activation.columnKeys.forEach((columnKey) => {
+      activation.columnUseCounts.forEach((useCount, columnKey) => {
         totalsRef.current.set(
           columnKey,
-          (totalsRef.current.get(columnKey) ?? 0) + 1,
+          (totalsRef.current.get(columnKey) ?? 0) + useCount,
         );
       });
     });
@@ -1283,7 +1392,11 @@ function getCodebookColumnCounters(
         previousNodeId,
       );
 
-      activation.columnKeys.forEach((columnKey) => {
+      activation.columnUseCounts.forEach((useCount, columnKey) => {
+        if (useCount <= 0) {
+          return;
+        }
+
         lastUsedStep.set(columnKey, traceIndex + 1);
       });
     });
@@ -1339,7 +1452,7 @@ function buildCodelengthGroups(): CodelengthGroup[] {
       note:
         "The multilevel sum combines the top index, lower indexes inside top modules, and local module codebooks for node visits and exits.",
       formula: (
-        <TeX math="L_{\mathrm{multi}}(M)=q_{\curvearrowright}H(\mathcal{Q})+\sum_i q_{\curvearrowright}^{i}H(\mathcal{Q}^{i})+\sum_{ij}p_{\circlearrowright}^{ij}H(\mathcal{P}^{ij})" />
+        <TeX math="L_{\mathrm{multi}}(M)=q_{\curvearrowright}H(\mathcal{Q})+\sum_i q_{\circlearrowright}^{i}H(\mathcal{Q}^{i})+\sum_{ij}p_{\circlearrowright}^{ij}H(\mathcal{P}^{ij})" />
       ),
       calculation: (
         <TeX
@@ -1476,7 +1589,15 @@ function CodelengthGroupView({ group }: { group: CodelengthGroup }) {
 }
 
 function CodelengthBreakdown() {
-  const groups = useMemo(() => buildCodelengthGroups(), []);
+  const groups = useMemo(() => {
+    const groupsByKey = new Map(
+      buildCodelengthGroups().map((group) => [group.key, group]),
+    );
+
+    return ["two-level", "multilevel"]
+      .map((key) => groupsByKey.get(key))
+      .filter((group): group is CodelengthGroup => Boolean(group));
+  }, []);
 
   return (
     <div className="mx-auto max-w-5xl space-y-4">
@@ -1503,6 +1624,8 @@ function CodebookBlock({
   kind,
   label,
   active = false,
+  pulseAge = null,
+  duration,
 }: {
   x: number;
   y: number;
@@ -1512,15 +1635,32 @@ function CodebookBlock({
   kind: CodebookBlockKind;
   label?: string;
   active?: boolean;
+  pulseAge?: number | null;
+  duration: number;
 }) {
-  const fill = active ? darkenHexColor(color, 0.34) : color;
+  const fill = active
+    ? darkenHexColor(color, 0.34)
+    : getCodebookPulseFill(color, pulseAge);
   const stroke = darkenHexColor(color, active ? 0.48 : 0.24);
   const commonProps = {
-    fill,
-    fillOpacity: active ? 1 : 0.88,
+    initial: {
+      fill: color,
+      fillOpacity: 0.88,
+      translateX: 0,
+    },
+    animate: {
+      fill,
+      fillOpacity: getCodebookPulseOpacity(0.88, 1, active ? 0 : pulseAge),
+      translateX: getCodebookPulseJitterX(active ? 0 : pulseAge),
+    },
+    transition: { duration },
     stroke,
-    strokeWidth: active ? 1.35 : 1,
+    strokeWidth: active || pulseAge === 0 ? 1.35 : 1,
     vectorEffect: "non-scaling-stroke" as const,
+    style: {
+      transformBox: "fill-box" as const,
+      transformOrigin: "left center" as const,
+    },
   };
   const shape =
     kind === "enter" ? (
@@ -1555,49 +1695,82 @@ function CodebookBlock({
     <g>
       {shape}
       {label && (
-        <text
+        <motion.text
           x={x + width / 2}
           y={y + height / 2 + 0.6}
           textAnchor="middle"
           dominantBaseline="middle"
           fontSize={Math.max(2.8, height * 0.62)}
           fontWeight={900}
-          fill={active ? "#ffffff" : "#111827"}
+          initial={{ fill: "#111827", translateX: 0 }}
+          animate={{
+            fill:
+              active || pulseAge === 0
+                ? "#ffffff"
+                : "#111827",
+            translateX: getCodebookPulseJitterX(active ? 0 : pulseAge),
+          }}
+          transition={{ duration }}
+          style={{
+            transformBox: "fill-box",
+            transformOrigin: "left center",
+          }}
           pointerEvents="none"
         >
           {label}
-        </text>
+        </motion.text>
       )}
     </g>
   );
 }
 
 function Connector({
-  x1,
-  y1,
-  x2,
-  y2,
+  startX,
+  startTop,
+  startBottom,
+  endX,
+  endTop,
+  endBottom,
   color,
-  opacity = 0.35,
-  strokeWidth = 2,
+  opacity = 0.24,
+  pulseAge = null,
+  duration,
 }: {
-  x1: number;
-  y1: number;
-  x2: number;
-  y2: number;
+  startX: number;
+  startTop: number;
+  startBottom: number;
+  endX: number;
+  endTop: number;
+  endBottom: number;
   color: string;
   opacity?: number;
-  strokeWidth?: number;
+  pulseAge?: number | null;
+  duration: number;
 }) {
+  const span = endX - startX;
+  const firstControlX = startX + span * 0.28;
+  const secondControlX = endX - span * 0.28;
+  const path = [
+    `M ${startX} ${startTop}`,
+    `C ${firstControlX} ${startTop} ${secondControlX} ${endTop} ${endX} ${endTop}`,
+    `L ${endX} ${endBottom}`,
+    `C ${secondControlX} ${endBottom} ${firstControlX} ${startBottom} ${startX} ${startBottom}`,
+    "Z",
+  ].join(" ");
+
   return (
-    <path
-      d={`M ${x1} ${y1} C ${x1 + 26} ${y1}, ${x2 - 26} ${y2}, ${x2} ${y2}`}
-      fill="none"
-      stroke={darkenHexColor(color, 0.16)}
-      strokeLinecap="round"
-      strokeWidth={strokeWidth}
-      vectorEffect="non-scaling-stroke"
-      opacity={opacity}
+    <motion.path
+      d={path}
+      initial={{
+        fill: color,
+        fillOpacity: opacity,
+      }}
+      animate={{
+        fill: getCodebookPulseFill(color, pulseAge),
+        fillOpacity: getCodebookPulseOpacity(opacity, 0.56, pulseAge),
+      }}
+      transition={{ duration }}
+      stroke="none"
     />
   );
 }
@@ -1733,12 +1906,68 @@ function getStackBlockCenterY({
   );
 }
 
+function getStackBlockBounds({
+  stackY,
+  itemIndex,
+  itemCount,
+  maxHeight = CODEBOOK_STACK_HEIGHT,
+}: {
+  stackY: number;
+  itemIndex: number;
+  itemCount: number;
+  maxHeight?: number;
+}) {
+  const { blockHeight } = getStackMetrics(itemCount, maxHeight);
+  const top = getStackBlockY({ stackY, itemIndex, itemCount, maxHeight });
+
+  return {
+    top,
+    bottom: top + blockHeight,
+    height: blockHeight,
+  };
+}
+
+function getStackBlockSliceBounds({
+  stackY,
+  itemIndex,
+  itemCount,
+  sliceIndex,
+  sliceCount,
+  maxHeight = CODEBOOK_STACK_HEIGHT,
+}: {
+  stackY: number;
+  itemIndex: number;
+  itemCount: number;
+  sliceIndex: number;
+  sliceCount: number;
+  maxHeight?: number;
+}) {
+  const bounds = getStackBlockBounds({
+    stackY,
+    itemIndex,
+    itemCount,
+    maxHeight,
+  });
+  const sliceHeight = bounds.height / sliceCount;
+  const top = bounds.top + sliceIndex * sliceHeight;
+
+  return {
+    top,
+    bottom:
+      sliceIndex === sliceCount - 1
+        ? bounds.bottom
+        : top + sliceHeight,
+  };
+}
+
 function CodebookStack({
   x,
   y,
   items,
   hoveredTarget,
   activeItemKeys,
+  itemPulseAges,
+  duration,
   onHoverTargetChange,
 }: {
   x: number;
@@ -1746,6 +1975,8 @@ function CodebookStack({
   items: CodebookStackItem[];
   hoveredTarget: HoverTarget | null;
   activeItemKeys: Set<string>;
+  itemPulseAges: Map<string, number>;
+  duration: number;
   onHoverTargetChange: (target: HoverTarget | null) => void;
 }) {
   const { blockHeight } = getStackMetrics(items.length);
@@ -1773,6 +2004,8 @@ function CodebookStack({
               kind={item.kind}
               label={item.label}
               active={isCodebookItemActive(item, hoveredTarget, activeItemKeys)}
+              pulseAge={itemPulseAges.get(item.key) ?? null}
+              duration={duration}
             />
           </g>
         );
@@ -1833,7 +2066,9 @@ const CodebookComparison = observer(function CodebookComparison({
   const moduleX = 240;
   const twoLevelIndexX = 78;
   const twoLevelModuleX = 182;
+  const duration = (0.5 * walker.interval) / 1000;
   const activeItemKeys = getCodebookActiveItemKeys(walker);
+  const { itemAges, connectorAges } = getRecentCodebookPulseAges(walker);
   const columnActivationTotals = useCodebookColumnActivationTotals(walker);
   const columnCounters = getCodebookColumnCounters(
     walker,
@@ -1943,26 +2178,40 @@ const CodebookComparison = observer(function CodebookComparison({
         {fineModules.map((module_, fineIndex) => {
           return (
             <g key={`two-level-module-connectors-${module_.key}`}>
-              {[0, 1, 2, 3].map((localIndex) => (
-                <Connector
-                  key={`two-level-index-to-node-${module_.key}-${localIndex}`}
-                  x1={twoLevelIndexX + CODEBOOK_BLOCK.width}
-                  y1={getStackBlockCenterY({
-                    stackY: panelY,
-                    itemIndex: fineIndex,
-                    itemCount: twoLevelIndexItems.length,
-                  })}
-                  x2={twoLevelModuleX}
-                  y2={getStackBlockCenterY({
-                    stackY: panelY,
-                    itemIndex: moduleItemIndex(fineIndex, localIndex),
-                    itemCount: twoLevelModuleItems.length,
-                  })}
-                  color={module_.color}
-                  opacity={localIndex === 3 ? 0.58 : 0.42}
-                  strokeWidth={localIndex === 3 ? 1.85 : 1.3}
-                />
-              ))}
+              {[0, 1, 2, 3].map((localIndex) => {
+                const sourceBounds = getStackBlockSliceBounds({
+                  stackY: panelY,
+                  itemIndex: fineIndex,
+                  itemCount: twoLevelIndexItems.length,
+                  sliceIndex: localIndex,
+                  sliceCount: 4,
+                });
+                const targetBounds = getStackBlockBounds({
+                  stackY: panelY,
+                  itemIndex: moduleItemIndex(fineIndex, localIndex),
+                  itemCount: twoLevelModuleItems.length,
+                });
+
+                return (
+                  <Connector
+                    key={`two-level-index-to-node-${module_.key}-${localIndex}`}
+                    startX={twoLevelIndexX + CODEBOOK_BLOCK.width}
+                    startTop={sourceBounds.top}
+                    startBottom={sourceBounds.bottom}
+                    endX={twoLevelModuleX}
+                    endTop={targetBounds.top}
+                    endBottom={targetBounds.bottom}
+                    color={module_.color}
+                    opacity={localIndex === 3 ? 0.32 : 0.24}
+                    pulseAge={
+                      connectorAges.get(
+                        `two-level-index-to-node-${module_.key}-${localIndex}`,
+                      ) ?? null
+                    }
+                    duration={duration}
+                  />
+                );
+              })}
             </g>
           );
         })}
@@ -1972,6 +2221,8 @@ const CodebookComparison = observer(function CodebookComparison({
           items={twoLevelIndexItems}
           hoveredTarget={hoveredTarget}
           activeItemKeys={activeItemKeys}
+          itemPulseAges={itemAges}
+          duration={duration}
           onHoverTargetChange={onHoverTargetChange}
         />
         <CodebookStack
@@ -1980,6 +2231,8 @@ const CodebookComparison = observer(function CodebookComparison({
           items={twoLevelModuleItems}
           hoveredTarget={hoveredTarget}
           activeItemKeys={activeItemKeys}
+          itemPulseAges={itemAges}
+          duration={duration}
           onHoverTargetChange={onHoverTargetChange}
         />
         <CodebookColumnCounter
@@ -2002,12 +2255,6 @@ const CodebookComparison = observer(function CodebookComparison({
         aria-label="Multilevel codebook comparison"
       >
         {topModules.map((topModule) => {
-          const sourceY = getStackBlockCenterY({
-            stackY: panelY,
-            itemIndex: topModule.topIndex,
-            itemCount: topIndexItems.length,
-          });
-
           return (
             <g key={`multilevel-top-connectors-${topModule.key}`}>
               {[
@@ -2015,51 +2262,83 @@ const CodebookComparison = observer(function CodebookComparison({
                   (module_) => module_.topIndex === topModule.topIndex,
                 ),
                 null,
-              ].map((module_, localIndex) => (
-                <Connector
-                  key={`top-to-sub-${topModule.topIndex}-${localIndex}`}
-                  x1={topIndexX + CODEBOOK_BLOCK.width}
-                  y1={sourceY}
-                  x2={subIndexX}
-                  y2={getStackBlockCenterY({
-                    stackY: panelY,
-                    itemIndex:
-                      module_ === null
-                        ? subIndexExitItemIndex(topModule.topIndex)
-                        : subIndexItemIndex(module_),
-                    itemCount: subIndexItems.length,
-                  })}
-                  color={module_?.color ?? topModule.color}
-                  opacity={module_ === null ? 0.58 : 0.42}
-                  strokeWidth={module_ === null ? 1.8 : 1.35}
-                />
-              ))}
+              ].map((module_, localIndex) => {
+                const sourceBounds = getStackBlockSliceBounds({
+                  stackY: panelY,
+                  itemIndex: topModule.topIndex,
+                  itemCount: topIndexItems.length,
+                  sliceIndex: localIndex,
+                  sliceCount: 4,
+                });
+                const targetBounds = getStackBlockBounds({
+                  stackY: panelY,
+                  itemIndex:
+                    module_ === null
+                      ? subIndexExitItemIndex(topModule.topIndex)
+                      : subIndexItemIndex(module_),
+                  itemCount: subIndexItems.length,
+                });
+
+                return (
+                  <Connector
+                    key={`top-to-sub-${topModule.topIndex}-${localIndex}`}
+                    startX={topIndexX + CODEBOOK_BLOCK.width}
+                    startTop={sourceBounds.top}
+                    startBottom={sourceBounds.bottom}
+                    endX={subIndexX}
+                    endTop={targetBounds.top}
+                    endBottom={targetBounds.bottom}
+                    color={module_?.color ?? topModule.color}
+                    opacity={module_ === null ? 0.32 : 0.24}
+                    pulseAge={
+                      connectorAges.get(
+                        `multilevel-top-to-sub-${topModule.topIndex}-${localIndex}`,
+                      ) ?? null
+                    }
+                    duration={duration}
+                  />
+                );
+              })}
             </g>
           );
         })}
         {fineModules.map((module_, fineIndex) => {
           return (
             <g key={`multilevel-module-connectors-${module_.key}`}>
-              {[0, 1, 2, 3].map((localIndex) => (
-                <Connector
-                  key={`sub-to-node-${module_.key}-${localIndex}`}
-                  x1={subIndexX + CODEBOOK_BLOCK.width}
-                  y1={getStackBlockCenterY({
-                    stackY: panelY,
-                    itemIndex: subIndexItemIndex(module_),
-                    itemCount: subIndexItems.length,
-                  })}
-                  x2={moduleX}
-                  y2={getStackBlockCenterY({
-                    stackY: panelY,
-                    itemIndex: moduleItemIndex(fineIndex, localIndex),
-                    itemCount: multilevelModuleItems.length,
-                  })}
-                  color={module_.color}
-                  opacity={localIndex === 3 ? 0.58 : 0.42}
-                  strokeWidth={localIndex === 3 ? 1.85 : 1.3}
-                />
-              ))}
+              {[0, 1, 2, 3].map((localIndex) => {
+                const sourceBounds = getStackBlockSliceBounds({
+                  stackY: panelY,
+                  itemIndex: subIndexItemIndex(module_),
+                  itemCount: subIndexItems.length,
+                  sliceIndex: localIndex,
+                  sliceCount: 4,
+                });
+                const targetBounds = getStackBlockBounds({
+                  stackY: panelY,
+                  itemIndex: moduleItemIndex(fineIndex, localIndex),
+                  itemCount: multilevelModuleItems.length,
+                });
+
+                return (
+                  <Connector
+                    key={`sub-to-node-${module_.key}-${localIndex}`}
+                    startX={subIndexX + CODEBOOK_BLOCK.width}
+                    startTop={sourceBounds.top}
+                    startBottom={sourceBounds.bottom}
+                    endX={moduleX}
+                    endTop={targetBounds.top}
+                    endBottom={targetBounds.bottom}
+                    color={module_.color}
+                    opacity={localIndex === 3 ? 0.32 : 0.24}
+                    pulseAge={
+                      connectorAges.get(
+                        `multilevel-sub-to-node-${module_.key}-${localIndex}`,
+                      ) ?? null
+                    }
+                    duration={duration}
+                  />
+                );
+              })}
             </g>
           );
         })}
@@ -2069,6 +2348,8 @@ const CodebookComparison = observer(function CodebookComparison({
           items={topIndexItems}
           hoveredTarget={hoveredTarget}
           activeItemKeys={activeItemKeys}
+          itemPulseAges={itemAges}
+          duration={duration}
           onHoverTargetChange={onHoverTargetChange}
         />
         <CodebookStack
@@ -2077,6 +2358,8 @@ const CodebookComparison = observer(function CodebookComparison({
           items={subIndexItems}
           hoveredTarget={hoveredTarget}
           activeItemKeys={activeItemKeys}
+          itemPulseAges={itemAges}
+          duration={duration}
           onHoverTargetChange={onHoverTargetChange}
         />
         <CodebookStack
@@ -2085,6 +2368,8 @@ const CodebookComparison = observer(function CodebookComparison({
           items={multilevelModuleItems}
           hoveredTarget={hoveredTarget}
           activeItemKeys={activeItemKeys}
+          itemPulseAges={itemAges}
+          duration={duration}
           onHoverTargetChange={onHoverTargetChange}
         />
         <CodebookColumnCounter
@@ -2807,44 +3092,39 @@ function HierarchicalCodebooks() {
 
   return (
     <section id="hierarchical-codebooks" className="col-span-4 mb-48">
-      <div className="mb-8 max-w-3xl">
+      <div className="mb-8 max-w-4xl space-y-4">
         <p className="mb-2 text-sm font-black uppercase tracking-[0.22em] text-[#b22222]">
-          Hierarchical codebooks
+          Multilevel Infomap
         </p>
-        <h2 className="mb-4 mt-0">Codebooks can be nested too</h2>
-        <p>
-          A two-level description is useful for learning the mechanics, but it
-          is still a restriction <HelpTooltip content={TWO_LEVEL_LIMIT_HELP} />.
-          The hierarchical map equation asks whether nested codebooks describe
-          the same flow with fewer bits.
+        <h2 className="m-0">Hierarchical codebooks</h2>
+        <p className="m-0 text-lg leading-relaxed text-gray-700">
+          Two-level Infomap gives us one flat layer of modules. Multilevel
+          Infomap keeps the same compression idea, but lets a module be split
+          again if that makes the flow description shorter.
         </p>
-        <p>
-          Hierarchical codebooks{" "}
-          <HelpTooltip content={HIERARCHICAL_CODEBOOK_HELP} /> make that
-          possible. Instead of naming every node from one flat list, the code
-          names a path through nested modules before naming the final node or
-          exit event. If the network has nested flow structure, those smaller
-          local codebooks can reduce the total codelength.
-        </p>
-        <p className="text-gray-700">
-          The multilevel map equation{" "}
-          <HelpTooltip content={MULTILEVEL_MAP_EQUATION_HELP} /> searches for
-          the shortest description across nested partitions. The hierarchy is
-          part of the solution: extra levels appear only when they improve
-          compression.
+        <p className="m-0 text-gray-700">
+          The result is a hierarchy of codebooks. A code can name a broad
+          module, then a submodule, and only then the node or exit event. The
+          levels are not chosen beforehand; they appear only when the added
+          structure lowers codelength.
         </p>
       </div>
 
-      <div className="space-y-1">
-        <p className="mx-auto max-w-4xl text-center text-sm text-gray-600">
-          Compare the two descriptions of the same network. The left view
-          forces the nine small modules into one flat two-level partition. The
-          right view keeps the nested structure: top-level modules I-III contain
-          smaller modules a-c.
-        </p>
+      <div className="space-y-3">
+        <div className="max-w-4xl">
+          <h3 className="mb-1 text-lg font-bold">
+            Two descriptions of the same network
+          </h3>
+          <p className="m-0 text-sm leading-relaxed text-gray-600">
+            The networks below use the same weighted nodes and links. The
+            two-level network on the left puts all nine small modules in one
+            flat index. The multilevel network on the right groups those same
+            small modules into broader modules I-III.
+          </p>
+        </div>
         <div className={HIERARCHICAL_COMPARISON_GRID_CLASS}>
           <RawTopologyNetworkView
-            title="Two-level network view"
+            title="Two-level network"
             variant="two-level"
             walker={walkerNetwork.walker}
             hoveredTarget={hoveredTarget}
@@ -2858,34 +3138,42 @@ function HierarchicalCodebooks() {
             />
           </div>
           <RawTopologyNetworkView
-            title="Multilevel network view"
+            title="Multilevel network"
             variant="multilevel"
             walker={walkerNetwork.walker}
             hoveredTarget={hoveredTarget}
             onHoverTargetChange={setHoveredTarget}
           />
         </div>
-        <p className="mx-auto max-w-4xl pt-3 text-center text-sm text-gray-600">
-          The codebook visualization turns those module labels into codebook
-          stacks. Multilevel coding chooses a top module, then a submodule, then
-          the local node or exit symbol. Two-level coding has no top index, so
-          all small modules are chosen from one flat index.
-        </p>
+        <div className="max-w-4xl pt-3">
+          <h3 className="mb-1 text-lg font-bold">Codebooks for each map</h3>
+          <p className="m-0 text-sm leading-relaxed text-gray-600">
+            The stacks show what each description has to print. The two-level
+            map uses fewer stages. The multilevel map uses more stages, but the
+            codebooks used most often can be smaller and cheaper.
+          </p>
+        </div>
         <CodebookComparison
           walker={walkerNetwork.walker}
           hoveredTarget={hoveredTarget}
           onHoverTargetChange={setHoveredTarget}
         />
-        <div className="mx-auto max-w-4xl pt-3 text-sm leading-relaxed text-gray-600">
+        <div className="max-w-5xl pt-3 text-sm leading-relaxed text-gray-600">
+          <h3 className="mb-1 text-lg font-bold text-gray-900">
+            What changes in the equation?
+          </h3>
           <p className="m-0">
-            Each codebook contributes a use rate multiplied by an entropy. The
-            random walker can estimate the use rate by counting how often that
-            codebook is activated per step. The entropy is calculated from the
-            symbol probabilities inside the codebook: broad-module entries,
-            submodule entries, node visits, and exits.
+            Compared with the two-level equation, the new part is that a
+            module can contain its own smaller map. The recursive term{" "}
+            <TeX math="\sum_i L(M^i)" /> says: after the top index chooses
+            module <TeX math="i" />, calculate the codelength of the submap
+            inside that module.
           </p>
-          <div className="overflow-x-auto py-2 text-center text-base leading-8 text-gray-900">
-            <TeX math="L(M)=\sum_{\mathrm{codebooks}} \mathrm{use\ rate}\times H(\mathrm{codebook})" />
+          <div className="overflow-x-auto py-1 text-center text-base leading-8 text-gray-900">
+            <TeX math="L(M)=q_{\curvearrowright}H(\mathcal{Q})+\sum_i L(M^i),\quad L(M^i)=q_{\circlearrowright}^{i}H(\mathcal{Q}^{i})+\sum_j L(M^{ij})" />
+          </div>
+          <div className="overflow-x-auto pb-1 text-center text-base leading-8 text-gray-900">
+            <TeX math="L(M^{ij})=p_{\circlearrowright}^{ij}H(\mathcal{P}^{ij})\quad \text{when }M^{ij}\text{ is a final module}" />
           </div>
           <div className="grid gap-2 md:grid-cols-2">
             <p className="m-0">
@@ -2893,44 +3181,45 @@ function HierarchicalCodebooks() {
                 Top index:
               </span>{" "}
               <TeX math="q_{\curvearrowright}H(\mathcal{Q})" />.{" "}
-              <TeX math="q_{\curvearrowright}" /> is how often the top index is
-              used per step. <TeX math="H(\mathcal{Q})" /> is the entropy of
-              the broad-module entry symbols.
+              This chooses among broad modules.
             </p>
             <p className="m-0">
               <span className="font-semibold text-gray-800">
-                Lower indexes:
+                Recursive part:
               </span>{" "}
-              <TeX math="\sum_i q_{\curvearrowright}^{i}H(\mathcal{Q}^{i})" />
-              . Each <TeX math="q_{\curvearrowright}^{i}" /> is how often a
-              lower index inside top module <TeX math="i" /> is used;{" "}
-              <TeX math="H(\mathcal{Q}^{i})" /> is the entropy of its submodule
-              entry symbols.
+              <TeX math="\sum_i L(M^i)" />. Each broad module gets its own
+              submap contribution instead of immediately ending in one local
+              codebook.
             </p>
             <p className="m-0">
               <span className="font-semibold text-gray-800">
-                Module codebooks:
+                Subindex inside a module:
+              </span>{" "}
+              <TeX math="q_{\circlearrowright}^{i}H(\mathcal{Q}^{i})" />. This
+              is the extra index codebook used to choose among submodules inside
+              module <TeX math="i" />.
+            </p>
+            <p className="m-0">
+              <span className="font-semibold text-gray-800">
+                Final local codebooks:
               </span>{" "}
               <TeX math="\sum_{ij}p_{\circlearrowright}^{ij}H(\mathcal{P}^{ij})" />
-              . <TeX math="p_{\circlearrowright}^{ij}" /> is how often the
-              local codebook for submodule <TeX math="ij" /> is used;{" "}
-              <TeX math="H(\mathcal{P}^{ij})" /> is the entropy of its node and
-              exit symbols.
+              . When a submodule has no deeper levels, its contribution becomes
+              the local codebook for node visits and exits.
             </p>
             <p className="m-0">
               <span className="font-semibold text-gray-800">Two-level:</span>{" "}
               the same idea becomes{" "}
               <TeX math="q_{\curvearrowright}H(\mathcal{Q})+\sum_i p_{\circlearrowright}^{i}H(\mathcal{P}^{i})" />
-              : one flat index plus local module codebooks. It cannot represent
-              the top-module step separately, so nested structure must be
-              flattened.
+              . There is no recursive step, so nested structure is flattened.
             </p>
           </div>
         </div>
-        <p className="mx-auto max-w-4xl pt-3 text-center text-sm text-gray-600">
-          The codelength section adds those weighted terms. Extra levels are not
-          automatically better: their index codebooks must save more bits in the
-          local module codebooks than they cost to use.
+        <p className="max-w-4xl pt-2 text-sm leading-relaxed text-gray-600">
+          The breakdown below shows the tradeoff directly. Multilevel has more
+          codebook activations, but the frequently used local codebooks become
+          cheaper. If those savings beat the added index costs, the multilevel
+          description is shorter.
         </p>
         <CodelengthBreakdown />
       </div>

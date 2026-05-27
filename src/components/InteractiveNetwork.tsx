@@ -11,6 +11,7 @@ import { scaleSqrt } from "d3";
 import { getRate, Rate } from "../model";
 import { neutralLinkColor } from "./scheme";
 import Network from "./Network/Network";
+import HelpTooltip from "./HelpTooltip";
 
 interface Props {
   network: NetworkModel;
@@ -20,6 +21,15 @@ interface Props {
   activeCommunity?: number;
   onActiveCommunityChange?: (community: number) => void;
   showCommunitySelector?: boolean;
+  communitySelectorPlacement?: "top" | "bottom" | "overlay";
+  communitySelectorOverlay?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+  communitySelectorScale?: number;
+  topContent?: React.ReactNode;
   showFeedback?: boolean;
   showInstructions?: boolean;
   showLabels?: boolean;
@@ -74,6 +84,10 @@ export default observer(function InteractiveNetwork({
   activeCommunity,
   onActiveCommunityChange,
   showCommunitySelector = true,
+  communitySelectorPlacement = "top",
+  communitySelectorOverlay,
+  communitySelectorScale = 1,
+  topContent,
   showFeedback = true,
   showInstructions = true,
   showLabels = false,
@@ -395,72 +409,85 @@ export default observer(function InteractiveNetwork({
         : (undefined as any),
     [showModules, network.treeUpdateCounter],
   ) as any;
+  const communitySelectorHelp =
+    "Select a community color, then click, hold, and drag a free-hand lasso around nodes. Release to assign the selected nodes to the active community. The codelength updates after the partition changes.";
+  const overlaySelector = communitySelectorOverlay ?? {
+    x: Math.max(20, width - 500),
+    y: Math.max(20, height - 180),
+    width: 470,
+    height: 120,
+  };
+
+  const communitySelector = (
+    <div
+      style={{
+        display: "flex",
+        gap: "0.5rem",
+        flexWrap: "wrap",
+        alignItems: "center",
+        lineHeight: 1,
+        transform: `scale(${communitySelectorScale})`,
+        transformOrigin: "top left",
+      }}
+    >
+      <strong style={{ display: "inline-flex", alignItems: "center", height: "2rem" }}>
+        Select Community:
+      </strong>
+      <div
+        style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}
+      >
+        {Array.from({ length: numCommunities }).map((_, i) => (
+          <button
+            key={i}
+            style={getButtonStyle(i)}
+            onClick={() => setCurrentActiveCommunity(i)}
+            title={`Community ${i}`}
+          >
+            {i}
+          </button>
+        ))}
+      </div>
+      <span style={{ display: "inline-flex", alignItems: "center", height: "2rem" }}>
+        <HelpTooltip content={communitySelectorHelp} />
+      </span>
+    </div>
+  );
+  const copyPajekButton = (
+    <button
+      type="button"
+      onClick={handleCopyPajek}
+      style={{
+        width: "5.6rem",
+        minHeight: "1.7rem",
+        border: "1px solid #4b5563",
+        borderRadius: "0.45rem",
+        backgroundColor: "#ffffff",
+        boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
+        color: "#1f2937",
+        cursor: "pointer",
+        fontSize: "0.68rem",
+        fontWeight: 700,
+        lineHeight: 1,
+        padding: "0.2rem 0.3rem",
+        textAlign: "center",
+      }}
+    >
+      {pajekCopyStatus === "copied"
+        ? "Copied"
+        : pajekCopyStatus === "failed"
+          ? "Failed"
+          : "Copy Pajek"}
+    </button>
+  );
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+      {topContent && <div>{topContent}</div>}
+
       {/* Community selector buttons */}
-      {showCommunitySelector && (
-        <div
-          style={{
-            display: "flex",
-            gap: "0.5rem",
-            flexWrap: "wrap",
-            alignItems: "center",
-          }}
-        >
-          <strong>Select Community:</strong>
-          <div
-            style={
-              showPajekCopyButton
-                ? {
-                    display: "grid",
-                    gridTemplateColumns: `repeat(${numCommunities}, 2rem)`,
-                    gap: "0.5rem",
-                  }
-                : { display: "flex", gap: "0.5rem", flexWrap: "wrap" }
-            }
-          >
-            {Array.from({ length: numCommunities }).map((_, i) => (
-              <button
-                key={i}
-                style={getButtonStyle(i)}
-                onClick={() => setCurrentActiveCommunity(i)}
-                title={`Community ${i}`}
-              >
-                {i}
-              </button>
-            ))}
-            {showPajekCopyButton && (
-              <button
-                type="button"
-                onClick={handleCopyPajek}
-                style={{
-                  gridColumn: `${Math.max(1, numCommunities - 1)} / span 2`,
-                  width: "4.5rem",
-                  minHeight: "1.45rem",
-                  border: "1px solid #4b5563",
-                  borderRadius: "0.45rem",
-                  backgroundColor: "#ffffff",
-                  boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
-                  color: "#1f2937",
-                  cursor: "pointer",
-                  fontSize: "0.62rem",
-                  fontWeight: 700,
-                  lineHeight: 1,
-                  padding: "0.15rem 0.2rem",
-                  textAlign: "center",
-                }}
-              >
-                {pajekCopyStatus === "copied"
-                  ? "Copied"
-                  : pajekCopyStatus === "failed"
-                    ? "Failed"
-                    : "Copy Pajek"}
-              </button>
-            )}
-          </div>
-        </div>
-      )}
+      {showCommunitySelector &&
+        communitySelectorPlacement === "top" &&
+        communitySelector}
 
       {/* Network with selection overlay */}
       <div
@@ -516,6 +543,44 @@ export default observer(function InteractiveNetwork({
             {children}
           </Network>
 
+          {showCommunitySelector && communitySelectorPlacement === "overlay" && (
+            <foreignObject
+              x={overlaySelector.x}
+              y={overlaySelector.y}
+              width={overlaySelector.width}
+              height={overlaySelector.height}
+            >
+              <div
+                onMouseDown={(event) => event.stopPropagation()}
+                onClick={(event) => event.stopPropagation()}
+                style={{
+                  pointerEvents: "auto",
+                  fontSize: "1rem",
+                  color: "#111827",
+                }}
+              >
+                {communitySelector}
+              </div>
+            </foreignObject>
+          )}
+
+          {showPajekCopyButton && (
+            <foreignObject
+              x={Math.max(0, width - 112)}
+              y={16}
+              width={100}
+              height={40}
+            >
+              <div
+                onMouseDown={(event) => event.stopPropagation()}
+                onClick={(event) => event.stopPropagation()}
+                style={{ pointerEvents: "auto" }}
+              >
+                {copyPajekButton}
+              </div>
+            </foreignObject>
+          )}
+
           {/* Draw lasso while dragging */}
           {lassoPoints.length > 0 && (
             <>
@@ -532,6 +597,10 @@ export default observer(function InteractiveNetwork({
           )}
         </svg>
       </div>
+
+      {showCommunitySelector && communitySelectorPlacement === "bottom" && (
+        <div style={{ marginTop: "-0.75rem" }}>{communitySelector}</div>
+      )}
 
       {/* Feedback message */}
       {showFeedback && (
@@ -550,9 +619,8 @@ export default observer(function InteractiveNetwork({
       {/* Instructions */}
       {showInstructions && (
         <div style={{ color: "#666", fontSize: "0.8rem" }}>
-          Click and drag to draw a free-hand lasso around nodes. Release to
-          complete the selection and assign selected nodes to the active
-          community.
+          Select a community, then click, hold, and drag a lasso around nodes.
+          Release to assign the selected nodes.
         </div>
       )}
     </div>

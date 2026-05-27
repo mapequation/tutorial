@@ -147,112 +147,108 @@ export default observer(function CodelengthChart({ network }: Props) {
         <p className="text-sm leading-relaxed text-gray-600">
           The one-level partition uses a single codebook for all node visits.
           The two-level partition uses an index codebook between modules and a
-          module codebook inside each module. The Map Equation does not need a
-          simulated random walker to calculate these codelengths or to find
-          communities: it computes the expected description length directly
-          from the network's flow rates and the current partition, and Infomap
-          searches for the partition that minimizes that value.
+          module codebook inside each module. The map equation compares these
+          descriptions by their expected bits per step.
         </p>
         <p className="mt-2 text-sm leading-relaxed text-gray-600">
-          The random walker in this demo is therefore a way to build intuition,
-          not a requirement for the method. It samples actual moves through the
-          network and prints the corresponding codewords, so its averages give
-          an empirical estimate of the same codelength that the Map Equation
-          has already calculated exactly. As the walk gets longer, those
-          estimates should move closer to the predicted values.
+          The walker estimate below is only a sampled version of the same
+          quantity. It helps connect the printed codewords to the formulas, but
+          the predicted codelength is already calculated from the network flow.
         </p>
       </div>
 
       <div className="space-y-6">
-        <div className="space-y-2">
-          <h5 className="text-base font-semibold text-gray-900">
-            One-level partition
-          </h5>
-          <EquationLine>
-            <TeX math="L_1 = H(\mathcal{P}) = -\sum_{\alpha} p_{\alpha} \log_2 p_{\alpha}" />
-          </EquationLine>
-          <div className="text-sm leading-relaxed text-gray-600">
-            <TeX math="H(\cdot)" /> <HelpTooltip content={entropyHelp} /> means
-            entropy in bits.
-          </div>
-          <EquationLine>
-            <TeX
-              math={`L_1 = ${oneLevelCodelength.toFixed(3)}\\ \\text{bits}`}
-            />
-          </EquationLine>
-          <div className="text-sm leading-relaxed text-gray-600">
-            <TeX math="L_1" /> is the average bits per step when one shared
-            codebook is used for the whole network. Here{" "}
-            <TeX math="\mathcal{P}" /> is the full node-visit distribution for
-            all {network.numNodes} nodes, and <TeX math="p_{\alpha}" />{" "}
-            <HelpTooltip content={nodeVisitRateHelp} /> is the visit rate of
-            node <TeX math="\alpha" />.
-          </div>
-          <EquationLine>
-            {estimatedOneLevelCodelength === null ? (
-              <span>
-                Start the walker to estimate the one-level codelength
-                empirically.
-              </span>
-            ) : (
+        <div className="grid gap-6 xl:grid-cols-2 xl:items-start">
+          <div className="min-w-0 space-y-2">
+            <h5 className="text-base font-semibold text-gray-900">
+              One-level partition
+            </h5>
+            <EquationLine>
+              <TeX math="L_1 = H(\mathcal{P}) = -\sum_{\alpha} p_{\alpha} \log_2 p_{\alpha}" />
+            </EquationLine>
+            <div className="text-sm leading-relaxed text-gray-600">
+              <TeX math="H(\cdot)" /> <HelpTooltip content={entropyHelp} /> means
+              entropy in bits.
+            </div>
+            <EquationLine>
               <TeX
-                math={`\\hat{L}_1 = \\frac{${walker.cumulativeOneLevelBits}}{${walker.totalVisits}} = ${estimatedOneLevelCodelength.toFixed(3)}\\ \\text{bits}`}
+                math={`L_1 = ${oneLevelCodelength.toFixed(3)}\\ \\text{bits}`}
               />
-            )}
-          </EquationLine>
-          <div className="text-sm leading-relaxed text-gray-600">
-            A hat such as <TeX math="\hat{L}" />{" "}
-            <HelpTooltip content={estimatedHelp} /> means a walker-based
-            estimate.
+            </EquationLine>
+            <div className="text-sm leading-relaxed text-gray-600">
+              <TeX math="L_1" /> is the average bits per step when one shared
+              codebook is used for the whole network. Here{" "}
+              <TeX math="\mathcal{P}" /> is the full node-visit distribution for
+              all {network.numNodes} nodes, and <TeX math="p_{\alpha}" />{" "}
+              <HelpTooltip content={nodeVisitRateHelp} /> is the visit rate of
+              node <TeX math="\alpha" />.
+            </div>
+            <EquationLine>
+              {estimatedOneLevelCodelength === null ? (
+                <span>
+                  Start the walker to estimate the one-level codelength
+                  empirically.
+                </span>
+              ) : (
+                <TeX
+                  math={`\\hat{L}_1 = \\frac{${walker.cumulativeOneLevelBits}}{${walker.totalVisits}} = ${estimatedOneLevelCodelength.toFixed(3)}\\ \\text{bits}`}
+                />
+              )}
+            </EquationLine>
+            <div className="text-sm leading-relaxed text-gray-600">
+              A hat such as <TeX math="\hat{L}" />{" "}
+              <HelpTooltip content={estimatedHelp} /> means a walker-based
+              estimate.
+            </div>
           </div>
-        </div>
 
-        <div className="space-y-2">
-          <h5 className="text-base font-semibold text-gray-900">
-            Two-level partition
-          </h5>
-          <EquationLine>
-            <TeX math="L(M) = q_{\curvearrowright} H(\mathcal{Q}) + \sum_{i = 1}^{m} p_{\circlearrowright}^{i} H(\mathcal{P}^{i})" />
-          </EquationLine>
-          <EquationLine>
-            <TeX
-              math={`L(M) = ${indexCodelength.toFixed(3)} + ${moduleCodelength.toFixed(3)} = ${twoLevelCodelength.toFixed(3)}\\ \\text{bits}`}
-            />
-          </EquationLine>
-          <div className="space-y-1 text-sm leading-relaxed text-gray-600">
-            <div>
-              <TeX math="M" /> <HelpTooltip content={partitionHelp} /> is the
-              current partition, and <TeX math="m" /> ={" "}
-              {moduleCount}. For this network, <TeX math="q_{\curvearrowright}" />{" "}
-              <HelpTooltip content={switchRateHelp} /> ={" "}
-              {moduleSwitchRate.toFixed(3)}.
-            </div>
-            <div>
-              <TeX math="\mathcal{Q}" /> <HelpTooltip content={moduleEntryHelp} />{" "}
-              is the distribution over which module the walker enters next, and{" "}
-              <TeX math="p_{\circlearrowright}^{i}" />{" "}
-              <HelpTooltip content={moduleUseHelp} /> is the total rate of
-              using module <TeX math="i" />'s codebook.
-            </div>
-            <div>
-              <TeX math="\mathcal{P}^{i}" />{" "}
-              <HelpTooltip content={localCodebookHelp} /> is the local
-              distribution inside module <TeX math="i" />: the node visits in
-              that module plus its exit symbol.
-            </div>
-          </div>
-          <EquationLine>
-            {estimatedTwoLevelCodelength === null ? (
-              <span>
-                Start the walker to estimate the two-level codelength
-                empirically.
-              </span>
-            ) : (
+          <div className="min-w-0 space-y-2">
+            <h5 className="text-base font-semibold text-gray-900">
+              Two-level partition
+            </h5>
+            <EquationLine>
+              <TeX math="L(M) = q_{\curvearrowright} H(\mathcal{Q}) + \sum_{i = 1}^{m} p_{\circlearrowright}^{i} H(\mathcal{P}^{i})" />
+            </EquationLine>
+            <EquationLine>
               <TeX
-                math={`\\hat{L}_{\\mathrm{two}} = \\frac{${walker.cumulativeTwoLevelBits}}{${walker.totalVisits}} = ${estimatedTwoLevelCodelength.toFixed(3)}\\ \\text{bits}`}
+                math={`L(M) = ${indexCodelength.toFixed(3)} + ${moduleCodelength.toFixed(3)} = ${twoLevelCodelength.toFixed(3)}\\ \\text{bits}`}
               />
-            )}
-          </EquationLine>
+            </EquationLine>
+            <div className="space-y-1 text-sm leading-relaxed text-gray-600">
+              <div>
+                <TeX math="M" /> <HelpTooltip content={partitionHelp} /> is the
+                current partition, and <TeX math="m" /> ={" "}
+                {moduleCount}. For this network, <TeX math="q_{\curvearrowright}" />{" "}
+                <HelpTooltip content={switchRateHelp} /> ={" "}
+                {moduleSwitchRate.toFixed(3)}.
+              </div>
+              <div>
+                <TeX math="\mathcal{Q}" /> <HelpTooltip content={moduleEntryHelp} />{" "}
+                is the distribution over which module the walker enters next, and{" "}
+                <TeX math="p_{\circlearrowright}^{i}" />{" "}
+                <HelpTooltip content={moduleUseHelp} /> is the total rate of
+                using module <TeX math="i" />'s codebook.
+              </div>
+              <div>
+                <TeX math="\mathcal{P}^{i}" />{" "}
+                <HelpTooltip content={localCodebookHelp} /> is the local
+                distribution inside module <TeX math="i" />: the node visits in
+                that module plus its exit symbol.
+              </div>
+            </div>
+            <EquationLine>
+              {estimatedTwoLevelCodelength === null ? (
+                <span>
+                  Start the walker to estimate the two-level codelength
+                  empirically.
+                </span>
+              ) : (
+                <TeX
+                  math={`\\hat{L}_{\\mathrm{two}} = \\frac{${walker.cumulativeTwoLevelBits}}{${walker.totalVisits}} = ${estimatedTwoLevelCodelength.toFixed(3)}\\ \\text{bits}`}
+                />
+              )}
+            </EquationLine>
+          </div>
         </div>
 
         <div className="space-y-2">
