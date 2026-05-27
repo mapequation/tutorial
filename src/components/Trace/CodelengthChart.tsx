@@ -124,7 +124,7 @@ export default observer(function CodelengthChart({ network }: Props) {
     `M is the current partition of the network into modules. Right now the network is split into ${moduleCount} ` +
     `${moduleCount === 1 ? "module" : "modules"}, so m = ${moduleCount}.`;
   const switchRateHelp =
-    `For the current partition, q↷ = ${moduleSwitchRate.toFixed(3)}. ` +
+    `For the current partition, q↶ = ${moduleSwitchRate.toFixed(3)}. ` +
     "This is the total rate at which the walker leaves its current module and has to use the index codebook.";
   const moduleEntryHelp =
     `Q is the index-codebook distribution over module entries. For the current partition its entry rates are ` +
@@ -207,7 +207,7 @@ export default observer(function CodelengthChart({ network }: Props) {
               Two-level partition
             </h5>
             <EquationLine>
-              <TeX math="L(M) = q_{\curvearrowright} H(\mathcal{Q}) + \sum_{i = 1}^{m} p_{\circlearrowright}^{i} H(\mathcal{P}^{i})" />
+              <TeX math="L(M) = q_{\curvearrowleft} H(\mathcal{Q}) + \sum_{i = 1}^{m} p_{\circlearrowright}^{i} H(\mathcal{P}^{i})" />
             </EquationLine>
             <EquationLine>
               <TeX
@@ -218,7 +218,7 @@ export default observer(function CodelengthChart({ network }: Props) {
               <div>
                 <TeX math="M" /> <HelpTooltip content={partitionHelp} /> is the
                 current partition, and <TeX math="m" /> ={" "}
-                {moduleCount}. For this network, <TeX math="q_{\curvearrowright}" />{" "}
+                {moduleCount}. For this network, <TeX math="q_{\curvearrowleft}" />{" "}
                 <HelpTooltip content={switchRateHelp} /> ={" "}
                 {moduleSwitchRate.toFixed(3)}.
               </div>

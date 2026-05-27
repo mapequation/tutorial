@@ -258,17 +258,13 @@ export default class HuffmanCoder {
    */
   private calculateModuleCodes(node: TreeNode) {
     const exitId = -1;
-
-    // Create pseudo-node for exit events
-    const exit = {
-      flow: node.exitFlow,
-      id: exitId,
-    };
-
     const nodes = node.map(({ id, flow }) => ({ flow, id }));
+    const items =
+      node.exitFlow > 0
+        ? [{ flow: node.exitFlow, id: exitId }, ...nodes]
+        : nodes;
 
-    // Build Huffman tree with exit + all node flows
-    const items = [exit, ...nodes];
+    node.exitCode = "";
 
     const root = this.createTree(items);
 

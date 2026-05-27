@@ -19,7 +19,9 @@ function InlineTrace({ network, showModules = false }: Props) {
 
   const maxNumCodes = 10;
 
-  const trace = walker.trace.slice(-maxNumCodes).map((id) => network.tree.root.getLeaf(id)!);
+  const visibleTraceIds = walker.trace.slice(-maxNumCodes);
+  const firstVisibleStep = walker.totalVisits - visibleTraceIds.length + 1;
+  const trace = visibleTraceIds.map((id) => network.tree.root.getLeaf(id)!);
   const last = trace.pop();
 
   const duration = walker.interval / 1000;
@@ -35,7 +37,7 @@ function InlineTrace({ network, showModules = false }: Props) {
             node={node}
             prev={nodes[i - 1]}
             showModules={showModules}
-            firstEnter={false}
+            firstEnter={firstVisibleStep + i === 1}
           />
         ))}
         <motion.strong
@@ -49,7 +51,7 @@ function InlineTrace({ network, showModules = false }: Props) {
               node={last}
               prev={trace[trace.length - 1]}
               showModules={showModules}
-              firstEnter={false}
+              firstEnter={firstVisibleStep + trace.length === 1}
             />
           )}
         </motion.strong>
@@ -75,11 +77,13 @@ function CodeWord({ node, prev, showModules = false, firstEnter = true }: CodePr
 
   const currentModule = node.parent;
   const currentModuleId = currentModule?.id ?? 0;
+  const shouldPrintInitialEnter =
+    firstEnter && (currentModule?.parent?.children.size ?? 0) > 1;
 
   if (!prev)
     return (
       <span style={{ color: schemeAlt[currentModuleId] }}>
-        {firstEnter && currentModule?.enterCode} {node.code} {" "}
+        {shouldPrintInitialEnter && currentModule?.enterCode} {node.code} {" "}
       </span>
     );
 

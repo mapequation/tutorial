@@ -136,21 +136,32 @@ const TwoLevelCodelengthSummary = observer(function TwoLevelCodelengthSummary({
   // Read the update counter so this summary refreshes after partition edits
   // trigger `network.finalize()`, even though `Main` itself is not observed.
   network.treeUpdateCounter;
+  const indexCodelength = network.mapequation.indexCodelength.toFixed(3);
+  const moduleCodelength = network.mapequation.moduleCodelength.toFixed(3);
+  const totalCodelength = network.mapequation.codelength.toFixed(3);
 
   return (
-    <div className="space-y-1 text-sm leading-6 text-gray-900">
-      <div className="font-semibold">
-        Total codelength {network.mapequation.codelength.toFixed(3)} bits
+    <div className="inline-grid grid-cols-[auto_auto_auto_auto_auto_auto] items-end gap-x-2 text-sm leading-6 text-gray-900">
+      <div />
+      <div className="text-center text-xs font-semibold uppercase tracking-[0.08em] text-gray-600">
+        Index <HelpTooltip content={INDEX_CODELENGTH_HELP} />
       </div>
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
-        <span>
-          <HelpTooltip content={INDEX_CODELENGTH_HELP} /> Index codelength{" "}
-          {network.mapequation.indexCodelength.toFixed(3)} bits
-        </span>
-        <span>
-          <HelpTooltip content={MODULE_CODELENGTH_HELP} /> Module codelength{" "}
-          {network.mapequation.moduleCodelength.toFixed(3)} bits
-        </span>
+      <div />
+      <div className="text-center text-xs font-semibold uppercase tracking-[0.08em] text-gray-600">
+        Module <HelpTooltip content={MODULE_CODELENGTH_HELP} />
+      </div>
+      <div />
+      <div className="text-center text-xs font-semibold uppercase tracking-[0.08em] text-gray-600">
+        Total
+      </div>
+
+      <div className="font-semibold">Codelength =</div>
+      <div className="text-center font-mono font-bold">{indexCodelength}</div>
+      <div className="font-semibold">+</div>
+      <div className="text-center font-mono font-bold">{moduleCodelength}</div>
+      <div className="font-semibold">=</div>
+      <div className="text-center font-mono font-bold">
+        {totalCodelength} bits
       </div>
     </div>
   );
@@ -230,8 +241,15 @@ type TwoTriangleTerm =
   | "node-5"
   | "node-6";
 
+type TwoTriangleHoverScope = "network" | "area" | "one-level" | "two-level";
+
+interface TwoTriangleHoverState {
+  term: TwoTriangleTerm;
+  scope: TwoTriangleHoverScope;
+}
+
 const EQUATION_TOOLTIP_CLASS =
-  "pointer-events-none absolute left-1/2 bottom-full z-50 mb-2 hidden w-72 -translate-x-1/2 rounded-md border border-gray-300 bg-white px-3 py-2 text-left text-xs font-normal leading-relaxed text-gray-700 shadow-lg group-hover:block group-focus:block group-focus-within:block";
+  "pointer-events-none absolute left-1/2 bottom-full z-50 mb-2 hidden w-72 -translate-x-1/2 rounded-md border border-gray-300 bg-white px-3 py-2 text-left text-xs font-normal leading-relaxed text-gray-700 shadow-lg group-hover:block";
 
 const TWO_TRIANGLE_NODE_POSITIONS = {
   1: { x: 230, y: 145, module: "a" },
@@ -259,7 +277,7 @@ const TWO_TRIANGLE_AREA_BLOCKS = [
   {
     id: "q-total",
     label: "Index",
-    formula: "q_{\\curvearrowright}H(\\mathcal{Q})",
+    formula: "q_{\\curvearrowleft}H(\\mathcal{Q})",
     useRateNumerator: "2",
     useRateDenominator: "14",
     entropy: "1.000",
@@ -301,20 +319,80 @@ const TWO_TRIANGLE_AREA_BLOCKS = [
 ] as const;
 const TWO_TRIANGLE_AREA_SLICES = {
   "q-total": [
-    { id: "enter-a", label: "enter A", widthFraction: 1 / 2 },
-    { id: "enter-b", label: "enter B", widthFraction: 1 / 2 },
+    {
+      id: "enter-a",
+      label: "A",
+      axisMain: "q",
+      axisSub: "A",
+      widthFraction: 1 / 2,
+    },
+    {
+      id: "enter-b",
+      label: "B",
+      axisMain: "q",
+      axisSub: "B",
+      widthFraction: 1 / 2,
+    },
   ],
   "module-a": [
-    { id: "exit-a", label: "exit", widthFraction: 1 / 8 },
-    { id: "node-1", label: "1", widthFraction: 3 / 8 },
-    { id: "node-2", label: "2", widthFraction: 2 / 8 },
-    { id: "node-3", label: "3", widthFraction: 2 / 8 },
+    {
+      id: "exit-a",
+      label: "exit",
+      axisMain: "q",
+      axisSub: "A",
+      widthFraction: 1 / 8,
+    },
+    {
+      id: "node-1",
+      label: "node 1",
+      axisMain: "p",
+      axisSub: "1",
+      widthFraction: 3 / 8,
+    },
+    {
+      id: "node-2",
+      label: "node 2",
+      axisMain: "p",
+      axisSub: "2",
+      widthFraction: 2 / 8,
+    },
+    {
+      id: "node-3",
+      label: "node 3",
+      axisMain: "p",
+      axisSub: "3",
+      widthFraction: 2 / 8,
+    },
   ],
   "module-b": [
-    { id: "exit-b", label: "exit", widthFraction: 1 / 8 },
-    { id: "node-4", label: "4", widthFraction: 3 / 8 },
-    { id: "node-5", label: "5", widthFraction: 2 / 8 },
-    { id: "node-6", label: "6", widthFraction: 2 / 8 },
+    {
+      id: "exit-b",
+      label: "exit",
+      axisMain: "q",
+      axisSub: "B",
+      widthFraction: 1 / 8,
+    },
+    {
+      id: "node-4",
+      label: "node 4",
+      axisMain: "p",
+      axisSub: "4",
+      widthFraction: 3 / 8,
+    },
+    {
+      id: "node-5",
+      label: "node 5",
+      axisMain: "p",
+      axisSub: "5",
+      widthFraction: 2 / 8,
+    },
+    {
+      id: "node-6",
+      label: "node 6",
+      axisMain: "p",
+      axisSub: "6",
+      widthFraction: 2 / 8,
+    },
   ],
 } as const;
 
@@ -355,7 +433,7 @@ function getTwoTriangleTermExplanation(term: TwoTriangleTerm) {
     case "one-level":
       return "The one-level codebook names every node from one shared list. This gives the baseline codelength before using module structure.";
     case "q-total":
-      return "q↷ is the use rate of the index codebook, here 2/14. Every inter-module move uses the index codebook to name the module entered next.";
+      return "q↶ is the use rate of the index codebook, here 2/14. Every inter-module move uses the index codebook to name the module entered next.";
     case "exit-a":
       return "The exit rate from module A is 1/14. Module A's local codebook needs an exit symbol so the code can say that the walker leaves A.";
     case "exit-b":
@@ -478,6 +556,41 @@ function SvgFraction({
   );
 }
 
+function SvgSubscriptLabel({
+  main,
+  sub,
+  x,
+  y,
+  fill = "#4b5563",
+  fontSize = 10,
+  fontWeight = 800,
+}: {
+  main: string;
+  sub: string;
+  x: number;
+  y: number;
+  fill?: string;
+  fontSize?: number;
+  fontWeight?: number;
+}) {
+  return (
+    <text
+      x={x}
+      y={y}
+      textAnchor="middle"
+      fontSize={fontSize}
+      fontWeight={fontWeight}
+      fill={fill}
+      pointerEvents="none"
+    >
+      <tspan>{main}</tspan>
+      <tspan baselineShift="sub" fontSize={fontSize * 0.72}>
+        {sub}
+      </tspan>
+    </text>
+  );
+}
+
 type TwoTriangleAreaBlockId = (typeof TWO_TRIANGLE_AREA_BLOCKS)[number]["id"];
 
 function getAreaWidthTerm(blockId: TwoTriangleAreaBlockId): TwoTriangleTerm {
@@ -528,7 +641,7 @@ function SvgUseRateLabel({
         <>
           <tspan>q</tspan>
           <tspan baselineShift="sub" fontSize={fontSize * 0.72}>
-            ↷
+            ↶
           </tspan>
         </>
       ) : (
@@ -621,8 +734,6 @@ function FormulaTerm({
       }`}
       onMouseEnter={() => setHoveredTerm(id)}
       onMouseLeave={() => setHoveredTerm(null)}
-      onFocus={() => setHoveredTerm(id)}
-      onBlur={() => setHoveredTerm(null)}
     >
       {children}
       {termExplanation && (
@@ -643,11 +754,10 @@ function EquationInfo({
 }) {
   return (
     <span
-      tabIndex={0}
       className={`group relative inline-flex cursor-help rounded-md border px-1 py-px align-baseline transition ${
         active
           ? "border-[#b22222] bg-[#b22222]/10 text-gray-950"
-          : "border-transparent hover:border-[#b22222]/40 hover:bg-[#b22222]/5 focus:border-[#b22222]/40 focus:bg-[#b22222]/5"
+          : "border-transparent hover:border-[#b22222]/40 hover:bg-[#b22222]/5"
       }`}
     >
       {children}
@@ -798,8 +908,6 @@ function TwoTriangleNetwork({
             role="button"
             onMouseEnter={() => setHoveredTerm(getTwoTriangleNodeTerm(numericId))}
             onMouseLeave={() => setHoveredTerm(null)}
-            onFocus={() => setHoveredTerm(getTwoTriangleNodeTerm(numericId))}
-            onBlur={() => setHoveredTerm(null)}
             className="cursor-pointer outline-none"
           >
             <circle
@@ -873,8 +981,6 @@ function TwoTriangleNetwork({
             role="button"
             onMouseEnter={() => setHoveredTerm(item.id)}
             onMouseLeave={() => setHoveredTerm(null)}
-            onFocus={() => setHoveredTerm(item.id)}
-            onBlur={() => setHoveredTerm(null)}
             className="cursor-pointer outline-none"
           >
             <rect
@@ -928,10 +1034,13 @@ function TwoTriangleUseArea({
   setHoveredTerm: (term: TwoTriangleTerm | null) => void;
 }) {
   const baseline = 190;
+  const xAxisLabelY = baseline + 13;
+  const widthGuideY = baseline + 32;
+  const useRateLabelY = baseline + 62;
 
   return (
     <svg
-      viewBox="0 0 760 245"
+      viewBox="0 0 760 270"
       className="block w-full overflow-visible"
       role="img"
       aria-label="Use-rate by entropy area diagram"
@@ -975,7 +1084,6 @@ function TwoTriangleUseArea({
         const inlineFontSize = isNarrowBlock ? 10 : 12;
         const useRateLabelX = blockCenterX - (isNarrowBlock ? 12 : 20);
         const useRateFractionX = blockCenterX + (isNarrowBlock ? 16 : 28);
-        const useRateLabelY = baseline + 44;
         let sliceX = block.x;
 
         return (
@@ -990,10 +1098,12 @@ function TwoTriangleUseArea({
               opacity={0.001}
             />
             {slices.map((slice, index) => {
+              const currentSliceX = sliceX;
               const width =
                 index === slices.length - 1
-                  ? block.x + block.width - sliceX
+                  ? block.x + block.width - currentSliceX
                   : block.width * slice.widthFraction;
+              const sliceCenterX = currentSliceX + width / 2;
               const sliceActive = activeTerm === slice.id;
               const sliceElement = (
                 <g
@@ -1008,12 +1118,10 @@ function TwoTriangleUseArea({
                     event.stopPropagation();
                     setHoveredTerm(null);
                   }}
-                  onFocus={() => setHoveredTerm(slice.id as TwoTriangleTerm)}
-                  onBlur={() => setHoveredTerm(null)}
                   className="cursor-pointer outline-none"
                 >
                   <rect
-                    x={sliceX}
+                    x={currentSliceX}
                     y={y}
                     width={width}
                     height={block.height}
@@ -1025,6 +1133,49 @@ function TwoTriangleUseArea({
                     }
                     stroke={sliceActive ? "#111827" : "#ffffff"}
                     strokeWidth={sliceActive ? 2.2 : 1}
+                  />
+                  <text
+                    x={sliceCenterX}
+                    y={baseline - 12}
+                    textAnchor="middle"
+                    fontSize={width < 36 ? 8 : 9.5}
+                    fontWeight={800}
+                    fill={sliceActive ? "#ffffff" : "#111827"}
+                    paintOrder="stroke"
+                    stroke={sliceActive ? "none" : "#ffffff"}
+                    strokeWidth={sliceActive ? 0 : 2.4}
+                    pointerEvents="none"
+                  >
+                    {slice.label}
+                  </text>
+                  <line
+                    x1={currentSliceX}
+                    x2={currentSliceX}
+                    y1={baseline}
+                    y2={baseline + 5}
+                    stroke="#9ca3af"
+                    strokeWidth={1}
+                    pointerEvents="none"
+                  />
+                  {index === slices.length - 1 && (
+                    <line
+                      x1={currentSliceX + width}
+                      x2={currentSliceX + width}
+                      y1={baseline}
+                      y2={baseline + 5}
+                      stroke="#9ca3af"
+                      strokeWidth={1}
+                      pointerEvents="none"
+                    />
+                  )}
+                  <SvgSubscriptLabel
+                    main={slice.axisMain}
+                    sub={slice.axisSub}
+                    x={sliceCenterX}
+                    y={xAxisLabelY}
+                    fill={sliceActive ? "#111827" : "#6b7280"}
+                    fontSize={width < 36 ? 8 : 10}
+                    fontWeight={sliceActive ? 900 : 800}
                   />
                 </g>
               );
@@ -1053,8 +1204,6 @@ function TwoTriangleUseArea({
                 event.stopPropagation();
                 setHoveredTerm(null);
               }}
-              onFocus={() => setHoveredTerm(heightTerm)}
-              onBlur={() => setHoveredTerm(null)}
               className="cursor-pointer outline-none"
             >
               <rect
@@ -1113,23 +1262,21 @@ function TwoTriangleUseArea({
                 event.stopPropagation();
                 setHoveredTerm(null);
               }}
-              onFocus={() => setHoveredTerm(widthTerm)}
-              onBlur={() => setHoveredTerm(null)}
               className="cursor-pointer outline-none"
             >
               <rect
                 x={block.x - 4}
                 y={baseline + 8}
                 width={block.width + 8}
-                height={58}
+                height={76}
                 fill="#ffffff"
                 opacity={0.001}
               />
               <line
                 x1={block.x}
                 x2={block.x + block.width}
-                y1={baseline + 18}
-                y2={baseline + 18}
+                y1={widthGuideY}
+                y2={widthGuideY}
                 stroke={widthColor}
                 strokeWidth={widthActive ? 3 : 1.6}
                 strokeLinecap="round"
@@ -1137,8 +1284,8 @@ function TwoTriangleUseArea({
               <line
                 x1={block.x}
                 x2={block.x}
-                y1={baseline + 14}
-                y2={baseline + 22}
+                y1={widthGuideY - 4}
+                y2={widthGuideY + 4}
                 stroke={widthColor}
                 strokeWidth={widthActive ? 3 : 1.6}
                 strokeLinecap="round"
@@ -1146,8 +1293,8 @@ function TwoTriangleUseArea({
               <line
                 x1={block.x + block.width}
                 x2={block.x + block.width}
-                y1={baseline + 14}
-                y2={baseline + 22}
+                y1={widthGuideY - 4}
+                y2={widthGuideY + 4}
                 stroke={widthColor}
                 strokeWidth={widthActive ? 3 : 1.6}
                 strokeLinecap="round"
@@ -1175,14 +1322,12 @@ function TwoTriangleUseArea({
               role="button"
               onMouseEnter={() => setHoveredTerm(termId)}
               onMouseLeave={() => setHoveredTerm(null)}
-              onFocus={() => setHoveredTerm(termId)}
-              onBlur={() => setHoveredTerm(null)}
               className="cursor-pointer outline-none"
             >
               <rect
-                x={blockCenterX - 54}
+                x={blockCenterX - 72}
                 y={y - 30}
-                width={108}
+                width={144}
                 height={24}
                 rx={12}
                 fill="#ffffff"
@@ -1193,11 +1338,14 @@ function TwoTriangleUseArea({
                 y={y - 12}
                 textAnchor="middle"
                 fontSize={13}
-                fontWeight={900}
                 fill="#111827"
                 pointerEvents="none"
               >
-                {block.label}
+                <tspan fontWeight={900}>{block.label}</tspan>
+                <tspan fontSize={11} fontWeight={800} fill="#4b5563">
+                  {" "}
+                  {block.contribution}
+                </tspan>
               </text>
             </g>
             <text
@@ -1220,17 +1368,6 @@ function TwoTriangleUseArea({
               fontSize={isNarrowBlock ? 8 : 10}
               fontWeight={800}
             />
-            <text
-              x={blockCenterX}
-              y={y + block.height / 2 + 10}
-              textAnchor="middle"
-              fontSize={11}
-              fontWeight={700}
-              fill="#374151"
-              pointerEvents="none"
-            >
-              {block.contribution}
-            </text>
           </g>
         );
       })}
@@ -1239,12 +1376,38 @@ function TwoTriangleUseArea({
 }
 
 function TwoTriangleCodelengthWalkthrough() {
-  const [hoveredTerm, setHoveredTerm] = useState<TwoTriangleTerm | null>(null);
-  const activeTerm = hoveredTerm;
-  const entropyFormulaActive = termIsActive(activeTerm, "h-q", "h-pa", "h-pb");
-  const termProps = {
+  const [hoverState, setHoverState] = useState<TwoTriangleHoverState | null>(
+    null,
+  );
+  const activeTerm = hoverState?.term ?? null;
+  const activeScope = hoverState?.scope ?? null;
+  const entropyFormulaActive =
+    activeScope !== "one-level" && termIsActive(activeTerm, "h-q", "h-pa", "h-pb");
+  const setScopedHoveredTerm =
+    (scope: TwoTriangleHoverScope) => (term: TwoTriangleTerm | null) => {
+      setHoverState(term === null ? null : { term, scope });
+    };
+  const networkTermProps = {
     activeTerm,
-    setHoveredTerm,
+    setHoveredTerm: setScopedHoveredTerm("network"),
+  };
+  const areaTermProps = {
+    activeTerm: activeScope === "one-level" ? null : activeTerm,
+    setHoveredTerm: setScopedHoveredTerm("area"),
+  };
+  const oneLevelTermProps = {
+    activeTerm:
+      activeScope === "one-level" || activeScope === "network" ? activeTerm : null,
+    setHoveredTerm: setScopedHoveredTerm("one-level"),
+  };
+  const twoLevelTermProps = {
+    activeTerm:
+      activeScope === "two-level" ||
+      activeScope === "area" ||
+      activeScope === "network"
+        ? activeTerm
+        : null,
+    setHoveredTerm: setScopedHoveredTerm("two-level"),
   };
 
   return (
@@ -1272,13 +1435,13 @@ function TwoTriangleCodelengthWalkthrough() {
           <h4 className="mb-3 text-base font-semibold text-gray-900">
             Two triangles, one bridge
           </h4>
-          <TwoTriangleNetwork {...termProps} />
+          <TwoTriangleNetwork {...networkTermProps} />
         </div>
         <div className="min-w-0">
           <h4 className="mb-3 text-base font-semibold text-gray-900">
             Area = codelength contribution
           </h4>
-          <TwoTriangleUseArea {...termProps} />
+          <TwoTriangleUseArea {...areaTermProps} />
         </div>
       </div>
 
@@ -1311,7 +1474,7 @@ function TwoTriangleCodelengthWalkthrough() {
                 </EquationInfo>
                 <FormulaTerm
                   id="node-1"
-                  {...termProps}
+                  {...oneLevelTermProps}
                   explanation={getOneLevelNodeExplanation(1)}
                 >
                   <TeX math="\frac{3}{14}" />
@@ -1319,7 +1482,7 @@ function TwoTriangleCodelengthWalkthrough() {
                 <TeX math="," />
                 <FormulaTerm
                   id="node-2"
-                  {...termProps}
+                  {...oneLevelTermProps}
                   explanation={getOneLevelNodeExplanation(2)}
                 >
                   <TeX math="\frac{2}{14}" />
@@ -1327,7 +1490,7 @@ function TwoTriangleCodelengthWalkthrough() {
                 <TeX math="," />
                 <FormulaTerm
                   id="node-3"
-                  {...termProps}
+                  {...oneLevelTermProps}
                   explanation={getOneLevelNodeExplanation(3)}
                 >
                   <TeX math="\frac{2}{14}" />
@@ -1335,7 +1498,7 @@ function TwoTriangleCodelengthWalkthrough() {
                 <TeX math="," />
                 <FormulaTerm
                   id="node-4"
-                  {...termProps}
+                  {...oneLevelTermProps}
                   explanation={getOneLevelNodeExplanation(4)}
                 >
                   <TeX math="\frac{3}{14}" />
@@ -1343,7 +1506,7 @@ function TwoTriangleCodelengthWalkthrough() {
                 <TeX math="," />
                 <FormulaTerm
                   id="node-5"
-                  {...termProps}
+                  {...oneLevelTermProps}
                   explanation={getOneLevelNodeExplanation(5)}
                 >
                   <TeX math="\frac{2}{14}" />
@@ -1351,7 +1514,7 @@ function TwoTriangleCodelengthWalkthrough() {
                 <TeX math="," />
                 <FormulaTerm
                   id="node-6"
-                  {...termProps}
+                  {...oneLevelTermProps}
                   explanation={getOneLevelNodeExplanation(6)}
                 >
                   <TeX math="\frac{2}{14}" />
@@ -1364,7 +1527,7 @@ function TwoTriangleCodelengthWalkthrough() {
                 </EquationInfo>
                 <FormulaTerm
                   id="node-1"
-                  {...termProps}
+                  {...oneLevelTermProps}
                   explanation={getOneLevelNodeExplanation(1)}
                 >
                   <TeX math="\frac{3}{14}\log_2(\frac{3}{14})" />
@@ -1372,7 +1535,7 @@ function TwoTriangleCodelengthWalkthrough() {
                 <TeX math="+" />
                 <FormulaTerm
                   id="node-2"
-                  {...termProps}
+                  {...oneLevelTermProps}
                   explanation={getOneLevelNodeExplanation(2)}
                 >
                   <TeX math="\frac{2}{14}\log_2(\frac{2}{14})" />
@@ -1380,7 +1543,7 @@ function TwoTriangleCodelengthWalkthrough() {
                 <TeX math="+" />
                 <FormulaTerm
                   id="node-3"
-                  {...termProps}
+                  {...oneLevelTermProps}
                   explanation={getOneLevelNodeExplanation(3)}
                 >
                   <TeX math="\frac{2}{14}\log_2(\frac{2}{14})" />
@@ -1388,7 +1551,7 @@ function TwoTriangleCodelengthWalkthrough() {
                 <TeX math="+" />
                 <FormulaTerm
                   id="node-4"
-                  {...termProps}
+                  {...oneLevelTermProps}
                   explanation={getOneLevelNodeExplanation(4)}
                 >
                   <TeX math="\frac{3}{14}\log_2(\frac{3}{14})" />
@@ -1396,7 +1559,7 @@ function TwoTriangleCodelengthWalkthrough() {
                 <TeX math="+" />
                 <FormulaTerm
                   id="node-5"
-                  {...termProps}
+                  {...oneLevelTermProps}
                   explanation={getOneLevelNodeExplanation(5)}
                 >
                   <TeX math="\frac{2}{14}\log_2(\frac{2}{14})" />
@@ -1404,7 +1567,7 @@ function TwoTriangleCodelengthWalkthrough() {
                 <TeX math="+" />
                 <FormulaTerm
                   id="node-6"
-                  {...termProps}
+                  {...oneLevelTermProps}
                   explanation={getOneLevelNodeExplanation(6)}
                 >
                   <TeX math="\frac{2}{14}\log_2(\frac{2}{14})" />
@@ -1423,57 +1586,57 @@ function TwoTriangleCodelengthWalkthrough() {
           <div className="mt-1 space-y-0.5">
               <div className="flex flex-wrap items-center gap-y-0 py-0 text-[0.95rem] leading-7 text-gray-900">
                 <EquationInfo explanation="This is the general two-level map equation. The first term is the index-codebook cost, and the sum adds the cost of every module codebook.">
-                  <TeX math="L(M)=q_{\curvearrowright}H(Q)+\sum_i p_{\circlearrowright}^{i}H(P^i)" />
+                  <TeX math="L(M)=q_{\curvearrowleft}H(Q)+\sum_i p_{\circlearrowright}^{i}H(P^i)" />
                 </EquationInfo>
               </div>
               <div className="flex flex-wrap items-center gap-y-0 py-0 text-[0.95rem] leading-7 text-gray-900">
                 <EquationInfo explanation="L(M) is the two-level codelength for partition M. It adds the cost of using the index codebook and the local module codebooks.">
                   <TeX math="L(M)=" />
                 </EquationInfo>
-                <FormulaTerm id="q-total" {...termProps}>
-                  <TeX math="q_{\curvearrowright}" />
+                <FormulaTerm id="q-total" {...twoLevelTermProps}>
+                  <TeX math="q_{\curvearrowleft}" />
                 </FormulaTerm>
-                <FormulaTerm id="h-q" {...termProps}>
+                <FormulaTerm id="h-q" {...twoLevelTermProps}>
                   <TeX math="H(Q)" />
                 </FormulaTerm>
                 <TeX math="+" />
-                <FormulaTerm id="module-a" {...termProps}>
+                <FormulaTerm id="module-a" {...twoLevelTermProps}>
                   <TeX math="p_{\circlearrowright}^{A}" />
                 </FormulaTerm>
-                <FormulaTerm id="h-pa" {...termProps}>
+                <FormulaTerm id="h-pa" {...twoLevelTermProps}>
                   <TeX math="H(P^A)" />
                 </FormulaTerm>
                 <TeX math="+" />
-                <FormulaTerm id="module-b" {...termProps}>
+                <FormulaTerm id="module-b" {...twoLevelTermProps}>
                   <TeX math="p_{\circlearrowright}^{B}" />
                 </FormulaTerm>
-                <FormulaTerm id="h-pb" {...termProps}>
+                <FormulaTerm id="h-pb" {...twoLevelTermProps}>
                   <TeX math="H(P^B)" />
                 </FormulaTerm>
               </div>
               <div className="flex flex-wrap items-center gap-y-0 py-0 text-[0.95rem] leading-7 text-gray-900">
-                <FormulaTerm id="exit-a" {...termProps}>
+                <FormulaTerm id="exit-a" {...twoLevelTermProps}>
                   <TeX math="q_A=\frac{1}{14}" />
                 </FormulaTerm>
                 <TeX math="," />
-                <FormulaTerm id="exit-b" {...termProps}>
+                <FormulaTerm id="exit-b" {...twoLevelTermProps}>
                   <TeX math="q_B=\frac{1}{14}" />
                 </FormulaTerm>
                 <TeX math=",\quad" />
-                <FormulaTerm id="q-total" {...termProps}>
-                  <TeX math="q_{\curvearrowright}=\frac{2}{14}" />
+                <FormulaTerm id="q-total" {...twoLevelTermProps}>
+                  <TeX math="q_{\curvearrowleft}=\frac{2}{14}" />
                 </FormulaTerm>
               </div>
               <div className="flex flex-wrap items-center gap-y-0 py-0 text-[0.95rem] leading-7 text-gray-900">
-                <FormulaTerm id="enter-a" {...termProps}>
+                <FormulaTerm id="enter-a" {...twoLevelTermProps}>
                   <TeX math="Q_A=\frac{1}{14}\div\frac{2}{14}=\frac{1}{2}" />
                 </FormulaTerm>
                 <TeX math="," />
-                <FormulaTerm id="enter-b" {...termProps}>
+                <FormulaTerm id="enter-b" {...twoLevelTermProps}>
                   <TeX math="Q_B=\frac{1}{2}" />
                 </FormulaTerm>
                 <TeX math=",\quad" />
-                <FormulaTerm id="h-q" {...termProps}>
+                <FormulaTerm id="h-q" {...twoLevelTermProps}>
                   <TeX math="H(Q)=1" />
                 </FormulaTerm>
               </div>
@@ -1484,86 +1647,86 @@ function TwoTriangleCodelengthWalkthrough() {
                 <TeX math="P^A" /> sum to one.
               </p>
               <div className="flex flex-wrap items-center gap-y-0 py-0 text-[0.95rem] leading-7 text-gray-900">
-                <FormulaTerm id="module-a" {...termProps}>
+                <FormulaTerm id="module-a" {...twoLevelTermProps}>
                   <TeX math="p_{\circlearrowright}^{A}=\frac{1}{14}+\frac{7}{14}=\frac{8}{14}" />
                 </FormulaTerm>
                 <TeX math="," />
-                <FormulaTerm id="module-b" {...termProps}>
+                <FormulaTerm id="module-b" {...twoLevelTermProps}>
                   <TeX math="p_{\circlearrowright}^{B}=\frac{8}{14}" />
                 </FormulaTerm>
               </div>
               <div className="flex flex-wrap items-center gap-y-0 py-0 text-[0.95rem] leading-7 text-gray-900">
-                <FormulaTerm id="h-pa" {...termProps}>
+                <FormulaTerm id="h-pa" {...twoLevelTermProps}>
                   <TeX math="P^A" />
                 </FormulaTerm>
                 <TeX math="=(" />
                 <FormulaTerm
                   id="exit-a"
-                  {...termProps}
+                  {...twoLevelTermProps}
                   explanation={getNormalizedExitExplanation("A")}
                 >
                   <TeX math="\frac{1}{8}" />
                 </FormulaTerm>
                 <TeX math="," />
-                <FormulaTerm id="node-1" {...termProps}>
+                <FormulaTerm id="node-1" {...twoLevelTermProps}>
                   <TeX math="\frac{3}{8}" />
                 </FormulaTerm>
                 <TeX math="," />
-                <FormulaTerm id="node-2" {...termProps}>
+                <FormulaTerm id="node-2" {...twoLevelTermProps}>
                   <TeX math="\frac{2}{8}" />
                 </FormulaTerm>
                 <TeX math="," />
-                <FormulaTerm id="node-3" {...termProps}>
+                <FormulaTerm id="node-3" {...twoLevelTermProps}>
                   <TeX math="\frac{2}{8}" />
                 </FormulaTerm>
                 <TeX math="),\quad" />
-                <FormulaTerm id="h-pb" {...termProps}>
+                <FormulaTerm id="h-pb" {...twoLevelTermProps}>
                   <TeX math="P^B" />
                 </FormulaTerm>
                 <TeX math="=(" />
                 <FormulaTerm
                   id="exit-b"
-                  {...termProps}
+                  {...twoLevelTermProps}
                   explanation={getNormalizedExitExplanation("B")}
                 >
                   <TeX math="\frac{1}{8}" />
                 </FormulaTerm>
                 <TeX math="," />
-                <FormulaTerm id="node-4" {...termProps}>
+                <FormulaTerm id="node-4" {...twoLevelTermProps}>
                   <TeX math="\frac{3}{8}" />
                 </FormulaTerm>
                 <TeX math="," />
-                <FormulaTerm id="node-5" {...termProps}>
+                <FormulaTerm id="node-5" {...twoLevelTermProps}>
                   <TeX math="\frac{2}{8}" />
                 </FormulaTerm>
                 <TeX math="," />
-                <FormulaTerm id="node-6" {...termProps}>
+                <FormulaTerm id="node-6" {...twoLevelTermProps}>
                   <TeX math="\frac{2}{8}" />
                 </FormulaTerm>
                 <TeX math=")" />
               </div>
               <div className="flex flex-wrap items-center gap-y-0 py-0 text-[0.88rem] leading-7 text-gray-900">
-                <FormulaTerm id="h-pa" {...termProps}>
+                <FormulaTerm id="h-pa" {...twoLevelTermProps}>
                   <TeX math="H(P^A)" />
                 </FormulaTerm>
                 <TeX math="=-[" />
                 <FormulaTerm
                   id="exit-a"
-                  {...termProps}
+                  {...twoLevelTermProps}
                   explanation={getNormalizedExitExplanation("A")}
                 >
                   <TeX math="\frac{1}{8}\log_2(\frac{1}{8})" />
                 </FormulaTerm>
                 <TeX math="+" />
-                <FormulaTerm id="node-1" {...termProps}>
+                <FormulaTerm id="node-1" {...twoLevelTermProps}>
                   <TeX math="\frac{3}{8}\log_2(\frac{3}{8})" />
                 </FormulaTerm>
                 <TeX math="+" />
-                <FormulaTerm id="node-2" {...termProps}>
+                <FormulaTerm id="node-2" {...twoLevelTermProps}>
                   <TeX math="\frac{2}{8}\log_2(\frac{2}{8})" />
                 </FormulaTerm>
                 <TeX math="+" />
-                <FormulaTerm id="node-3" {...termProps}>
+                <FormulaTerm id="node-3" {...twoLevelTermProps}>
                   <TeX math="\frac{2}{8}\log_2(\frac{2}{8})" />
                 </FormulaTerm>
                 <TeX math="]=H(P^B)=1.906" />
@@ -1572,27 +1735,27 @@ function TwoTriangleCodelengthWalkthrough() {
                 <EquationInfo explanation="This line substitutes the measured use rates and entropies into the two-level map equation. It turns the abstract equation into the predicted average bits per step.">
                   <TeX math="L(M)=" />
                 </EquationInfo>
-                <FormulaTerm id="q-total" {...termProps}>
+                <FormulaTerm id="q-total" {...twoLevelTermProps}>
                   <TeX math="\frac{2}{14}" />
                 </FormulaTerm>
                 <TeX math="\cdot" />
-                <FormulaTerm id="h-q" {...termProps}>
+                <FormulaTerm id="h-q" {...twoLevelTermProps}>
                   <TeX math="1" />
                 </FormulaTerm>
                 <TeX math="+" />
-                <FormulaTerm id="module-a" {...termProps}>
+                <FormulaTerm id="module-a" {...twoLevelTermProps}>
                   <TeX math="\frac{8}{14}" />
                 </FormulaTerm>
                 <TeX math="\cdot" />
-                <FormulaTerm id="h-pa" {...termProps}>
+                <FormulaTerm id="h-pa" {...twoLevelTermProps}>
                   <TeX math="1.906" />
                 </FormulaTerm>
                 <TeX math="+" />
-                <FormulaTerm id="module-b" {...termProps}>
+                <FormulaTerm id="module-b" {...twoLevelTermProps}>
                   <TeX math="\frac{8}{14}" />
                 </FormulaTerm>
                 <TeX math="\cdot" />
-                <FormulaTerm id="h-pb" {...termProps}>
+                <FormulaTerm id="h-pb" {...twoLevelTermProps}>
                   <TeX math="1.906" />
                 </FormulaTerm>
                 <EquationInfo explanation="2.321 bits is the two-level average codelength per step. Because it is lower than the one-level value, the module partition gives a shorter description. That tells us the partition reveals regularities and structure in the network flow.">
@@ -1726,6 +1889,7 @@ export default function Main() {
               topContent={<TwoLevelCodelengthSummary network={network} />}
               showLabels={true}
               showModules={true}
+              showNodeId={false}
               showInstructions={false}
               nodeIdLayer="top"
               rate={showVisitRates ? Rate.Visits : Rate.Uniform}
@@ -1856,7 +2020,7 @@ export default function Main() {
                 rate={showVisitRates ? Rate.Visits : Rate.Uniform}
                 showLabels={true}
                 showModules={false}
-                showNodeId={true}
+                showNodeId={false}
                 nodeIdLayer="top"
                 showVisiting={showVisitRates}
                 scaleLinksByWeight={showLinkWeights}
@@ -1923,7 +2087,7 @@ export default function Main() {
                 topContent={<TwoLevelCodelengthSummary network={network} />}
                 showLabels={true}
                 showModules={true}
-                showFeedback={false}
+                showNodeId={false}
                 showInstructions={false}
                 nodeIdLayer="top"
                 rate={showVisitRates ? Rate.Visits : Rate.Uniform}
@@ -1958,7 +2122,7 @@ export default function Main() {
       <ArticleSection
         id="map-equation-codelength"
         eyebrow="Codelength"
-        title="From printed codes to codelength"
+        title="From Huffman codes to Shannon entropies"
         className="mb-36"
       >
         <p className="max-w-4xl">

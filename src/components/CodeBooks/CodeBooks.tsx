@@ -344,13 +344,15 @@ export default observer(function CodeBooks({ barWidth = 200, network }: Props) {
   });
 
   // Create exit flow nodes (synthetic nodes for module exit events)
-  const exitFlowNodes = modules.map((module) => {
-    const exitFlowNode = new TreeNode(module, module.id);
-    exitFlowNode.exitFlow = module.exitFlow > 0 ? module.exitFlow : minFlow;
-    exitFlowNode.flow = module.exitFlow;
-    exitFlowNode.exitCode = module.exitCode;
-    return exitFlowNode;
-  });
+  const exitFlowNodes = modules
+    .filter((module) => module.exitFlow > 0)
+    .map((module) => {
+      const exitFlowNode = new TreeNode(module, module.id);
+      exitFlowNode.exitFlow = module.exitFlow;
+      exitFlowNode.flow = module.exitFlow;
+      exitFlowNode.exitCode = module.exitCode;
+      return exitFlowNode;
+    });
 
   // Combine exit flow nodes with actual leaf nodes (network nodes)
   const nodes = [...exitFlowNodes, ...root.leafNodes()];

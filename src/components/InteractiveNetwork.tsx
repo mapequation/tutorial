@@ -34,6 +34,7 @@ interface Props {
   showInstructions?: boolean;
   showLabels?: boolean;
   showModules?: boolean;
+  showNodeId?: boolean;
   nodeIdLayer?: "inline" | "top";
   showVisiting?: boolean;
   rate?: any;
@@ -92,6 +93,7 @@ export default observer(function InteractiveNetwork({
   showInstructions = true,
   showLabels = false,
   showModules = false,
+  showNodeId = true,
   nodeIdLayer = "inline",
   showVisiting = true,
   rate,
@@ -529,6 +531,7 @@ export default observer(function InteractiveNetwork({
             rate={rate}
             showLabels={showLabels}
             showModules={showModules}
+            showNodeId={showNodeId}
             nodeIdLayer={nodeIdLayer}
             colorIntraModuleLinks={true}
             showVisiting={showVisiting}

@@ -72,6 +72,27 @@ interface CodelengthGroup {
   note?: ReactNode;
 }
 
+const EQUATION_TERM_TOOLTIP_CLASS =
+  "pointer-events-none absolute left-1/2 bottom-full z-50 mb-2 hidden w-72 -translate-x-1/2 rounded-md border border-gray-300 bg-white px-3 py-2 text-left text-xs font-normal leading-relaxed text-gray-700 shadow-lg group-hover:block group-focus:block group-focus-within:block";
+
+function EquationTerm({
+  math,
+  tooltip,
+}: {
+  math: string;
+  tooltip: ReactNode;
+}) {
+  return (
+    <span
+      className="group relative inline-flex cursor-help items-baseline rounded px-0.5 underline decoration-[#b22222]/30 decoration-dotted underline-offset-4 focus:outline-none focus:ring-1 focus:ring-[#b22222]/30"
+      tabIndex={0}
+    >
+      <TeX math={math} />
+      <span className={EQUATION_TERM_TOOLTIP_CLASS}>{tooltip}</span>
+    </span>
+  );
+}
+
 interface TrianglePoint {
   x: number;
   y: number;
@@ -1452,7 +1473,7 @@ function buildCodelengthGroups(): CodelengthGroup[] {
       note:
         "The multilevel sum combines the top index, lower indexes inside top modules, and local module codebooks for node visits and exits.",
       formula: (
-        <TeX math="L_{\mathrm{multi}}(M)=q_{\curvearrowright}H(\mathcal{Q})+\sum_i q_{\circlearrowright}^{i}H(\mathcal{Q}^{i})+\sum_{ij}p_{\circlearrowright}^{ij}H(\mathcal{P}^{ij})" />
+        <TeX math="L_{\mathrm{multi}}(M)=q_{\curvearrowleft}H(\mathcal{Q})+\sum_i q_{\circlearrowright}^{i}H(\mathcal{Q}^{i})+\sum_{ij}p_{\circlearrowright}^{ij}H(\mathcal{P}^{ij})" />
       ),
       calculation: (
         <TeX
@@ -1487,7 +1508,7 @@ function buildCodelengthGroups(): CodelengthGroup[] {
       note:
         "The two-level sum has one flat index term plus the local module-codebook terms for node visits and exits.",
       formula: (
-        <TeX math="L_{\mathrm{two}}(M)=q_{\curvearrowright}H(\mathcal{Q})+\sum_i p_{\circlearrowright}^{i}H(\mathcal{P}^{i})" />
+        <TeX math="L_{\mathrm{two}}(M)=q_{\curvearrowleft}H(\mathcal{Q})+\sum_i p_{\circlearrowright}^{i}H(\mathcal{P}^{i})" />
       ),
       calculation: (
         <TeX
@@ -1641,7 +1662,6 @@ function CodebookBlock({
   const fill = active
     ? darkenHexColor(color, 0.34)
     : getCodebookPulseFill(color, pulseAge);
-  const stroke = darkenHexColor(color, active ? 0.48 : 0.24);
   const commonProps = {
     initial: {
       fill: color,
@@ -1654,8 +1674,8 @@ function CodebookBlock({
       translateX: getCodebookPulseJitterX(active ? 0 : pulseAge),
     },
     transition: { duration },
-    stroke,
-    strokeWidth: active || pulseAge === 0 ? 1.35 : 1,
+    stroke: "none",
+    strokeWidth: 0,
     vectorEffect: "non-scaling-stroke" as const,
     style: {
       transformBox: "fill-box" as const,
@@ -3164,55 +3184,83 @@ function HierarchicalCodebooks() {
           </h3>
           <p className="m-0">
             Compared with the two-level equation, the new part is that a
-            module can contain its own smaller map. The recursive term{" "}
-            <TeX math="\sum_i L(M^i)" /> says: after the top index chooses
-            module <TeX math="i" />, calculate the codelength of the submap
-            inside that module.
+            module can contain its own smaller map. Hover the equation terms to
+            see what each codebook contributes.
           </p>
-          <div className="overflow-x-auto py-1 text-center text-base leading-8 text-gray-900">
-            <TeX math="L(M)=q_{\curvearrowright}H(\mathcal{Q})+\sum_i L(M^i),\quad L(M^i)=q_{\circlearrowright}^{i}H(\mathcal{Q}^{i})+\sum_j L(M^{ij})" />
+          <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 py-1 text-center text-base leading-8 text-gray-900">
+            <TeX math="L(M)=" />
+            <EquationTerm
+              math="q_{\curvearrowleft}H(\mathcal{Q})"
+              tooltip={
+                <>
+                  Top index. This codebook chooses among the broad modules at
+                  the current level.
+                </>
+              }
+            />
+            <TeX math="+" />
+            <EquationTerm
+              math="\sum_i L(M^i)"
+              tooltip={
+                <>
+                  Recursive part. After module <TeX math="i" /> is chosen,
+                  Infomap calculates the codelength of the smaller map inside
+                  that module instead of stopping at one flat local codebook.
+                </>
+              }
+            />
+            <span className="px-1 text-gray-400">,</span>
+            <TeX math="L(M^i)=" />
+            <EquationTerm
+              math="q_{\circlearrowright}^{i}H(\mathcal{Q}^{i})"
+              tooltip={
+                <>
+                  Lower index inside module <TeX math="i" />. This extra
+                  codebook chooses among the submodules contained in that
+                  module.
+                </>
+              }
+            />
+            <TeX math="+" />
+            <EquationTerm
+              math="\sum_j L(M^{ij})"
+              tooltip={
+                <>
+                  Continue recursively. Each submodule gets tested in the same
+                  way: keep another level only if it lowers the total
+                  codelength.
+                </>
+              }
+            />
           </div>
-          <div className="overflow-x-auto pb-1 text-center text-base leading-8 text-gray-900">
-            <TeX math="L(M^{ij})=p_{\circlearrowright}^{ij}H(\mathcal{P}^{ij})\quad \text{when }M^{ij}\text{ is a final module}" />
+          <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 pb-1 text-center text-base leading-8 text-gray-900">
+            <TeX math="L(M^{ij})=" />
+            <EquationTerm
+              math="p_{\circlearrowright}^{ij}H(\mathcal{P}^{ij})"
+              tooltip={
+                <>
+                  Final local codebook. When there is no deeper useful map,
+                  this codebook prints node visits and exits inside module{" "}
+                  <TeX math="ij" />.
+                </>
+              }
+            />
+            <TeX math="\quad \text{when }M^{ij}\text{ is a final module}" />
           </div>
-          <div className="grid gap-2 md:grid-cols-2">
-            <p className="m-0">
-              <span className="font-semibold text-gray-800">
-                Top index:
-              </span>{" "}
-              <TeX math="q_{\curvearrowright}H(\mathcal{Q})" />.{" "}
-              This chooses among broad modules.
-            </p>
-            <p className="m-0">
-              <span className="font-semibold text-gray-800">
-                Recursive part:
-              </span>{" "}
-              <TeX math="\sum_i L(M^i)" />. Each broad module gets its own
-              submap contribution instead of immediately ending in one local
-              codebook.
-            </p>
-            <p className="m-0">
-              <span className="font-semibold text-gray-800">
-                Subindex inside a module:
-              </span>{" "}
-              <TeX math="q_{\circlearrowright}^{i}H(\mathcal{Q}^{i})" />. This
-              is the extra index codebook used to choose among submodules inside
-              module <TeX math="i" />.
-            </p>
-            <p className="m-0">
-              <span className="font-semibold text-gray-800">
-                Final local codebooks:
-              </span>{" "}
-              <TeX math="\sum_{ij}p_{\circlearrowright}^{ij}H(\mathcal{P}^{ij})" />
-              . When a submodule has no deeper levels, its contribution becomes
-              the local codebook for node visits and exits.
-            </p>
-            <p className="m-0">
-              <span className="font-semibold text-gray-800">Two-level:</span>{" "}
-              the same idea becomes{" "}
-              <TeX math="q_{\curvearrowright}H(\mathcal{Q})+\sum_i p_{\circlearrowright}^{i}H(\mathcal{P}^{i})" />
-              . There is no recursive step, so nested structure is flattened.
-            </p>
+          <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 pb-1 text-center text-base leading-8 text-gray-900">
+            <span className="text-sm font-semibold text-gray-700">
+              Two-level restriction:
+            </span>
+            <EquationTerm
+              math="q_{\curvearrowleft}H(\mathcal{Q})+\sum_i p_{\circlearrowright}^{i}H(\mathcal{P}^{i})"
+              tooltip={
+                <>
+                  The two-level version has only the top index and one local
+                  codebook per module. There is no recursive submap, so nested
+                  structure is flattened.
+                </>
+              }
+            />
           </div>
         </div>
         <p className="max-w-4xl pt-2 text-sm leading-relaxed text-gray-600">

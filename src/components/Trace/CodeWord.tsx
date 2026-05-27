@@ -12,11 +12,13 @@ export default function CodeWord({ node, prev, showModules = false }: Props) {
 
   const currentModule = node.parent;
   const currentModuleId = currentModule?.id ?? 0;
+  const shouldPrintInitialEnter =
+    (currentModule?.parent?.children.size ?? 0) > 1;
 
   if (!prev)
     return (
       <span style={{ color: schemeAlt[currentModuleId] }}>
-        {currentModule?.enterCode} {node.code}{" "}
+        {shouldPrintInitialEnter && currentModule?.enterCode} {node.code}{" "}
       </span>
     );
 

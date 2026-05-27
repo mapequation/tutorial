@@ -358,8 +358,10 @@ export default class RandomWalker {
 
     for (let index = sharedPrefixLength; index < currentChain.length; index++) {
       const module_ = currentChain[index];
+      const isOnlyTopLevelModule =
+        module_.parent?.isRoot === true && module_.parent.children.size <= 1;
 
-      if (!module_.enterCode) {
+      if (isOnlyTopLevelModule || !module_.enterCode) {
         continue;
       }
 

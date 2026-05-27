@@ -2866,9 +2866,7 @@ export default observer(function RegularizedInfomap({
           <p className="mb-2 text-sm font-black uppercase tracking-[0.22em] text-[#b22222]">
             Incomplete data
           </p>
-          <h2 className="mb-4 mt-0">
-            What if the observed network is missing links?
-          </h2>
+          <h2 className="mb-4 mt-0">What if we are missing links</h2>
           <div className="space-y-4 text-base leading-relaxed text-gray-700">
             <p>
               The standard map equation compresses flow on the network it is
