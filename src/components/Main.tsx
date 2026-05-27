@@ -173,12 +173,14 @@ function ArticleSection({
   title,
   children,
   className = "",
+  titleClassName = "",
 }: {
   id?: string;
   eyebrow?: string;
   title?: string;
   children: ReactNode;
   className?: string;
+  titleClassName?: string;
 }) {
   return (
     <section
@@ -192,7 +194,9 @@ function ArticleSection({
               {eyebrow}
             </p>
           )}
-          {title && <h2 className="mb-4 mt-0">{title}</h2>}
+          {title && (
+            <h2 className={`mb-4 mt-0 ${titleClassName}`.trim()}>{title}</h2>
+          )}
         </div>
       )}
       {children}
@@ -788,6 +792,8 @@ function TwoTriangleNetwork({
     x: (bridgeSource.x + bridgeTarget.x) / 2,
     y: (bridgeSource.y + bridgeTarget.y) / 2,
   };
+  const bridgeHighlightGap =
+    bridgeAHalfActive && bridgeBHalfActive ? 8 : 0;
 
   return (
     <svg
@@ -850,21 +856,33 @@ function TwoTriangleNetwork({
           active: bridgeBHalfActive,
           source: bridgeTarget,
         },
-      ].map((bridgeHalf) =>
-        bridgeHalf.active ? (
+      ].map((bridgeHalf) => {
+        if (!bridgeHalf.active) {
+          return null;
+        }
+
+        const dx = bridgeHalf.source.x - bridgeMidpoint.x;
+        const dy = bridgeHalf.source.y - bridgeMidpoint.y;
+        const length = Math.hypot(dx, dy) || 1;
+        const endPoint = {
+          x: bridgeMidpoint.x + (dx / length) * bridgeHighlightGap,
+          y: bridgeMidpoint.y + (dy / length) * bridgeHighlightGap,
+        };
+
+        return (
           <line
             key={bridgeHalf.id}
             x1={bridgeHalf.source.x}
             y1={bridgeHalf.source.y}
-            x2={bridgeMidpoint.x}
-            y2={bridgeMidpoint.y}
+            x2={endPoint.x}
+            y2={endPoint.y}
             stroke="#b22222"
             strokeWidth={7}
             strokeLinecap="round"
             opacity={0.92}
           />
-        ) : null,
-      )}
+        );
+      })}
       {activeDegreeNodeId !== null &&
         TWO_TRIANGLE_EDGES.map(([sourceId, targetId]) => {
           if (sourceId !== activeDegreeNodeId && targetId !== activeDegreeNodeId) {
@@ -1413,7 +1431,7 @@ function TwoTriangleCodelengthWalkthrough() {
   return (
     <div className="mb-12 space-y-8">
       <div className="max-w-4xl space-y-3">
-        <h3 className="mb-2 text-lg font-bold text-gray-900">
+        <h3 className="mb-2 text-2xl font-bold text-gray-900">
           How codelength is calculated
         </h3>
         <p className="m-0 text-sm leading-relaxed text-gray-600">
@@ -2123,6 +2141,7 @@ export default function Main() {
         id="map-equation-codelength"
         eyebrow="Codelength"
         title="From Huffman codes to Shannon entropies"
+        titleClassName="whitespace-nowrap"
         className="mb-36"
       >
         <p className="max-w-4xl">
@@ -2132,7 +2151,7 @@ export default function Main() {
           equation computes that average directly from flow rates and the
           current partition.
         </p>
-        <div className="mt-8 min-w-0 p-5">
+        <div className="mt-8 min-w-0">
           <CodelengthChart network={network} />
         </div>
         <p className="max-w-4xl">

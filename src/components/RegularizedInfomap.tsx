@@ -315,12 +315,12 @@ const MINI_ALL_OVERVIEW_NODES = [
   ...MINI_EXTRA_OVERVIEW_NODES,
 ];
 const MINI_ZOOM_NODES = [
-  { id: 0, x: 72, y: 190, module: 0 },
-  { id: 1, x: 136, y: 172, module: 0 },
-  { id: 2, x: 112, y: 232, module: 0 },
-  { id: 3, x: 208, y: 190, module: 1 },
-  { id: 4, x: 272, y: 172, module: 1 },
-  { id: 5, x: 248, y: 232, module: 1 },
+  { id: 0, x: 72, y: 82, module: 0 },
+  { id: 1, x: 136, y: 64, module: 0 },
+  { id: 2, x: 112, y: 124, module: 0 },
+  { id: 3, x: 208, y: 82, module: 1 },
+  { id: 4, x: 272, y: 64, module: 1 },
+  { id: 5, x: 248, y: 124, module: 1 },
 ] as const;
 const MINI_NETWORK_LINKS = [
   { source: 0, target: 1 },
@@ -331,6 +331,14 @@ const MINI_NETWORK_LINKS = [
   { source: 5, target: 3 },
   { source: 2, target: 3 },
   { source: 1, target: 4 },
+] as const;
+const MINI_NETWORK_STUBS = [
+  { source: 0, x2: 34, y2: 48 },
+  { source: 1, x2: 126, y2: 18 },
+  { source: 2, x2: 78, y2: 146 },
+  { source: 3, x2: 190, y2: 18 },
+  { source: 4, x2: 308, y2: 40 },
+  { source: 5, x2: 286, y2: 146 },
 ] as const;
 const MINI_OVERVIEW_LINKS = [
   ...MINI_NETWORK_LINKS,
@@ -660,109 +668,40 @@ const buildLineSegments = (
 };
 
 function MiniMissingDataNetwork({ observed = false }: { observed?: boolean }) {
-  const overviewNodeById = new Map(
-    MINI_ALL_OVERVIEW_NODES.map((node) => [node.id, node]),
-  );
   const zoomNodeById = new Map(MINI_ZOOM_NODES.map((node) => [node.id, node]));
   const isMissing = (source: number, target: number) =>
     observed && MINI_OBSERVED_MISSING_LINK_KEYS.has(linkKey(source, target));
 
   return (
     <svg
-      viewBox="0 0 320 252"
+      viewBox="0 0 320 160"
       className="block w-full overflow-visible"
       role="img"
       aria-label={
         observed
-          ? "Observed larger network with missing links in a zoomed region"
-          : "True larger network with zoomed region"
+          ? "Observed network fragment with missing links"
+          : "True network fragment with external stubs"
       }
     >
       <g fill="none" strokeLinecap="round" vectorEffect="non-scaling-stroke">
-        {MINI_ALL_OVERVIEW_LINKS.map(({ source, target }) => {
-          const sourceNode = overviewNodeById.get(source);
-          const targetNode = overviewNodeById.get(target);
-          if (!sourceNode || !targetNode) return null;
-          const missing = isMissing(source, target);
+        {MINI_NETWORK_STUBS.map(({ source, x2, y2 }) => {
+          const sourceNode = zoomNodeById.get(source);
+          if (!sourceNode) return null;
 
           return (
             <line
-              key={`overview-${source}-${target}`}
+              key={`stub-${source}`}
               x1={sourceNode.x}
               y1={sourceNode.y}
-              x2={targetNode.x}
-              y2={targetNode.y}
-              stroke={missing ? "#b22222" : "#9ca3af"}
-              strokeDasharray={missing ? "4 5" : undefined}
-              strokeWidth={sourceNode.zoomed && targetNode.zoomed ? 0.62 : 0.62}
-              opacity={missing ? 0.18 : sourceNode.zoomed && targetNode.zoomed ? 0.11 : 0.1}
+              x2={x2}
+              y2={y2}
+              stroke="#9ca3af"
+              strokeDasharray="8 7"
+              strokeWidth={2.1}
+              opacity={0.45}
             />
           );
         })}
-      </g>
-      <rect
-        x={MINI_ZOOM_REGION.x}
-        y={MINI_ZOOM_REGION.y}
-        width={MINI_ZOOM_REGION.width}
-        height={MINI_ZOOM_REGION.height}
-        rx={12}
-        fill="#f9fafb"
-        fillOpacity={0.38}
-        stroke="#6b7280"
-        strokeOpacity={0.55}
-        strokeWidth={1.8}
-        vectorEffect="non-scaling-stroke"
-      />
-      {MINI_ALL_OVERVIEW_NODES.map((node) => {
-        const color = COLORBLIND_FRIENDLY_POOL[node.module] ?? "#8aa29e";
-        return (
-          <circle
-            key={`overview-node-${node.id}`}
-            cx={node.x}
-            cy={node.y}
-            r={node.zoomed ? 2.05 : 2.1}
-            fill={color}
-            stroke="#ffffff"
-            strokeWidth={0.45}
-            opacity={node.zoomed ? 0.18 : 0.16}
-            vectorEffect="non-scaling-stroke"
-          />
-        );
-      })}
-      <line
-        x1={MINI_ZOOM_REGION.x}
-        y1={MINI_ZOOM_REGION.y + MINI_ZOOM_REGION.height}
-        x2={26}
-        y2={153}
-        stroke="#9ca3af"
-        strokeWidth={1.2}
-        strokeOpacity={0.42}
-        vectorEffect="non-scaling-stroke"
-      />
-      <line
-        x1={MINI_ZOOM_REGION.x + MINI_ZOOM_REGION.width}
-        y1={MINI_ZOOM_REGION.y + MINI_ZOOM_REGION.height}
-        x2={294}
-        y2={153}
-        stroke="#9ca3af"
-        strokeWidth={1.2}
-        strokeOpacity={0.42}
-        vectorEffect="non-scaling-stroke"
-      />
-      <rect
-        x={24}
-        y={150}
-        width={272}
-        height={92}
-        rx={18}
-        fill="#ffffff"
-        fillOpacity={0.04}
-        stroke="#9ca3af"
-        strokeOpacity={0.5}
-        strokeWidth={1.4}
-        vectorEffect="non-scaling-stroke"
-      />
-      <g fill="none" strokeLinecap="round" vectorEffect="non-scaling-stroke">
         {MINI_NETWORK_LINKS.map(({ source, target }) => {
           const sourceNode = zoomNodeById.get(source);
           const targetNode = zoomNodeById.get(target);
@@ -2866,7 +2805,9 @@ export default observer(function RegularizedInfomap({
           <p className="mb-2 text-sm font-black uppercase tracking-[0.22em] text-[#b22222]">
             Incomplete data
           </p>
-          <h2 className="mb-4 mt-0">What if we are missing links</h2>
+          <h2 className="mb-4 mt-0 whitespace-nowrap">
+            What if we have missing links
+          </h2>
           <div className="space-y-4 text-base leading-relaxed text-gray-700">
             <p>
               The standard map equation compresses flow on the network it is
@@ -2898,9 +2839,6 @@ export default observer(function RegularizedInfomap({
       </div>
 
       <div className="mb-8 max-w-3xl">
-        <p className="mb-2 text-sm font-black uppercase tracking-[0.22em] text-[#b22222]">
-          Regularized Infomap
-        </p>
         <h2 className="mb-4 mt-0">Regularized Infomap</h2>
         <div className="space-y-4 text-base leading-relaxed text-gray-700">
           <p>
