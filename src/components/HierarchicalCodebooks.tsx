@@ -12,6 +12,7 @@ import { motion } from "framer-motion";
 import { observer } from "mobx-react";
 import { Network } from "../model";
 import type RandomWalker from "../model/algorithms/RandomWalker";
+import type { TreeNode } from "../model/algorithms/Tree";
 import {
   hierarchical_paper_toy,
   hierarchicalPaperToyTopology,
@@ -62,35 +63,23 @@ interface CodelengthRow {
   color: string;
 }
 
+interface CodelengthTermRow {
+  key: string;
+  label: string;
+  useRate: number;
+  entropy: number;
+  contribution: number;
+}
+
 interface CodelengthGroup {
   key: string;
   title: string;
   total: number;
   rows: CodelengthRow[];
+  termRows?: CodelengthTermRow[];
   formula?: ReactNode;
   calculation?: ReactNode;
   note?: ReactNode;
-}
-
-const EQUATION_TERM_TOOLTIP_CLASS =
-  "pointer-events-none absolute left-1/2 bottom-full z-50 mb-2 hidden w-72 -translate-x-1/2 rounded-md border border-gray-300 bg-white px-3 py-2 text-left text-xs font-normal leading-relaxed text-gray-700 shadow-lg group-hover:block group-focus:block group-focus-within:block";
-
-function EquationTerm({
-  math,
-  tooltip,
-}: {
-  math: string;
-  tooltip: ReactNode;
-}) {
-  return (
-    <span
-      className="group relative inline-flex cursor-help items-baseline rounded px-0.5 underline decoration-[#b22222]/30 decoration-dotted underline-offset-4 focus:outline-none focus:ring-1 focus:ring-[#b22222]/30"
-      tabIndex={0}
-    >
-      <TeX math={math} />
-      <span className={EQUATION_TERM_TOOLTIP_CLASS}>{tooltip}</span>
-    </span>
-  );
 }
 
 interface TrianglePoint {
@@ -1447,22 +1436,74 @@ function getCodebookColumnCounters(
 function buildCodelengthGroups(): CodelengthGroup[] {
   const multilevelNetwork = Network.parse(hierarchical_paper_toy);
   const twoLevelNetwork = createTwoLevelNetwork();
+  const getIndexUseRate = (module_: TreeNode) =>
+    module_.exitFlow +
+    module_
+      .map((child) => child.enterFlow)
+      .reduce((total, flow) => total + flow, 0);
+  const getModuleUseRate = (module_: TreeNode) =>
+    module_.exitFlow +
+    module_
+      .map((child) => child.flow)
+      .reduce((total, flow) => total + flow, 0);
+  const entropyFromContribution = (contribution: number, useRate: number) =>
+    useRate > 0 ? contribution / useRate : 0;
+  const buildTermRow = (
+    key: string,
+    label: string,
+    modules: TreeNode[],
+    getUseRate: (module_: TreeNode) => number,
+  ): CodelengthTermRow => {
+    const useRate = modules.reduce(
+      (total, module_) => total + getUseRate(module_),
+      0,
+    );
+    const contribution = modules.reduce(
+      (total, module_) => total + module_.codelength,
+      0,
+    );
+
+    return {
+      key,
+      label,
+      useRate,
+      entropy: entropyFromContribution(contribution, useRate),
+      contribution,
+    };
+  };
   let topIndex = 0;
   let submoduleIndex = 0;
   let multilevelModules = 0;
+  const multilevelTopIndexModules: TreeNode[] = [];
+  const multilevelSubIndexModules: TreeNode[] = [];
+  const multilevelLeafModules: TreeNode[] = [];
 
   for (const module_ of multilevelNetwork.tree.depthFirstModules()) {
     if (module_.isLeafModule) {
+      multilevelLeafModules.push(module_);
       multilevelModules += module_.codelength;
       continue;
     }
 
     if (module_.depth === 0) {
+      multilevelTopIndexModules.push(module_);
       topIndex += module_.codelength;
       continue;
     }
 
+    multilevelSubIndexModules.push(module_);
     submoduleIndex += module_.codelength;
+  }
+
+  const twoLevelIndexModules: TreeNode[] = [];
+  const twoLevelLeafModules: TreeNode[] = [];
+
+  for (const module_ of twoLevelNetwork.tree.depthFirstModules()) {
+    if (module_.isLeafModule) {
+      twoLevelLeafModules.push(module_);
+    } else {
+      twoLevelIndexModules.push(module_);
+    }
   }
 
   return [
@@ -1480,6 +1521,26 @@ function buildCodelengthGroups(): CodelengthGroup[] {
           math={`L_{\\mathrm{multi}}=${topIndex.toFixed(3)}+${submoduleIndex.toFixed(3)}+${multilevelModules.toFixed(3)}=${multilevelNetwork.mapequation.codelength.toFixed(3)}\\ \\text{bits}`}
         />
       ),
+      termRows: [
+        buildTermRow(
+          "top-index-term",
+          "Top index",
+          multilevelTopIndexModules,
+          getIndexUseRate,
+        ),
+        buildTermRow(
+          "subindex-term",
+          "Lower indexes",
+          multilevelSubIndexModules,
+          getIndexUseRate,
+        ),
+        buildTermRow(
+          "module-term",
+          "Module codebooks",
+          multilevelLeafModules,
+          getModuleUseRate,
+        ),
+      ],
       rows: [
         {
           key: "top-index",
@@ -1515,6 +1576,20 @@ function buildCodelengthGroups(): CodelengthGroup[] {
           math={`L_{\\mathrm{two}}=${twoLevelNetwork.mapequation.indexCodelength.toFixed(3)}+${twoLevelNetwork.mapequation.moduleCodelength.toFixed(3)}=${twoLevelNetwork.mapequation.codelength.toFixed(3)}\\ \\text{bits}`}
         />
       ),
+      termRows: [
+        buildTermRow(
+          "index-term",
+          "Index",
+          twoLevelIndexModules,
+          getIndexUseRate,
+        ),
+        buildTermRow(
+          "module-term",
+          "Module codebooks",
+          twoLevelLeafModules,
+          getModuleUseRate,
+        ),
+      ],
       rows: [
         {
           key: "two-level-index",
@@ -1554,19 +1629,20 @@ function formatStepsSinceUsed(value: number | null | undefined) {
 }
 
 function CodelengthGroupView({ group }: { group: CodelengthGroup }) {
+  const displayedRows = group.termRows ?? group.rows;
   const labelColumnWidth = Math.min(
     42,
     Math.max(
       group.title.length,
-      ...group.rows.map((row) => row.label.length),
+      ...displayedRows.map((row) => row.label.length),
       12,
     ) + 1,
   );
 
   return (
-    <div className="w-max max-w-full p-1">
+    <div className="w-full max-w-full">
       {(group.note || group.formula || group.calculation) && (
-        <div className="mb-3 max-w-xl space-y-1.5">
+        <div className="mb-3 space-y-1.5">
           {group.note && (
             <p className="m-0 text-sm leading-relaxed text-gray-600">
               {group.note}
@@ -1584,26 +1660,64 @@ function CodelengthGroupView({ group }: { group: CodelengthGroup }) {
           )}
         </div>
       )}
-      <div
-        className="grid items-baseline gap-x-3 gap-y-1.5"
-        style={{
-          gridTemplateColumns: `minmax(0, ${labelColumnWidth}ch) 8ch`,
-        }}
-      >
-        <h3 className="m-0 text-base font-bold text-gray-900">{group.title}</h3>
-        <div className="text-right font-mono text-sm font-black text-gray-900">
-          {formatBits(group.total)}
+      <div className="space-y-1.5">
+        <div
+          className="grid items-baseline gap-x-3"
+          style={{
+            gridTemplateColumns: `minmax(0, ${labelColumnWidth}ch) minmax(0, 1fr)`,
+          }}
+        >
+          <h3 className="m-0 text-base font-bold text-gray-900">
+            {group.title}
+          </h3>
+          <div className="font-mono text-sm font-black text-gray-900">
+            {formatBits(group.total)}
+          </div>
         </div>
-        {group.rows.map((row) => (
-          <Fragment key={row.key}>
-            <span className="min-w-0 font-semibold leading-snug text-gray-700">
-              {row.label}
+        {group.termRows ? (
+          <div
+            className="grid items-baseline gap-x-3 gap-y-1"
+            style={{
+              gridTemplateColumns: `minmax(0, ${labelColumnWidth}ch) minmax(0, 1fr)`,
+            }}
+          >
+            <span className="text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">
+              Term
             </span>
-            <span className="text-right font-mono text-xs font-bold text-gray-900">
-              {formatBits(row.value)}
+            <span className="text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">
+              use rate × entropy = contribution
             </span>
-          </Fragment>
-        ))}
+            {group.termRows.map((row) => (
+              <Fragment key={row.key}>
+                <span className="min-w-0 font-semibold leading-snug text-gray-700">
+                  {row.label}
+                </span>
+                <span className="font-mono text-xs font-bold text-gray-900">
+                  {row.useRate.toFixed(3)} × {row.entropy.toFixed(3)} ={" "}
+                  {formatBits(row.contribution)}
+                </span>
+              </Fragment>
+            ))}
+          </div>
+        ) : (
+          <div
+            className="grid items-baseline gap-x-3 gap-y-1.5"
+            style={{
+              gridTemplateColumns: `minmax(0, ${labelColumnWidth}ch) 8ch`,
+            }}
+          >
+            {group.rows.map((row) => (
+              <Fragment key={row.key}>
+                <span className="min-w-0 font-semibold leading-snug text-gray-700">
+                  {row.label}
+                </span>
+                <span className="text-right font-mono text-xs font-bold text-gray-900">
+                  {formatBits(row.value)}
+                </span>
+              </Fragment>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1621,12 +1735,7 @@ function CodelengthBreakdown() {
   }, []);
 
   return (
-    <div className="mx-auto max-w-5xl space-y-4">
-      <p className="m-0 max-w-4xl text-sm leading-relaxed text-gray-600">
-        Following the paper calculation, every term is a codebook contribution:
-        how often that codebook is used multiplied by the entropy of the
-        symbols in it. The total codelength is the sum of those contributions.
-      </p>
+    <div className="max-w-5xl space-y-4">
       <div className="grid gap-8 md:grid-cols-2">
         {groups.map((group) => (
           <CodelengthGroupView key={group.key} group={group} />
@@ -3178,97 +3287,6 @@ function HierarchicalCodebooks() {
           hoveredTarget={hoveredTarget}
           onHoverTargetChange={setHoveredTarget}
         />
-        <div className="max-w-5xl pt-3 text-sm leading-relaxed text-gray-600">
-          <h3 className="mb-1 text-lg font-bold text-gray-900">
-            What changes in the equation?
-          </h3>
-          <p className="m-0">
-            Compared with the two-level equation, the new part is that a
-            module can contain its own smaller map. Hover the equation terms to
-            see what each codebook contributes.
-          </p>
-          <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 py-1 text-center text-base leading-8 text-gray-900">
-            <TeX math="L(M)=" />
-            <EquationTerm
-              math="q_{\curvearrowleft}H(\mathcal{Q})"
-              tooltip={
-                <>
-                  Top index. This codebook chooses among the broad modules at
-                  the current level.
-                </>
-              }
-            />
-            <TeX math="+" />
-            <EquationTerm
-              math="\sum_i L(M^i)"
-              tooltip={
-                <>
-                  Recursive part. After module <TeX math="i" /> is chosen,
-                  Infomap calculates the codelength of the smaller map inside
-                  that module instead of stopping at one flat local codebook.
-                </>
-              }
-            />
-            <span className="px-1 text-gray-400">,</span>
-            <TeX math="L(M^i)=" />
-            <EquationTerm
-              math="q_{\circlearrowright}^{i}H(\mathcal{Q}^{i})"
-              tooltip={
-                <>
-                  Lower index inside module <TeX math="i" />. This extra
-                  codebook chooses among the submodules contained in that
-                  module.
-                </>
-              }
-            />
-            <TeX math="+" />
-            <EquationTerm
-              math="\sum_j L(M^{ij})"
-              tooltip={
-                <>
-                  Continue recursively. Each submodule gets tested in the same
-                  way: keep another level only if it lowers the total
-                  codelength.
-                </>
-              }
-            />
-          </div>
-          <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 pb-1 text-center text-base leading-8 text-gray-900">
-            <TeX math="L(M^{ij})=" />
-            <EquationTerm
-              math="p_{\circlearrowright}^{ij}H(\mathcal{P}^{ij})"
-              tooltip={
-                <>
-                  Final local codebook. When there is no deeper useful map,
-                  this codebook prints node visits and exits inside module{" "}
-                  <TeX math="ij" />.
-                </>
-              }
-            />
-            <TeX math="\quad \text{when }M^{ij}\text{ is a final module}" />
-          </div>
-          <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 pb-1 text-center text-base leading-8 text-gray-900">
-            <span className="text-sm font-semibold text-gray-700">
-              Two-level restriction:
-            </span>
-            <EquationTerm
-              math="q_{\curvearrowleft}H(\mathcal{Q})+\sum_i p_{\circlearrowright}^{i}H(\mathcal{P}^{i})"
-              tooltip={
-                <>
-                  The two-level version has only the top index and one local
-                  codebook per module. There is no recursive submap, so nested
-                  structure is flattened.
-                </>
-              }
-            />
-          </div>
-        </div>
-        <p className="max-w-4xl pt-2 text-sm leading-relaxed text-gray-600">
-          The breakdown below shows the tradeoff directly. Multilevel has more
-          codebook activations, but the frequently used local codebooks become
-          cheaper. If those savings beat the added index costs, the multilevel
-          description is shorter.
-        </p>
         <CodelengthBreakdown />
       </div>
     </section>

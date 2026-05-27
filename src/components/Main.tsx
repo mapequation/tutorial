@@ -255,6 +255,21 @@ interface TwoTriangleHoverState {
 const EQUATION_TOOLTIP_CLASS =
   "pointer-events-none absolute left-1/2 bottom-full z-50 mb-2 hidden w-72 -translate-x-1/2 rounded-md border border-gray-300 bg-white px-3 py-2 text-left text-xs font-normal leading-relaxed text-gray-700 shadow-lg group-hover:block";
 
+function MapEquationTerm({
+  math,
+  tooltip,
+}: {
+  math: string;
+  tooltip: ReactNode;
+}) {
+  return (
+    <span className="group relative inline-flex cursor-help items-baseline rounded px-0.5 underline decoration-[#b22222]/30 decoration-dotted underline-offset-4">
+      <TeX math={math} />
+      <span className={EQUATION_TOOLTIP_CLASS}>{tooltip}</span>
+    </span>
+  );
+}
+
 const TWO_TRIANGLE_NODE_POSITIONS = {
   1: { x: 230, y: 145, module: "a" },
   2: { x: 95, y: 65, module: "a" },
@@ -2164,27 +2179,87 @@ export default function Main() {
 
       <ArticleSection
         id="beyond-two-levels"
-        eyebrow="Beyond two levels"
-        title="When two levels are not enough"
+        eyebrow="Multilevel Infomap"
+        title="Beyond two levels"
         className="mb-32"
       >
         <div className="grid gap-10 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] xl:items-start">
           <div className="min-w-0 space-y-5">
             <p className="text-lg leading-relaxed text-gray-700">
-              The two-level map equation is a useful flat restriction: one
-              index codebook chooses a module, then a local codebook names the
-              node or exit. But real networks can have structure inside
-              structure.
+              We just compared the one-level and two-level map equations. The
+              two-level version is already a better description when one index
+              codebook can point to smaller local codebooks, but it still forces
+              the map to stop after one module layer.
             </p>
             <p>
-              Multilevel Infomap asks the same compression question again
-              inside modules. If a module can be described more cheaply by
-              splitting it into submodules, that level becomes part of the map.
+              The map equation is naturally hierarchical: after the index
+              chooses a module, that module can contain its own smaller map.
+              Two-level coding is the constrained case where every module must
+              immediately end in one local codebook.
             </p>
+            <div className="space-y-2 text-base leading-8 text-gray-900">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <TeX math="L(M)=" />
+                <MapEquationTerm
+                  math="q_{\curvearrowleft}H(\mathcal{Q})"
+                  tooltip="Top index. This codebook chooses among the broad modules at the current level."
+                />
+                <TeX math="+" />
+                <MapEquationTerm
+                  math="\sum_i L(M^i)"
+                  tooltip={
+                    <>
+                      Recursive part. After module <TeX math="i" /> is chosen,
+                      calculate the codelength of the smaller map inside that
+                      module instead of stopping immediately.
+                    </>
+                  }
+                />
+              </div>
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <TeX math="L(M^i)=" />
+                <MapEquationTerm
+                  math="q_{\circlearrowright}^{i}H(\mathcal{Q}^{i})"
+                  tooltip={
+                    <>
+                      Lower index inside module <TeX math="i" />. This extra
+                      codebook chooses among submodules contained in that
+                      module.
+                    </>
+                  }
+                />
+                <TeX math="+" />
+                <MapEquationTerm
+                  math="\sum_j L(M^{ij})"
+                  tooltip="Continue recursively. Each submodule is tested in the same way, and another level is kept only if it lowers total codelength."
+                />
+              </div>
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <TeX math="L(M^{ij})=" />
+                <MapEquationTerm
+                  math="p_{\circlearrowright}^{ij}H(\mathcal{P}^{ij})"
+                  tooltip={
+                    <>
+                      Final local codebook. When no deeper useful map remains,
+                      this codebook prints node visits and exits inside module{" "}
+                      <TeX math="ij" />.
+                    </>
+                  }
+                />
+              </div>
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-700">
+                <span className="font-semibold">Two-level constraint:</span>
+                <MapEquationTerm
+                  math="q_{\curvearrowleft}H(\mathcal{Q})+\sum_i p_{\circlearrowright}^{i}H(\mathcal{P}^{i})"
+                  tooltip="The two-level version has only the top index and one local codebook per module. There is no recursive submap, so nested structure is flattened."
+                />
+              </div>
+            </div>
             <p className="text-gray-700">
-              The hierarchy is therefore not fixed in advance. Extra levels
-              stay only when the savings from smaller, more specific codebooks
-              are larger than the cost of using another index codebook.
+              Infomap does not need the number of levels fixed in advance. It
+              keeps an extra level only when the savings from smaller, more
+              specific codebooks are larger than the cost of using another
+              index codebook.
             </p>
           </div>
           <div className="min-w-0">
