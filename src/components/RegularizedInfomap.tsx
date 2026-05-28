@@ -28,6 +28,14 @@ import { Network } from "./Network";
 interface Props {
   width?: number;
   height?: number;
+  pajekNetworks?: PajekNetworkExport[];
+}
+
+interface PajekNetworkExport {
+  key: string;
+  title: string;
+  description: ReactNode;
+  pajekText: string;
 }
 
 type NetworkState = "normal" | "regularized";
@@ -561,6 +569,26 @@ const formatPrecomputeStatusMessage = (
   completedRuns: number,
   totalRuns: number,
 ) => `precomputing ${label} cache (${completedRuns}/${totalRuns})...`;
+
+function serializeNetworkDataToPajek(networkData: NetworkData) {
+  const vertices = [...networkData.nodes]
+    .sort((a, b) => a.id - b.id)
+    .map((node) => `${node.id} "${node.id}"`);
+
+  const edges = [...networkData.links]
+    .sort(
+      (a, b) =>
+        a.source - b.source || a.target - b.target || a.weight - b.weight,
+    )
+    .map((link) => `${link.source} ${link.target} ${link.weight.toFixed(6)}`);
+
+  return [
+    `*Vertices ${networkData.nodes.length}`,
+    ...vertices,
+    "*Edges",
+    ...edges,
+  ].join("\n");
+}
 
 let infomapConstructorPromise: Promise<InfomapConstructor> | null = null;
 
@@ -2057,13 +2085,14 @@ function PriorLinksOverlay({
 export default observer(function RegularizedInfomap({
   width = 800,
   height = 400,
+  pajekNetworks = [],
 }: Props) {
   const [sparsePercentage, setSparsePercentage] = useState(0);
   const [regularizationStrength, setRegularizationStrength] = useState(1);
   const [showPriorLinks, setShowPriorLinks] = useState(false);
   const [hoveredComparisonNode, setHoveredComparisonNode] =
     useState<HoveredComparisonNode>(null);
-  const [linksCopyStatus, setLinksCopyStatus] = useState("");
+  const [pajekCopyStatus, setPajekCopyStatus] = useState("");
   const [treeCopyStatus, setTreeCopyStatus] = useState<
     Record<NetworkState, string>
   >({
@@ -2485,25 +2514,38 @@ export default observer(function RegularizedInfomap({
     ],
   );
 
-  const allLinksText = useMemo(() => {
-    const vertices = [...data.nodes]
-      .sort((a, b) => a.id - b.id)
-      .map((node) => `${node.id} "${node.id}"`);
-
-    const edges = [...data.links]
-      .sort(
-        (a, b) =>
-          a.source - b.source || a.target - b.target || a.weight - b.weight,
-      )
-      .map((link) => `${link.source} ${link.target} ${link.weight.toFixed(6)}`);
-
-    return [
-      `*Vertices ${data.nodes.length}`,
-      ...vertices,
-      "*Edges",
-      ...edges,
-    ].join("\n");
-  }, [data]);
+  const observedLinksText = useMemo(
+    () => serializeNetworkDataToPajek(data),
+    [data],
+  );
+  const completeLinksText = useMemo(
+    () => serializeNetworkDataToPajek(completeData),
+    [completeData],
+  );
+  const sitePajekNetworks = useMemo<PajekNetworkExport[]>(
+    () => [
+      ...pajekNetworks,
+      {
+        key: "regularized-observed",
+        title: "Regularized observed network",
+        description: (
+          <>
+            The regularization network after the current {sparsePercentage}%
+            link-removal setting.
+          </>
+        ),
+        pajekText: observedLinksText,
+      },
+      {
+        key: "regularized-full",
+        title: "Regularized full network",
+        description:
+          "The complete reference network before any links are removed.",
+        pajekText: completeLinksText,
+      },
+    ],
+    [completeLinksText, observedLinksText, pajekNetworks, sparsePercentage],
+  );
 
   const normalFallbackTreeText = useMemo(
     () => buildFallbackTreeText(normalNetwork),
@@ -2522,16 +2564,16 @@ export default observer(function RegularizedInfomap({
       ? regularizedRunState.run.treeText
       : regularizedFallbackTreeText;
 
-  const handleCopyLinks = useCallback(async () => {
+  const handleCopyPajek = useCallback(async (label: string, value: string) => {
     try {
-      await navigator.clipboard.writeText(allLinksText);
-      setLinksCopyStatus("Links copied");
+      await navigator.clipboard.writeText(value);
+      setPajekCopyStatus(`${label} copied`);
     } catch {
-      setLinksCopyStatus("Link copy failed");
+      setPajekCopyStatus(`${label} copy failed`);
     }
 
-    setTimeout(() => setLinksCopyStatus(""), 1500);
-  }, [allLinksText]);
+    setTimeout(() => setPajekCopyStatus(""), 1500);
+  }, []);
 
   const handleCopyTree = useCallback(
     async (networkType: NetworkState, value: string) => {
@@ -3183,81 +3225,81 @@ export default observer(function RegularizedInfomap({
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center justify-center gap-3">
-        <button
-          type="button"
-          className="button text-xs py-1 px-2"
-          onClick={handleCopyLinks}
-        >
-          Copy links (Pajek format)
-        </button>
-        <button
-          type="button"
-          className="button text-xs py-1 px-2"
-          onClick={() => handleCopyTree("normal", normalTreeText)}
-        >
-          Copy tree output (standard)
-        </button>
-        <button
-          type="button"
-          className="button text-xs py-1 px-2"
-          onClick={() => handleCopyTree("regularized", regularizedTreeText)}
-        >
-          Copy tree output (regularized)
-        </button>
-        {(linksCopyStatus ||
+      <div className="pt-2 text-sm leading-relaxed text-gray-600">
+        <p className="mb-2 text-xs font-black uppercase tracking-[0.18em] text-[#b22222]">
+          What's next?
+        </p>
+        <h3 className="mb-3 mt-0 text-xl font-bold text-gray-900">
+          Try Infomap online
+        </h3>
+        <p className="m-0 max-w-3xl">
+          The next step is to try the demo networks directly in Infomap Online.
+          For now, copy a Pajek edge list below and paste it into Infomap.
+          Later these can become direct links that open each network there.
+        </p>
+        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {sitePajekNetworks.map((networkExport) => (
+            <div key={networkExport.key} className="space-y-2">
+              <h4 className="m-0 text-sm font-bold text-gray-900">
+                {networkExport.title}
+              </h4>
+              <p className="m-0">{networkExport.description}</p>
+              <button
+                type="button"
+                className="button text-xs py-1 px-2"
+                onClick={() =>
+                  handleCopyPajek(networkExport.title, networkExport.pajekText)
+                }
+              >
+                Copy Pajek network
+              </button>
+            </div>
+          ))}
+          <div className="space-y-2">
+            <h4 className="m-0 text-sm font-bold text-gray-900">
+              Standard Infomap result
+            </h4>
+            <p className="m-0">
+              Tree output from the standard run on this observed network.
+            </p>
+            <button
+              type="button"
+              className="button text-xs py-1 px-2"
+              onClick={() => handleCopyTree("normal", normalTreeText)}
+            >
+              Copy standard tree
+            </button>
+          </div>
+          <div className="space-y-2">
+            <h4 className="m-0 text-sm font-bold text-gray-900">
+              Regularized Infomap result
+            </h4>
+            <p className="m-0">
+              Tree output using regularization strength{" "}
+              {regularizationStrength.toFixed(2)}.
+            </p>
+            <button
+              type="button"
+              className="button text-xs py-1 px-2"
+              onClick={() => handleCopyTree("regularized", regularizedTreeText)}
+            >
+              Copy regularized tree
+            </button>
+          </div>
+        </div>
+        {(pajekCopyStatus ||
           treeCopyStatus.normal ||
           treeCopyStatus.regularized) && (
-          <span className="text-xs text-gray-500">
+          <p className="mt-3 text-xs text-gray-500">
             {[
-              linksCopyStatus,
+              pajekCopyStatus,
               treeCopyStatus.normal,
               treeCopyStatus.regularized,
             ]
               .filter(Boolean)
               .join(" ")}
-          </span>
+          </p>
         )}
-      </div>
-
-      <div className="mx-auto max-w-4xl pt-2 text-sm leading-relaxed text-gray-600">
-        <p className="mb-2 text-xs font-black uppercase tracking-[0.18em] text-[#b22222]">
-          What is being compared?
-        </p>
-        <h3 className="mb-3 mt-0 text-xl font-bold text-gray-900">
-          The experiment behind the sliders
-        </h3>
-        <div className="grid gap-3 md:grid-cols-2">
-          <p className="m-0">
-            <span className="font-semibold text-gray-800">
-              Reference map:
-            </span>{" "}
-            the complete network is clustered once before any links are removed.
-            That partition is used as the target for the slider experiment.
-          </p>
-          <p className="m-0">
-            <span className="font-semibold text-gray-800">
-              Standard run:
-            </span>{" "}
-            <code>@mapequation/infomap</code> runs with two-level optimization
-            and <code>-N {NUM_TRIALS}</code> trials on the link-removed network.
-          </p>
-          <p className="m-0">
-            <span className="font-semibold text-gray-800">
-              Regularized run:
-            </span>{" "}
-            the same API also uses <code>--regularized</code> and{" "}
-            <code>
-              --regularization-strength {regularizationStrength.toFixed(2)}
-            </code>
-            .
-          </p>
-          <p className="m-0">
-            <span className="font-semibold text-gray-800">Evaluation:</span>{" "}
-            AMI compares each recovered partition with the complete-network
-            reference, while the pass/fail text marks exact recovery.
-          </p>
-        </div>
       </div>
     </div>
   );

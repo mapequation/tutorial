@@ -2923,11 +2923,6 @@ const RawTopologyNetworkView = observer(function RawTopologyNetworkView({
         <h3 className="m-0 text-base font-bold text-gray-900">{title}</h3>
       </div>
       <div className="relative">
-        {variant === "two-level" && (
-          <div className="absolute right-2 top-2 z-10">
-            <ComparisonNetworkPajekCopyButton />
-          </div>
-        )}
         <svg
           viewBox={formatViewBox(ROOT_VIEWBOX)}
           className="block w-full overflow-visible"

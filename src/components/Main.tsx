@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -12,7 +13,7 @@ import {
   Node as NodeModel,
   Rate,
 } from "../model";
-import { modular_w_json } from "../networks";
+import { hierarchicalPaperToyTopology, modular_w_json } from "../networks";
 import { getAssetPath } from "../lib/basePath";
 import {
   neutralLinkColor,
@@ -290,6 +291,65 @@ const TWO_TRIANGLE_EDGES = [
   ...TWO_TRIANGLE_INTERNAL_EDGES,
   [1, 4],
 ] as const;
+
+function serializeModelNetworkToPajek(targetNetwork: NetworkModel) {
+  const vertices = targetNetwork.nodes
+    .slice()
+    .sort((left, right) => left.id - right.id)
+    .map((node) => `${node.id} "${node.name || node.id}"`);
+  const edges = targetNetwork.links
+    .slice()
+    .sort((left, right) =>
+      left.source.id === right.source.id
+        ? left.target.id - right.target.id
+        : left.source.id - right.source.id,
+    )
+    .map((link) => `${link.source.id} ${link.target.id} ${link.weight}`);
+
+  return [
+    `*Vertices ${targetNetwork.numNodes}`,
+    ...vertices,
+    targetNetwork.directed ? "*Arcs" : "*Edges",
+    ...edges,
+  ].join("\n");
+}
+
+function serializeHierarchicalToyToPajek() {
+  const vertices = hierarchicalPaperToyTopology.nodes
+    .slice()
+    .sort((left, right) => left.id - right.id)
+    .map((node) => `${node.id} "${node.name ?? node.id}"`);
+  const edges = hierarchicalPaperToyTopology.links
+    .slice()
+    .sort((left, right) =>
+      left.source === right.source
+        ? left.target - right.target
+        : left.source - right.source,
+    )
+    .map((link) => `${link.source} ${link.target} ${link.weight}`);
+
+  return [
+    `*Vertices ${hierarchicalPaperToyTopology.nodes.length}`,
+    ...vertices,
+    "*Edges",
+    ...edges,
+  ].join("\n");
+}
+
+function serializeTwoTriangleNetworkToPajek() {
+  const vertices = Object.keys(TWO_TRIANGLE_NODE_POSITIONS)
+    .map(Number)
+    .sort((left, right) => left - right)
+    .map((id) => `${id} "${id}"`);
+  const edges = TWO_TRIANGLE_EDGES.map(
+    ([source, target]) => `${source} ${target} 1`,
+  );
+
+  return [`*Vertices ${vertices.length}`, ...vertices, "*Edges", ...edges].join(
+    "\n",
+  );
+}
+
 const DEGREE_HELP =
   "The degree of a node is the number of links attached to it. In this undirected example, each link can be counted in both directions, so a node's degree is also the number of directed link directions that arrive at it.";
 const TWO_TRIANGLE_AREA_BLOCKS = [
@@ -1817,6 +1877,32 @@ export default function Main() {
   const [showLinkWeights, setShowLinkWeights] = useState(false);
   const [activeCommunity, setActiveCommunity] = useState(0);
   const firstNetworkRef = useRef<HTMLDivElement>(null);
+  const pajekNetworks = useMemo(
+    () => [
+      {
+        key: "opening-two-level",
+        title: "Two-level partition network",
+        description:
+          "The weighted network used in the opening interaction and Huffman coding section.",
+        pajekText: serializeModelNetworkToPajek(network),
+      },
+      {
+        key: "two-triangles",
+        title: "Two triangles, one bridge",
+        description:
+          "The small unweighted codelength example with two triangle modules connected by one bridge.",
+        pajekText: serializeTwoTriangleNetworkToPajek(),
+      },
+      {
+        key: "nine-triangles",
+        title: "Nine-triangle hierarchical network",
+        description:
+          "The weighted toy network used for the two-level and multilevel codebook comparison.",
+        pajekText: serializeHierarchicalToyToPajek(),
+      },
+    ],
+    [],
+  );
 
   const setWalkerSpeed = (value: number) => {
     setSpeed(value);
@@ -2129,7 +2215,6 @@ export default function Main() {
                 width={800}
                 height={830}
                 getNodeIdFill={getDarkerNodeIdFill}
-                showPajekCopyButton
               >
                 <WalkTrace
                   walker={network.walker}
@@ -2179,7 +2264,7 @@ export default function Main() {
 
       <ArticleSection
         id="beyond-two-levels"
-        eyebrow="Multilevel Infomap"
+        eyebrow="Multilevel mapequation"
         title="Beyond two levels"
         className="mb-32"
       >
@@ -2198,6 +2283,9 @@ export default function Main() {
               immediately end in one local codebook.
             </p>
             <div className="space-y-2 text-base leading-8 text-gray-900">
+              <h3 className="m-0 text-base font-bold text-gray-900">
+                Multilevel map equation
+              </h3>
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                 <TeX math="L(M)=" />
                 <MapEquationTerm
@@ -2288,7 +2376,11 @@ export default function Main() {
       <HierarchicalCodebooks />
 
       <section className="col-span-4 mb-40">
-        <RegularizedInfomap width={700} height={300} />
+        <RegularizedInfomap
+          width={700}
+          height={300}
+          pajekNetworks={pajekNetworks}
+        />
       </section>
     </>
   );
