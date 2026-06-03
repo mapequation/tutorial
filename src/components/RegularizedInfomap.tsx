@@ -36,6 +36,9 @@ interface PajekNetworkExport {
   title: string;
   description: ReactNode;
   pajekText: string;
+  workbenchUrl?: string | null;
+  fullWorkbenchUrl?: string;
+  fallbackWorkbenchUrl?: string;
 }
 
 type NetworkState = "normal" | "regularized";
@@ -570,6 +573,106 @@ const formatPrecomputeStatusMessage = (
   totalRuns: number,
 ) => `precomputing ${label} cache (${completedRuns}/${totalRuns})...`;
 
+const INFOMAP_WORKBENCH_URL = "https://mapequation.org/infomap/workbench/";
+const INFOMAP_WORKBENCH_ARGS = "--clu --tree --num-trials 10";
+const MAX_WORKBENCH_URL_LENGTH = 6500;
+const WORKBENCH_INPUT_PARAMS = [
+  { key: "network", nameKey: "networkName" },
+  { key: "clu", nameKey: "cluName" },
+  { key: "tree", nameKey: "treeName" },
+] as const;
+
+type WorkbenchInputKey = (typeof WORKBENCH_INPUT_PARAMS)[number]["key"];
+type WorkbenchShareState = {
+  [key in WorkbenchInputKey]: { value: string; name: string };
+} & {
+  args: string;
+};
+
+function createEmptyWorkbenchState(): WorkbenchShareState {
+  return {
+    network: { value: "", name: "" },
+    clu: { value: "", name: "" },
+    tree: { value: "", name: "" },
+    args: "",
+  };
+}
+
+function buildWorkbenchUrl(baseUrl: string, state: WorkbenchShareState) {
+  const url = new URL(baseUrl);
+  const params = new URLSearchParams();
+
+  for (const { key, nameKey } of WORKBENCH_INPUT_PARAMS) {
+    const input = state[key];
+    if (!input.value.trim()) continue;
+    params.set(key, input.value);
+    if (input.name.trim()) {
+      params.set(nameKey, input.name);
+    }
+  }
+
+  if (state.args.trim()) {
+    params.set("args", state.args);
+  }
+
+  url.search = params.toString();
+  url.hash = "";
+  return url.toString();
+}
+
+function formatWorkbenchNumber(value: number) {
+  return value.toFixed(2).replace(/\.?0+$/, "");
+}
+
+function buildRegularizedWorkbenchArgs(regularizationStrength: number) {
+  return [
+    "--regularized",
+    "--regularization-strength",
+    formatWorkbenchNumber(regularizationStrength),
+    INFOMAP_WORKBENCH_ARGS,
+  ].join(" ");
+}
+
+function buildArgsOnlyWorkbenchUrl(args: string) {
+  const state = createEmptyWorkbenchState();
+  state.args = args;
+
+  return buildWorkbenchUrl(INFOMAP_WORKBENCH_URL, state);
+}
+
+function buildNetworkWorkbenchUrl(
+  pajekText: string,
+  networkName = "modular_w",
+  args = INFOMAP_WORKBENCH_ARGS,
+) {
+  const state = createEmptyWorkbenchState();
+  state.network = { value: pajekText, name: networkName };
+  state.args = args;
+
+  return buildWorkbenchUrl(INFOMAP_WORKBENCH_URL, state);
+}
+
+function buildSafeNetworkWorkbenchUrl(
+  pajekText: string,
+  networkName = "modular_w",
+  args = INFOMAP_WORKBENCH_ARGS,
+) {
+  const url = buildNetworkWorkbenchUrl(pajekText, networkName, args);
+  return url.length <= MAX_WORKBENCH_URL_LENGTH ? url : null;
+}
+
+function buildTreeWorkbenchUrl(treeText: string, treeName: string) {
+  const state = createEmptyWorkbenchState();
+  state.tree = { value: treeText, name: treeName };
+
+  return buildWorkbenchUrl(INFOMAP_WORKBENCH_URL, state);
+}
+
+function buildSafeTreeWorkbenchUrl(treeText: string, treeName: string) {
+  const url = buildTreeWorkbenchUrl(treeText, treeName);
+  return url.length <= MAX_WORKBENCH_URL_LENGTH ? url : null;
+}
+
 function serializeNetworkDataToPajek(networkData: NetworkData) {
   const vertices = [...networkData.nodes]
     .sort((a, b) => a.id - b.id)
@@ -585,6 +688,38 @@ function serializeNetworkDataToPajek(networkData: NetworkData) {
   return [
     `*Vertices ${networkData.nodes.length}`,
     ...vertices,
+    "*Edges",
+    ...edges,
+  ].join("\n");
+}
+
+function serializeNetworkDataToCompactPajek(networkData: NetworkData) {
+  const seenEdgeKeys = new Set<string>();
+  const edges = [...networkData.links]
+    .flatMap((link) => {
+      const source = Math.min(link.source, link.target);
+      const target = Math.max(link.source, link.target);
+      const edgeKey = `${source}:${target}`;
+
+      if (seenEdgeKeys.has(edgeKey)) {
+        return [];
+      }
+
+      seenEdgeKeys.add(edgeKey);
+      return [{ source, target, weight: link.weight }];
+    })
+    .sort(
+      (a, b) =>
+        a.source - b.source || a.target - b.target || a.weight - b.weight,
+    )
+    .map((link) =>
+      link.weight === 1
+        ? `${link.source} ${link.target}`
+        : `${link.source} ${link.target} ${link.weight}`,
+    );
+
+  return [
+    `*Vertices ${networkData.nodes.length}`,
     "*Edges",
     ...edges,
   ].join("\n");
@@ -2522,29 +2657,91 @@ export default observer(function RegularizedInfomap({
     () => serializeNetworkDataToPajek(completeData),
     [completeData],
   );
+  const observedWorkbenchNetworkText = useMemo(
+    () => serializeNetworkDataToCompactPajek(data),
+    [data],
+  );
+  const completeWorkbenchNetworkText = useMemo(
+    () => serializeNetworkDataToCompactPajek(completeData),
+    [completeData],
+  );
+  const regularizedWorkbenchArgs = useMemo(
+    () => buildRegularizedWorkbenchArgs(regularizationStrength),
+    [regularizationStrength],
+  );
   const sitePajekNetworks = useMemo<PajekNetworkExport[]>(
-    () => [
-      ...pajekNetworks,
-      {
-        key: "regularized-observed",
-        title: "Regularized observed network",
-        description: (
-          <>
-            The regularization network after the current {sparsePercentage}%
-            link-removal setting.
-          </>
-        ),
-        pajekText: observedLinksText,
-      },
-      {
-        key: "regularized-full",
-        title: "Regularized full network",
-        description:
-          "The complete reference network before any links are removed.",
-        pajekText: completeLinksText,
-      },
+    () => {
+      const networkExports: PajekNetworkExport[] = [
+        ...pajekNetworks,
+        {
+          key: "regularized-observed",
+          title: "Regularized observed network",
+          description: (
+            <>
+              The regularization network after the current {sparsePercentage}%
+              link-removal setting.
+            </>
+          ),
+          pajekText: observedLinksText,
+          workbenchUrl: buildSafeNetworkWorkbenchUrl(
+            observedWorkbenchNetworkText,
+            "modular_w",
+            regularizedWorkbenchArgs,
+          ),
+          fullWorkbenchUrl: buildNetworkWorkbenchUrl(
+            observedWorkbenchNetworkText,
+            "modular_w",
+            regularizedWorkbenchArgs,
+          ),
+          fallbackWorkbenchUrl: buildArgsOnlyWorkbenchUrl(
+            regularizedWorkbenchArgs,
+          ),
+        },
+        {
+          key: "regularized-full",
+          title: "Regularized full network",
+          description:
+            "The complete reference network before any links are removed.",
+          pajekText: completeLinksText,
+          workbenchUrl: buildSafeNetworkWorkbenchUrl(
+            completeWorkbenchNetworkText,
+            "modular_w",
+            regularizedWorkbenchArgs,
+          ),
+          fullWorkbenchUrl: buildNetworkWorkbenchUrl(
+            completeWorkbenchNetworkText,
+            "modular_w",
+            regularizedWorkbenchArgs,
+          ),
+          fallbackWorkbenchUrl: buildArgsOnlyWorkbenchUrl(
+            regularizedWorkbenchArgs,
+          ),
+        },
+      ];
+
+      return networkExports.map((networkExport) => ({
+        ...networkExport,
+        workbenchUrl:
+          networkExport.workbenchUrl === undefined
+            ? buildSafeNetworkWorkbenchUrl(networkExport.pajekText)
+            : networkExport.workbenchUrl,
+        fallbackWorkbenchUrl:
+          networkExport.fallbackWorkbenchUrl ??
+          buildArgsOnlyWorkbenchUrl(INFOMAP_WORKBENCH_ARGS),
+        fullWorkbenchUrl:
+          networkExport.fullWorkbenchUrl ??
+          buildNetworkWorkbenchUrl(networkExport.pajekText),
+      }));
+    },
+    [
+      completeLinksText,
+      completeWorkbenchNetworkText,
+      observedLinksText,
+      observedWorkbenchNetworkText,
+      pajekNetworks,
+      regularizedWorkbenchArgs,
+      sparsePercentage,
     ],
-    [completeLinksText, observedLinksText, pajekNetworks, sparsePercentage],
   );
 
   const normalFallbackTreeText = useMemo(
@@ -2563,6 +2760,18 @@ export default observer(function RegularizedInfomap({
     regularizedRunState.status === "ready"
       ? regularizedRunState.run.treeText
       : regularizedFallbackTreeText;
+  const normalTreeWorkbenchUrl = useMemo(
+    () => buildSafeTreeWorkbenchUrl(normalTreeText, "standard_infomap_tree"),
+    [normalTreeText],
+  );
+  const regularizedTreeWorkbenchUrl = useMemo(
+    () =>
+      buildSafeTreeWorkbenchUrl(
+        regularizedTreeText,
+        "regularized_infomap_tree",
+      ),
+    [regularizedTreeText],
+  );
 
   const handleCopyPajek = useCallback(async (label: string, value: string) => {
     try {
@@ -3234,7 +3443,9 @@ export default observer(function RegularizedInfomap({
         </h3>
         <p className="m-0 max-w-3xl">
           The next step is to try the demo networks directly in Infomap Online.
-          Copy a Pajek edge list below and paste it into Infomap.
+          Open a network or tree output below when the shared URL is short
+          enough. Larger examples are copied first, then opened in Infomap for
+          pasting.
         </p>
         <a
           className="button mt-4 inline-flex w-fit items-center justify-center text-xs py-1 px-3"
@@ -3251,15 +3462,64 @@ export default observer(function RegularizedInfomap({
                 {networkExport.title}
               </h4>
               <p className="m-0">{networkExport.description}</p>
-              <button
-                type="button"
-                className="button text-xs py-1 px-2"
-                onClick={() =>
-                  handleCopyPajek(networkExport.title, networkExport.pajekText)
-                }
-              >
-                Copy Pajek network
-              </button>
+              <div className="flex flex-wrap gap-2">
+                {networkExport.workbenchUrl ? (
+                  <a
+                    className="button text-xs py-1 px-2"
+                    href={networkExport.workbenchUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Open in Infomap
+                  </a>
+                ) : (
+                  <button
+                    type="button"
+                    className="button text-xs py-1 px-2"
+                    onClick={() => {
+                      void handleCopyPajek(
+                        networkExport.title,
+                        networkExport.pajekText,
+                      );
+                      window.open(
+                        networkExport.fallbackWorkbenchUrl ??
+                          INFOMAP_WORKBENCH_URL,
+                        "_blank",
+                        "noopener,noreferrer",
+                      );
+                    }}
+                  >
+                    Copy and open Infomap
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="button text-xs py-1 px-2"
+                  onClick={() =>
+                    handleCopyPajek(
+                      networkExport.title,
+                      networkExport.pajekText,
+                    )
+                  }
+                >
+                  Copy Pajek network
+                </button>
+                <button
+                  type="button"
+                  className="button text-xs py-1 px-2"
+                  onClick={() =>
+                    handleCopyPajek(
+                      `${networkExport.title} URL`,
+                      networkExport.fullWorkbenchUrl ??
+                        networkExport.workbenchUrl ??
+                        networkExport.fallbackWorkbenchUrl ??
+                        INFOMAP_WORKBENCH_URL,
+                    )
+                  }
+                >
+                  Copy Infomap URL
+                </button>
+              </div>
             </div>
           ))}
           <div className="space-y-2">
@@ -3269,13 +3529,40 @@ export default observer(function RegularizedInfomap({
             <p className="m-0">
               Tree output from the standard run on this observed network.
             </p>
-            <button
-              type="button"
-              className="button text-xs py-1 px-2"
-              onClick={() => handleCopyTree("normal", normalTreeText)}
-            >
-              Copy standard tree
-            </button>
+            <div className="flex flex-wrap gap-2">
+              {normalTreeWorkbenchUrl ? (
+                <a
+                  className="button text-xs py-1 px-2"
+                  href={normalTreeWorkbenchUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Open in Infomap
+                </a>
+              ) : (
+                <button
+                  type="button"
+                  className="button text-xs py-1 px-2"
+                  onClick={() => {
+                    void handleCopyTree("normal", normalTreeText);
+                    window.open(
+                      INFOMAP_WORKBENCH_URL,
+                      "_blank",
+                      "noopener,noreferrer",
+                    );
+                  }}
+                >
+                  Copy and open Infomap
+                </button>
+              )}
+              <button
+                type="button"
+                className="button text-xs py-1 px-2"
+                onClick={() => handleCopyTree("normal", normalTreeText)}
+              >
+                Copy standard tree
+              </button>
+            </div>
           </div>
           <div className="space-y-2">
             <h4 className="m-0 text-sm font-bold text-gray-900">
@@ -3285,13 +3572,42 @@ export default observer(function RegularizedInfomap({
               Tree output using regularization strength{" "}
               {regularizationStrength.toFixed(2)}.
             </p>
-            <button
-              type="button"
-              className="button text-xs py-1 px-2"
-              onClick={() => handleCopyTree("regularized", regularizedTreeText)}
-            >
-              Copy regularized tree
-            </button>
+            <div className="flex flex-wrap gap-2">
+              {regularizedTreeWorkbenchUrl ? (
+                <a
+                  className="button text-xs py-1 px-2"
+                  href={regularizedTreeWorkbenchUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Open in Infomap
+                </a>
+              ) : (
+                <button
+                  type="button"
+                  className="button text-xs py-1 px-2"
+                  onClick={() => {
+                    void handleCopyTree("regularized", regularizedTreeText);
+                    window.open(
+                      INFOMAP_WORKBENCH_URL,
+                      "_blank",
+                      "noopener,noreferrer",
+                    );
+                  }}
+                >
+                  Copy and open Infomap
+                </button>
+              )}
+              <button
+                type="button"
+                className="button text-xs py-1 px-2"
+                onClick={() =>
+                  handleCopyTree("regularized", regularizedTreeText)
+                }
+              >
+                Copy regularized tree
+              </button>
+            </div>
           </div>
         </div>
         {(pajekCopyStatus ||
