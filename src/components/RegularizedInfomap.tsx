@@ -2071,8 +2071,8 @@ function PriorLinksOverlay({
             x2={x2 - nodeRadius * unitX}
             y2={y2 - nodeRadius * unitY}
             stroke={PRIOR_LINK_STROKE}
-            strokeOpacity={0.2}
-            strokeWidth={0.6}
+            strokeOpacity={0.32}
+            strokeWidth={0.75}
             strokeLinecap="round"
             vectorEffect="non-scaling-stroke"
           />
@@ -3234,9 +3234,16 @@ export default observer(function RegularizedInfomap({
         </h3>
         <p className="m-0 max-w-3xl">
           The next step is to try the demo networks directly in Infomap Online.
-          For now, copy a Pajek edge list below and paste it into Infomap.
-          Later these can become direct links that open each network there.
+          Copy a Pajek edge list below and paste it into Infomap.
         </p>
+        <a
+          className="button mt-4 inline-flex w-fit items-center justify-center text-xs py-1 px-3"
+          href="https://mapequation.org/infomap/workbench/"
+          target="_blank"
+          rel="noreferrer"
+        >
+          Open Infomap Online
+        </a>
         <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {sitePajekNetworks.map((networkExport) => (
             <div key={networkExport.key} className="space-y-2">

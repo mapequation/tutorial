@@ -1971,7 +1971,7 @@ export default function Main() {
             </p>
             <ArticleStep label="1" title="Choose a community">
               <p className="m-0">
-                Pick one of the colored community buttons above the network.
+                Pick one of the colored community buttons below the network.
                 This is the module the selected nodes will be assigned to.
               </p>
             </ArticleStep>
