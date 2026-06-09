@@ -36,9 +36,9 @@ interface PajekNetworkExport {
   title: string;
   description: ReactNode;
   pajekText: string;
-  workbenchUrl?: string | null;
-  fullWorkbenchUrl?: string;
-  fallbackWorkbenchUrl?: string;
+  workbenchArgs?: string;
+  workbenchName?: string;
+  workbenchText?: string;
 }
 
 type NetworkState = "normal" | "regularized";
@@ -575,48 +575,139 @@ const formatPrecomputeStatusMessage = (
 
 const INFOMAP_WORKBENCH_URL = "https://mapequation.org/infomap/workbench/";
 const INFOMAP_WORKBENCH_ARGS = "--clu --tree --num-trials 10";
-const MAX_WORKBENCH_URL_LENGTH = 6500;
+const SHOW_TREE_OUTPUT_EXPORTS = false;
+const MAX_URL_INPUT_LENGTH = 200_000;
+const MAX_SHARE_URL_LENGTH = 16_000;
+const SHARE_PARAM = "s";
+const SHARE_VERSION = 1;
 const WORKBENCH_INPUT_PARAMS = [
   { key: "network", nameKey: "networkName" },
-  { key: "clu", nameKey: "cluName" },
-  { key: "tree", nameKey: "treeName" },
+  { key: "clusterData", nameKey: "clusterName" },
+  { key: "metaData", nameKey: "metaName" },
 ] as const;
 
 type WorkbenchInputKey = (typeof WORKBENCH_INPUT_PARAMS)[number]["key"];
+type WorkbenchInputFile = { value: string; name: string };
 type WorkbenchShareState = {
-  [key in WorkbenchInputKey]: { value: string; name: string };
+  [key in WorkbenchInputKey]: WorkbenchInputFile;
 } & {
   args: string;
 };
+type WorkbenchSharePayload = {
+  args?: string;
+  clusterData?: WorkbenchInputFile;
+  metaData?: WorkbenchInputFile;
+  network?: WorkbenchInputFile;
+  v: typeof SHARE_VERSION;
+};
+type WorkbenchUrlInfo = {
+  fallbackWorkbenchUrl: string;
+  fullWorkbenchUrl: string | null;
+  workbenchUrl: string | null;
+};
+type ByteTransform = ReadableWritablePair<Uint8Array, Uint8Array>;
+
+const textEncoder = new TextEncoder();
+
+function bytesToStream(bytes: Uint8Array) {
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(bytes);
+      controller.close();
+    },
+  });
+}
+
+async function streamToBytes(stream: ReadableStream<Uint8Array>) {
+  const reader = stream.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalLength = 0;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    totalLength += value.length;
+  }
+
+  const bytes = new Uint8Array(totalLength);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return bytes;
+}
+
+async function compressText(value: string) {
+  const CompressionStreamConstructor = (
+    globalThis as typeof globalThis & {
+      CompressionStream?: new (format: "deflate") => ByteTransform;
+    }
+  ).CompressionStream;
+
+  if (!CompressionStreamConstructor) {
+    throw new Error("CompressionStream is not available in this browser.");
+  }
+
+  const compression = new CompressionStreamConstructor("deflate");
+  const stream = bytesToStream(textEncoder.encode(value)).pipeThrough(
+    compression,
+  );
+  return streamToBytes(stream);
+}
+
+function bytesToBase64Url(bytes: Uint8Array) {
+  let binary = "";
+  for (let index = 0; index < bytes.length; index += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000));
+  }
+  return btoa(binary)
+    .replaceAll("+", "-")
+    .replaceAll("/", "_")
+    .replaceAll("=", "");
+}
 
 function createEmptyWorkbenchState(): WorkbenchShareState {
   return {
-    network: { value: "", name: "" },
-    clu: { value: "", name: "" },
-    tree: { value: "", name: "" },
     args: "",
+    clusterData: { value: "", name: "" },
+    metaData: { value: "", name: "" },
+    network: { value: "", name: "" },
   };
 }
 
-function buildWorkbenchUrl(baseUrl: string, state: WorkbenchShareState) {
+function inputFromPayload(input?: WorkbenchInputFile) {
+  if (!input?.value.trim()) return undefined;
+  if (input.value.length > MAX_URL_INPUT_LENGTH) return undefined;
+  return input;
+}
+
+async function buildWorkbenchUrl(baseUrl: string, state: WorkbenchShareState) {
   const url = new URL(baseUrl);
   const params = new URLSearchParams();
+  const payload: WorkbenchSharePayload = { v: SHARE_VERSION };
 
-  for (const { key, nameKey } of WORKBENCH_INPUT_PARAMS) {
+  for (const { key } of WORKBENCH_INPUT_PARAMS) {
     const input = state[key];
     if (!input.value.trim()) continue;
-    params.set(key, input.value);
-    if (input.name.trim()) {
-      params.set(nameKey, input.name);
-    }
+    payload[key] = inputFromPayload(input);
   }
 
   if (state.args.trim()) {
-    params.set("args", state.args);
+    payload.args = state.args;
   }
+
+  params.set(
+    SHARE_PARAM,
+    bytesToBase64Url(await compressText(JSON.stringify(payload))),
+  );
 
   url.search = params.toString();
   url.hash = "";
+  if (url.toString().length > MAX_SHARE_URL_LENGTH) {
+    throw new Error("Share URL is too long for the current inputs.");
+  }
   return url.toString();
 }
 
@@ -633,14 +724,14 @@ function buildRegularizedWorkbenchArgs(regularizationStrength: number) {
   ].join(" ");
 }
 
-function buildArgsOnlyWorkbenchUrl(args: string) {
+async function buildArgsOnlyWorkbenchUrl(args: string) {
   const state = createEmptyWorkbenchState();
   state.args = args;
 
   return buildWorkbenchUrl(INFOMAP_WORKBENCH_URL, state);
 }
 
-function buildNetworkWorkbenchUrl(
+async function buildNetworkWorkbenchUrl(
   pajekText: string,
   networkName = "modular_w",
   args = INFOMAP_WORKBENCH_ARGS,
@@ -652,25 +743,16 @@ function buildNetworkWorkbenchUrl(
   return buildWorkbenchUrl(INFOMAP_WORKBENCH_URL, state);
 }
 
-function buildSafeNetworkWorkbenchUrl(
+async function buildSafeNetworkWorkbenchUrl(
   pajekText: string,
   networkName = "modular_w",
   args = INFOMAP_WORKBENCH_ARGS,
 ) {
-  const url = buildNetworkWorkbenchUrl(pajekText, networkName, args);
-  return url.length <= MAX_WORKBENCH_URL_LENGTH ? url : null;
-}
-
-function buildTreeWorkbenchUrl(treeText: string, treeName: string) {
-  const state = createEmptyWorkbenchState();
-  state.tree = { value: treeText, name: treeName };
-
-  return buildWorkbenchUrl(INFOMAP_WORKBENCH_URL, state);
-}
-
-function buildSafeTreeWorkbenchUrl(treeText: string, treeName: string) {
-  const url = buildTreeWorkbenchUrl(treeText, treeName);
-  return url.length <= MAX_WORKBENCH_URL_LENGTH ? url : null;
+  try {
+    return await buildNetworkWorkbenchUrl(pajekText, networkName, args);
+  } catch {
+    return null;
+  }
 }
 
 function serializeNetworkDataToPajek(networkData: NetworkData) {
@@ -859,7 +941,6 @@ function MiniMissingDataNetwork({ observed = false }: { observed?: boolean }) {
               x2={x2}
               y2={y2}
               stroke="#9ca3af"
-              strokeDasharray="8 7"
               strokeWidth={2.1}
               opacity={0.45}
             />
@@ -2228,6 +2309,9 @@ export default observer(function RegularizedInfomap({
   const [hoveredComparisonNode, setHoveredComparisonNode] =
     useState<HoveredComparisonNode>(null);
   const [pajekCopyStatus, setPajekCopyStatus] = useState("");
+  const [networkWorkbenchUrls, setNetworkWorkbenchUrls] = useState<
+    Record<string, WorkbenchUrlInfo>
+  >({});
   const [treeCopyStatus, setTreeCopyStatus] = useState<
     Record<NetworkState, string>
   >({
@@ -2683,19 +2767,8 @@ export default observer(function RegularizedInfomap({
             </>
           ),
           pajekText: observedLinksText,
-          workbenchUrl: buildSafeNetworkWorkbenchUrl(
-            observedWorkbenchNetworkText,
-            "modular_w",
-            regularizedWorkbenchArgs,
-          ),
-          fullWorkbenchUrl: buildNetworkWorkbenchUrl(
-            observedWorkbenchNetworkText,
-            "modular_w",
-            regularizedWorkbenchArgs,
-          ),
-          fallbackWorkbenchUrl: buildArgsOnlyWorkbenchUrl(
-            regularizedWorkbenchArgs,
-          ),
+          workbenchArgs: regularizedWorkbenchArgs,
+          workbenchText: observedWorkbenchNetworkText,
         },
         {
           key: "regularized-full",
@@ -2703,34 +2776,16 @@ export default observer(function RegularizedInfomap({
           description:
             "The complete reference network before any links are removed.",
           pajekText: completeLinksText,
-          workbenchUrl: buildSafeNetworkWorkbenchUrl(
-            completeWorkbenchNetworkText,
-            "modular_w",
-            regularizedWorkbenchArgs,
-          ),
-          fullWorkbenchUrl: buildNetworkWorkbenchUrl(
-            completeWorkbenchNetworkText,
-            "modular_w",
-            regularizedWorkbenchArgs,
-          ),
-          fallbackWorkbenchUrl: buildArgsOnlyWorkbenchUrl(
-            regularizedWorkbenchArgs,
-          ),
+          workbenchArgs: regularizedWorkbenchArgs,
+          workbenchText: completeWorkbenchNetworkText,
         },
       ];
 
       return networkExports.map((networkExport) => ({
         ...networkExport,
-        workbenchUrl:
-          networkExport.workbenchUrl === undefined
-            ? buildSafeNetworkWorkbenchUrl(networkExport.pajekText)
-            : networkExport.workbenchUrl,
-        fallbackWorkbenchUrl:
-          networkExport.fallbackWorkbenchUrl ??
-          buildArgsOnlyWorkbenchUrl(INFOMAP_WORKBENCH_ARGS),
-        fullWorkbenchUrl:
-          networkExport.fullWorkbenchUrl ??
-          buildNetworkWorkbenchUrl(networkExport.pajekText),
+        workbenchArgs: networkExport.workbenchArgs ?? INFOMAP_WORKBENCH_ARGS,
+        workbenchName: networkExport.workbenchName ?? "modular_w",
+        workbenchText: networkExport.workbenchText ?? networkExport.pajekText,
       }));
     },
     [
@@ -2743,6 +2798,51 @@ export default observer(function RegularizedInfomap({
       sparsePercentage,
     ],
   );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function updateWorkbenchUrls() {
+      const entries = await Promise.all(
+        sitePajekNetworks.map(async (networkExport) => {
+          const args = networkExport.workbenchArgs ?? INFOMAP_WORKBENCH_ARGS;
+          const networkName = networkExport.workbenchName ?? "modular_w";
+          const networkText =
+            networkExport.workbenchText ?? networkExport.pajekText;
+          const fallbackWorkbenchUrl = await buildArgsOnlyWorkbenchUrl(args);
+          const fullWorkbenchUrl = await buildNetworkWorkbenchUrl(
+            networkText,
+            networkName,
+            args,
+          ).catch(() => null);
+          const workbenchUrl = await buildSafeNetworkWorkbenchUrl(
+            networkText,
+            networkName,
+            args,
+          );
+
+          return [
+            networkExport.key,
+            { fallbackWorkbenchUrl, fullWorkbenchUrl, workbenchUrl },
+          ] as const;
+        }),
+      );
+
+      if (!cancelled) {
+        setNetworkWorkbenchUrls(Object.fromEntries(entries));
+      }
+    }
+
+    void updateWorkbenchUrls().catch(() => {
+      if (!cancelled) {
+        setNetworkWorkbenchUrls({});
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sitePajekNetworks]);
 
   const normalFallbackTreeText = useMemo(
     () => buildFallbackTreeText(normalNetwork),
@@ -2760,18 +2860,8 @@ export default observer(function RegularizedInfomap({
     regularizedRunState.status === "ready"
       ? regularizedRunState.run.treeText
       : regularizedFallbackTreeText;
-  const normalTreeWorkbenchUrl = useMemo(
-    () => buildSafeTreeWorkbenchUrl(normalTreeText, "standard_infomap_tree"),
-    [normalTreeText],
-  );
-  const regularizedTreeWorkbenchUrl = useMemo(
-    () =>
-      buildSafeTreeWorkbenchUrl(
-        regularizedTreeText,
-        "regularized_infomap_tree",
-      ),
-    [regularizedTreeText],
-  );
+  const normalTreeWorkbenchUrl = null;
+  const regularizedTreeWorkbenchUrl = null;
 
   const handleCopyPajek = useCallback(async (label: string, value: string) => {
     try {
@@ -3443,172 +3533,154 @@ export default observer(function RegularizedInfomap({
         </h3>
         <p className="m-0 max-w-3xl">
           The next step is to try the demo networks directly in Infomap Online.
-          Open a network or tree output below when the shared URL is short
-          enough. Larger examples are copied first, then opened in Infomap for
-          pasting.
+          Open a network below to continue exploring it in the Infomap
+          workbench.
         </p>
-        <a
-          className="button mt-4 inline-flex w-fit items-center justify-center text-xs py-1 px-3"
-          href="https://mapequation.org/infomap/workbench/"
-          target="_blank"
-          rel="noreferrer"
-        >
-          Open Infomap Online
-        </a>
         <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {sitePajekNetworks.map((networkExport) => (
-            <div key={networkExport.key} className="space-y-2">
-              <h4 className="m-0 text-sm font-bold text-gray-900">
-                {networkExport.title}
-              </h4>
-              <p className="m-0">{networkExport.description}</p>
-              <div className="flex flex-wrap gap-2">
-                {networkExport.workbenchUrl ? (
-                  <a
-                    className="button text-xs py-1 px-2"
-                    href={networkExport.workbenchUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Open in Infomap
-                  </a>
-                ) : (
+          {sitePajekNetworks.map((networkExport) => {
+            const workbenchUrls = networkWorkbenchUrls[networkExport.key];
+
+            return (
+              <div key={networkExport.key} className="space-y-2">
+                <h4 className="m-0 text-sm font-bold text-gray-900">
+                  {networkExport.title}
+                </h4>
+                <p className="m-0">{networkExport.description}</p>
+                <div className="flex flex-wrap gap-2">
+                  {workbenchUrls?.workbenchUrl ? (
+                    <a
+                      className="button text-xs py-1 px-2"
+                      href={workbenchUrls.workbenchUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Open in Infomap Online
+                    </a>
+                  ) : workbenchUrls ? (
+                    <button
+                      type="button"
+                      className="button text-xs py-1 px-2"
+                      onClick={() => {
+                        void handleCopyPajek(
+                          networkExport.title,
+                          networkExport.pajekText,
+                        );
+                        window.open(
+                          workbenchUrls.fallbackWorkbenchUrl,
+                          "_blank",
+                          "noopener,noreferrer",
+                        );
+                      }}
+                    >
+                      Copy and open Infomap
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="button text-xs py-1 px-2"
+                      disabled
+                    >
+                      Preparing link
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+          {SHOW_TREE_OUTPUT_EXPORTS && (
+            <>
+              <div className="space-y-2">
+                <h4 className="m-0 text-sm font-bold text-gray-900">
+                  Standard Infomap result
+                </h4>
+                <p className="m-0">
+                  Tree output from the standard run on this observed network.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {normalTreeWorkbenchUrl ? (
+                    <a
+                      className="button text-xs py-1 px-2"
+                      href={normalTreeWorkbenchUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Open in Infomap
+                    </a>
+                  ) : (
+                    <button
+                      type="button"
+                      className="button text-xs py-1 px-2"
+                      onClick={() => {
+                        void handleCopyTree("normal", normalTreeText);
+                        window.open(
+                          INFOMAP_WORKBENCH_URL,
+                          "_blank",
+                          "noopener,noreferrer",
+                        );
+                      }}
+                    >
+                      Copy and open Infomap
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="button text-xs py-1 px-2"
-                    onClick={() => {
-                      void handleCopyPajek(
-                        networkExport.title,
-                        networkExport.pajekText,
-                      );
-                      window.open(
-                        networkExport.fallbackWorkbenchUrl ??
-                          INFOMAP_WORKBENCH_URL,
-                        "_blank",
-                        "noopener,noreferrer",
-                      );
-                    }}
+                    onClick={() => handleCopyTree("normal", normalTreeText)}
                   >
-                    Copy and open Infomap
+                    Copy standard tree
                   </button>
-                )}
-                <button
-                  type="button"
-                  className="button text-xs py-1 px-2"
-                  onClick={() =>
-                    handleCopyPajek(
-                      networkExport.title,
-                      networkExport.pajekText,
-                    )
-                  }
-                >
-                  Copy Pajek network
-                </button>
-                <button
-                  type="button"
-                  className="button text-xs py-1 px-2"
-                  onClick={() =>
-                    handleCopyPajek(
-                      `${networkExport.title} URL`,
-                      networkExport.fullWorkbenchUrl ??
-                        networkExport.workbenchUrl ??
-                        networkExport.fallbackWorkbenchUrl ??
-                        INFOMAP_WORKBENCH_URL,
-                    )
-                  }
-                >
-                  Copy Infomap URL
-                </button>
+                </div>
               </div>
-            </div>
-          ))}
-          <div className="space-y-2">
-            <h4 className="m-0 text-sm font-bold text-gray-900">
-              Standard Infomap result
-            </h4>
-            <p className="m-0">
-              Tree output from the standard run on this observed network.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {normalTreeWorkbenchUrl ? (
-                <a
-                  className="button text-xs py-1 px-2"
-                  href={normalTreeWorkbenchUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Open in Infomap
-                </a>
-              ) : (
-                <button
-                  type="button"
-                  className="button text-xs py-1 px-2"
-                  onClick={() => {
-                    void handleCopyTree("normal", normalTreeText);
-                    window.open(
-                      INFOMAP_WORKBENCH_URL,
-                      "_blank",
-                      "noopener,noreferrer",
-                    );
-                  }}
-                >
-                  Copy and open Infomap
-                </button>
-              )}
-              <button
-                type="button"
-                className="button text-xs py-1 px-2"
-                onClick={() => handleCopyTree("normal", normalTreeText)}
-              >
-                Copy standard tree
-              </button>
-            </div>
-          </div>
-          <div className="space-y-2">
-            <h4 className="m-0 text-sm font-bold text-gray-900">
-              Regularized Infomap result
-            </h4>
-            <p className="m-0">
-              Tree output using regularization strength{" "}
-              {regularizationStrength.toFixed(2)}.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {regularizedTreeWorkbenchUrl ? (
-                <a
-                  className="button text-xs py-1 px-2"
-                  href={regularizedTreeWorkbenchUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Open in Infomap
-                </a>
-              ) : (
-                <button
-                  type="button"
-                  className="button text-xs py-1 px-2"
-                  onClick={() => {
-                    void handleCopyTree("regularized", regularizedTreeText);
-                    window.open(
-                      INFOMAP_WORKBENCH_URL,
-                      "_blank",
-                      "noopener,noreferrer",
-                    );
-                  }}
-                >
-                  Copy and open Infomap
-                </button>
-              )}
-              <button
-                type="button"
-                className="button text-xs py-1 px-2"
-                onClick={() =>
-                  handleCopyTree("regularized", regularizedTreeText)
-                }
-              >
-                Copy regularized tree
-              </button>
-            </div>
-          </div>
+              <div className="space-y-2">
+                <h4 className="m-0 text-sm font-bold text-gray-900">
+                  Regularized Infomap result
+                </h4>
+                <p className="m-0">
+                  Tree output using regularization strength{" "}
+                  {regularizationStrength.toFixed(2)}.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {regularizedTreeWorkbenchUrl ? (
+                    <a
+                      className="button text-xs py-1 px-2"
+                      href={regularizedTreeWorkbenchUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Open in Infomap
+                    </a>
+                  ) : (
+                    <button
+                      type="button"
+                      className="button text-xs py-1 px-2"
+                      onClick={() => {
+                        void handleCopyTree(
+                          "regularized",
+                          regularizedTreeText,
+                        );
+                        window.open(
+                          INFOMAP_WORKBENCH_URL,
+                          "_blank",
+                          "noopener,noreferrer",
+                        );
+                      }}
+                    >
+                      Copy and open Infomap
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="button text-xs py-1 px-2"
+                    onClick={() =>
+                      handleCopyTree("regularized", regularizedTreeText)
+                    }
+                  >
+                    Copy regularized tree
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
         </div>
         {(pajekCopyStatus ||
           treeCopyStatus.normal ||

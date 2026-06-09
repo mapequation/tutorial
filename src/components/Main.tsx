@@ -1965,9 +1965,9 @@ export default function Main() {
         <div className="grid gap-10 xl:grid-cols-2 xl:items-start">
           <div className="min-w-0 space-y-5">
             <p className="text-lg leading-relaxed text-gray-700">
-              Before reading the definitions, try changing the partition. Draw
-              a lasso around nodes, choose a community, and watch the total
-              codelength respond.
+              Before reading the definitions, try changing the partition.
+              Choose a community, draw a lasso around nodes, and watch the
+              total codelength respond.
             </p>
             <ArticleStep label="1" title="Choose a community">
               <p className="m-0">
@@ -2271,10 +2271,10 @@ export default function Main() {
         <div className="grid gap-10 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] xl:items-start">
           <div className="min-w-0 space-y-5">
             <p className="text-lg leading-relaxed text-gray-700">
-              We just compared the one-level and two-level map equations. The
-              two-level version is already a better description when one index
-              codebook can point to smaller local codebooks, but it still forces
-              the map to stop after one module layer.
+              A two-level map can shorten the description by letting one index
+              codebook point to smaller local codebooks. But if the network has
+              structure inside those modules, stopping after one module layer
+              leaves compression on the table.
             </p>
             <p>
               The map equation is naturally hierarchical: after the index

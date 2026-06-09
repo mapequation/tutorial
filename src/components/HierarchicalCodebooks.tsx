@@ -1612,20 +1612,19 @@ function formatBits(value: number) {
   return `${value.toFixed(3)} bits`;
 }
 
-function formatStepsSinceUsed(value: number | null | undefined) {
-  if (value === null || value === undefined) {
-    return "not used";
-  }
-
-  if (value === 0) {
-    return "now";
+function formatStepsSinceUsed(
+  value: number | null | undefined,
+  activationCount: number,
+) {
+  if (activationCount <= 0 || value === null || value === undefined) {
+    return "0";
   }
 
   if (value < 0) {
-    return `${Math.abs(value)}+ steps ago`;
+    return `${Math.abs(value)}`;
   }
 
-  return value === 1 ? "1 step ago" : `${value} steps ago`;
+  return `${value}`;
 }
 
 function CodelengthGroupView({ group }: { group: CodelengthGroup }) {
@@ -2148,30 +2147,51 @@ function CodebookColumnCounter({
   y,
   counter,
   showLastUsed = true,
+  textOffsetX = 0,
+  fontSize = 9.2,
+  unusedValueOffset = 70,
+  totalValueOffset = 54,
 }: {
   x: number;
   y: number;
   counter: CodebookColumnCounterState | undefined;
   showLastUsed?: boolean;
+  textOffsetX?: number;
+  fontSize?: number;
+  unusedValueOffset?: number;
+  totalValueOffset?: number;
 }) {
   const activationCount = counter?.activationCount ?? 0;
+  const textX = x - CODEBOOK_BLOCK.width / 2 + textOffsetX;
+  const unusedValueX = textX + unusedValueOffset;
+  const totalValueX = textX + totalValueOffset;
+  const valueStyle = {
+    fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+    fontVariantNumeric: "tabular-nums",
+  };
 
   return (
     <text
-      x={x}
+      x={textX}
       y={y}
-      textAnchor="middle"
-      fontSize={7.2}
+      textAnchor="start"
+      fontSize={fontSize}
       fontWeight={800}
       fill="#4b5563"
     >
       {showLastUsed && (
-        <tspan x={x}>
-          last: {formatStepsSinceUsed(counter?.stepsSinceLast)}
+        <tspan x={textX}>
+          Unused steps:
+          <tspan x={unusedValueX} style={valueStyle}>
+            {formatStepsSinceUsed(counter?.stepsSinceLast, activationCount)}
+          </tspan>
         </tspan>
       )}
-      <tspan x={x} dy={showLastUsed ? 9.2 : 0}>
-        total: {activationCount}
+      <tspan x={textX} dy={showLastUsed ? fontSize + 2 : 0}>
+        Total uses:
+        <tspan x={totalValueX} style={valueStyle}>
+          {activationCount}
+        </tspan>
       </tspan>
     </text>
   );
@@ -2368,12 +2388,18 @@ const CodebookComparison = observer(function CodebookComparison({
           x={twoLevelIndexX + CODEBOOK_BLOCK.width / 2}
           y={250}
           counter={columnCounters.get("two-level-index")}
+          textOffsetX={-8}
+          fontSize={9.8}
+          unusedValueOffset={82}
+          totalValueOffset={66}
         />
         <CodebookColumnCounter
           x={twoLevelModuleX + CODEBOOK_BLOCK.width / 2}
           y={250}
           counter={columnCounters.get("two-level-module")}
           showLastUsed={false}
+          fontSize={9.8}
+          totalValueOffset={66}
         />
       </svg>
       <div className="hidden lg:block" aria-hidden="true" />
@@ -2505,11 +2531,13 @@ const CodebookComparison = observer(function CodebookComparison({
           x={topIndexX + CODEBOOK_BLOCK.width / 2}
           y={250}
           counter={columnCounters.get("multilevel-top-index")}
+          textOffsetX={-12}
         />
         <CodebookColumnCounter
           x={subIndexX + CODEBOOK_BLOCK.width / 2}
           y={250}
           counter={columnCounters.get("multilevel-sub-index")}
+          textOffsetX={-8}
         />
         <CodebookColumnCounter
           x={moduleX + CODEBOOK_BLOCK.width / 2}
@@ -3248,7 +3276,7 @@ function HierarchicalCodebooks() {
         </div>
         <div className={HIERARCHICAL_COMPARISON_GRID_CLASS}>
           <RawTopologyNetworkView
-            title="Two-level network"
+            title="Two-level partition"
             variant="two-level"
             walker={walkerNetwork.walker}
             hoveredTarget={hoveredTarget}
@@ -3262,7 +3290,7 @@ function HierarchicalCodebooks() {
             />
           </div>
           <RawTopologyNetworkView
-            title="Multilevel network"
+            title="Multilevel partition"
             variant="multilevel"
             walker={walkerNetwork.walker}
             hoveredTarget={hoveredTarget}
