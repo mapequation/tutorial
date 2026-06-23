@@ -44,6 +44,7 @@ const network = NetworkModel.parse(modular_w_json).setNodeExtents(
   [50, 650],
   [50, 700],
 );
+network.walker.setTeleportRate(0);
 
 function applyBadSolution(targetNetwork: NetworkModel) {
   targetNetwork.getNode(2)?.setTopModule(4);
@@ -246,7 +247,9 @@ type TwoTriangleTerm =
   | "node-5"
   | "node-6";
 
-type TwoTriangleHoverScope = "network" | "area" | "one-level" | "two-level";
+type TwoTriangleLevel = "one-level" | "two-level";
+type TwoTriangleHoverScope =
+  `${TwoTriangleLevel}-${"network" | "area" | "calculation"}`;
 
 interface TwoTriangleHoverState {
   term: TwoTriangleTerm;
@@ -396,6 +399,22 @@ const TWO_TRIANGLE_AREA_BLOCKS = [
     fill: scheme[1],
   },
 ] as const;
+const ONE_LEVEL_TRIANGLE_AREA_BLOCKS = [
+  {
+    id: "one-level",
+    label: "One-level codebook",
+    formula: "H(\\mathcal{P})",
+    useRateNumerator: "1",
+    useRateDenominator: "1",
+    entropy: "2.557",
+    entropyInline: "2.557",
+    contribution: "2.557 bits",
+    x: 78,
+    width: 605,
+    height: 145,
+    fill: neutralNodeColor,
+  },
+] as const;
 const TWO_TRIANGLE_AREA_SLICES = {
   "q-total": [
     {
@@ -471,6 +490,52 @@ const TWO_TRIANGLE_AREA_SLICES = {
       axisMain: "p",
       axisSub: "6",
       widthFraction: 2 / 8,
+    },
+  ],
+} as const;
+const ONE_LEVEL_TRIANGLE_AREA_SLICES = {
+  "one-level": [
+    {
+      id: "node-1",
+      label: "node 1",
+      axisMain: "p",
+      axisSub: "1",
+      widthFraction: 3 / 14,
+    },
+    {
+      id: "node-2",
+      label: "node 2",
+      axisMain: "p",
+      axisSub: "2",
+      widthFraction: 2 / 14,
+    },
+    {
+      id: "node-3",
+      label: "node 3",
+      axisMain: "p",
+      axisSub: "3",
+      widthFraction: 2 / 14,
+    },
+    {
+      id: "node-4",
+      label: "node 4",
+      axisMain: "p",
+      axisSub: "4",
+      widthFraction: 3 / 14,
+    },
+    {
+      id: "node-5",
+      label: "node 5",
+      axisMain: "p",
+      axisSub: "5",
+      widthFraction: 2 / 14,
+    },
+    {
+      id: "node-6",
+      label: "node 6",
+      axisMain: "p",
+      axisSub: "6",
+      widthFraction: 2 / 14,
     },
   ],
 } as const;
@@ -551,6 +616,10 @@ function getAreaBlockIdForTerm(term: TwoTriangleTerm | null) {
     return null;
   }
 
+  if (term === "one-level") {
+    return "one-level";
+  }
+
   if (
     term === "q-total" ||
     term === "h-q"
@@ -577,9 +646,10 @@ function getAreaBlockIdForTerm(term: TwoTriangleTerm | null) {
 
 function termHighlightsWidth(
   term: TwoTriangleTerm | null,
-  blockId: (typeof TWO_TRIANGLE_AREA_BLOCKS)[number]["id"],
+  blockId: TwoTriangleAreaBlockId,
 ) {
   return (
+    (blockId === "one-level" && term === "one-level") ||
     (blockId === "q-total" && term === "q-total") ||
     (blockId === "module-a" && term === "module-a") ||
     (blockId === "module-b" && term === "module-b")
@@ -588,9 +658,10 @@ function termHighlightsWidth(
 
 function termHighlightsHeight(
   term: TwoTriangleTerm | null,
-  blockId: (typeof TWO_TRIANGLE_AREA_BLOCKS)[number]["id"],
+  blockId: TwoTriangleAreaBlockId,
 ) {
   return (
+    (blockId === "one-level" && term === "one-level") ||
     (blockId === "q-total" && term === "h-q") ||
     (blockId === "module-a" && term === "h-pa") ||
     (blockId === "module-b" && term === "h-pb")
@@ -670,9 +741,23 @@ function SvgSubscriptLabel({
   );
 }
 
-type TwoTriangleAreaBlockId = (typeof TWO_TRIANGLE_AREA_BLOCKS)[number]["id"];
+type TwoTriangleAreaBlockId =
+  | (typeof ONE_LEVEL_TRIANGLE_AREA_BLOCKS)[number]["id"]
+  | (typeof TWO_TRIANGLE_AREA_BLOCKS)[number]["id"];
+
+function getTwoTriangleAreaSlices(blockId: TwoTriangleAreaBlockId) {
+  if (blockId === "one-level") {
+    return ONE_LEVEL_TRIANGLE_AREA_SLICES["one-level"];
+  }
+
+  return TWO_TRIANGLE_AREA_SLICES[blockId];
+}
 
 function getAreaWidthTerm(blockId: TwoTriangleAreaBlockId): TwoTriangleTerm {
+  if (blockId === "one-level") {
+    return "one-level";
+  }
+
   if (blockId === "q-total") {
     return "q-total";
   }
@@ -681,6 +766,10 @@ function getAreaWidthTerm(blockId: TwoTriangleAreaBlockId): TwoTriangleTerm {
 }
 
 function getAreaHeightTerm(blockId: TwoTriangleAreaBlockId): TwoTriangleTerm {
+  if (blockId === "one-level") {
+    return "one-level";
+  }
+
   if (blockId === "q-total") {
     return "h-q";
   }
@@ -703,6 +792,22 @@ function SvgUseRateLabel({
   fontSize?: number;
   fontWeight?: number;
 }) {
+  if (blockId === "one-level") {
+    return (
+      <text
+        x={x}
+        y={y}
+        textAnchor="middle"
+        fontSize={fontSize}
+        fontWeight={fontWeight}
+        fill={fill}
+        pointerEvents="none"
+      >
+        use rate
+      </text>
+    );
+  }
+
   const moduleLabel =
     blockId === "module-a" ? "A" : blockId === "module-b" ? "B" : null;
 
@@ -755,6 +860,24 @@ function SvgEntropyLabel({
   fontSize?: number;
   fontWeight?: number;
 }) {
+  if (blockId === "one-level") {
+    return (
+      <text
+        x={x}
+        y={y}
+        textAnchor="middle"
+        dominantBaseline="middle"
+        fontSize={fontSize}
+        fontWeight={fontWeight}
+        fill={fill}
+        transform={transform}
+        pointerEvents="none"
+      >
+        <tspan>H(P)=2.557</tspan>
+      </text>
+    );
+  }
+
   const moduleLabel =
     blockId === "module-a" ? "A" : blockId === "module-b" ? "B" : null;
   const value = blockId === "q-total" ? "1" : "1.906";
@@ -848,18 +971,25 @@ function EquationInfo({
 function TwoTriangleNetwork({
   activeTerm,
   setHoveredTerm,
+  variant = "two-level",
 }: {
   activeTerm: TwoTriangleTerm | null;
   setHoveredTerm: (term: TwoTriangleTerm | null) => void;
+  variant?: TwoTriangleLevel;
 }) {
-  const moduleAActive = termIsActive(activeTerm, "module-a", "h-pa");
-  const moduleBActive = termIsActive(activeTerm, "module-b", "h-pb");
-  const indexActive = termIsActive(activeTerm, "q-total", "h-q");
+  const isOneLevel = variant === "one-level";
+  const moduleAActive =
+    !isOneLevel && termIsActive(activeTerm, "module-a", "h-pa");
+  const moduleBActive =
+    !isOneLevel && termIsActive(activeTerm, "module-b", "h-pb");
+  const indexActive = !isOneLevel && termIsActive(activeTerm, "q-total", "h-q");
   const bridgeAHalfActive =
-    moduleAActive || indexActive || termIsActive(activeTerm, "exit-a", "enter-a");
+    !isOneLevel &&
+    (moduleAActive || indexActive || termIsActive(activeTerm, "exit-a", "enter-a"));
   const bridgeBHalfActive =
-    moduleBActive || indexActive || termIsActive(activeTerm, "exit-b", "enter-b");
-  const oneLevelActive = termIsActive(activeTerm, "one-level");
+    !isOneLevel &&
+    (moduleBActive || indexActive || termIsActive(activeTerm, "exit-b", "enter-b"));
+  const oneLevelActive = isOneLevel && termIsActive(activeTerm, "one-level");
   const activeDegreeNodeId = getNodeIdFromTwoTriangleTerm(activeTerm);
   const bridgeSource = TWO_TRIANGLE_NODE_POSITIONS[1];
   const bridgeTarget = TWO_TRIANGLE_NODE_POSITIONS[4];
@@ -877,18 +1007,22 @@ function TwoTriangleNetwork({
       role="img"
       aria-label="Two triangles connected by one bridge link"
     >
-      <polygon
-        points="230,145 95,65 95,225"
-        fill={scheme[0]}
-        fillOpacity={moduleAActive || oneLevelActive ? 0.2 : 0.09}
-        stroke="none"
-      />
-      <polygon
-        points="330,145 465,65 465,225"
-        fill={scheme[1]}
-        fillOpacity={moduleBActive || oneLevelActive ? 0.2 : 0.09}
-        stroke="none"
-      />
+      {!isOneLevel && (
+        <>
+          <polygon
+            points="230,145 95,65 95,225"
+            fill={scheme[0]}
+            fillOpacity={moduleAActive ? 0.2 : 0.09}
+            stroke="none"
+          />
+          <polygon
+            points="330,145 465,65 465,225"
+            fill={scheme[1]}
+            fillOpacity={moduleBActive ? 0.2 : 0.09}
+            stroke="none"
+          />
+        </>
+      )}
       {TWO_TRIANGLE_EDGES.map(([sourceId, targetId]) => {
         const source = TWO_TRIANGLE_NODE_POSITIONS[sourceId];
         const target = TWO_TRIANGLE_NODE_POSITIONS[targetId];
@@ -1007,8 +1141,20 @@ function TwoTriangleNetwork({
               cx={node.x}
               cy={node.y}
               r={active ? 20 : 17}
-              fill={node.module === "a" ? scheme[0] : scheme[1]}
-              stroke={active ? schemeAlt[node.module === "a" ? 0 : 1] : "#ffffff"}
+              fill={
+                isOneLevel
+                  ? neutralNodeColor
+                  : node.module === "a"
+                    ? scheme[0]
+                    : scheme[1]
+              }
+              stroke={
+                active
+                  ? isOneLevel
+                    ? neutralNodeColorAlt
+                    : schemeAlt[node.module === "a" ? 0 : 1]
+                  : "#ffffff"
+              }
               strokeWidth={active ? 3.2 : 2}
               opacity={active ? 1 : 0.94}
             />
@@ -1027,7 +1173,7 @@ function TwoTriangleNetwork({
           </g>
         );
       })}
-      {[
+      {!isOneLevel && [
         {
           id: "exit-a" as const,
           kind: "exit" as const,
@@ -1109,12 +1255,16 @@ function TwoTriangleNetwork({
           </g>
         );
       })}
-      <text x={140} y={282} textAnchor="middle" fontSize={13} fill="#4b5563">
-        Module A
-      </text>
-      <text x={420} y={282} textAnchor="middle" fontSize={13} fill="#4b5563">
-        Module B
-      </text>
+      {!isOneLevel && (
+        <>
+          <text x={140} y={282} textAnchor="middle" fontSize={13} fill="#4b5563">
+            Module A
+          </text>
+          <text x={420} y={282} textAnchor="middle" fontSize={13} fill="#4b5563">
+            Module B
+          </text>
+        </>
+      )}
     </svg>
   );
 }
@@ -1122,14 +1272,20 @@ function TwoTriangleNetwork({
 function TwoTriangleUseArea({
   activeTerm,
   setHoveredTerm,
+  variant = "two-level",
 }: {
   activeTerm: TwoTriangleTerm | null;
   setHoveredTerm: (term: TwoTriangleTerm | null) => void;
+  variant?: TwoTriangleLevel;
 }) {
   const baseline = 190;
   const xAxisLabelY = baseline + 13;
   const widthGuideY = baseline + 32;
   const useRateLabelY = baseline + 62;
+  const blocks =
+    variant === "one-level"
+      ? ONE_LEVEL_TRIANGLE_AREA_BLOCKS
+      : TWO_TRIANGLE_AREA_BLOCKS;
 
   return (
     <svg
@@ -1146,14 +1302,14 @@ function TwoTriangleUseArea({
         stroke="#d1d5db"
         strokeWidth={1.4}
       />
-      <text x={20} y={26} fontSize={13} fontWeight={800} fill="#4b5563">
+      <text x={20} y={14} fontSize={13} fontWeight={800} fill="#4b5563">
         Height = entropy
       </text>
-      <text x={165} y={26} fontSize={13} fontWeight={800} fill="#4b5563">
+      <text x={165} y={14} fontSize={13} fontWeight={800} fill="#4b5563">
         Width = codebook use rate
       </text>
-      {TWO_TRIANGLE_AREA_BLOCKS.map((block) => {
-        const blockId = block.id;
+      {blocks.map((block) => {
+        const blockId = block.id as TwoTriangleAreaBlockId;
         const blockIsTarget = getAreaBlockIdForTerm(activeTerm) === blockId;
         const active =
           blockIsTarget ||
@@ -1164,7 +1320,7 @@ function TwoTriangleUseArea({
         const widthTerm = getAreaWidthTerm(blockId);
         const heightTerm = getAreaHeightTerm(blockId);
         const y = baseline - block.height;
-        const slices = TWO_TRIANGLE_AREA_SLICES[blockId];
+        const slices = getTwoTriangleAreaSlices(blockId);
         const heightGuideX = block.x + block.width + 10;
         const heightLabelX = block.x + block.width + 23;
         const heightLabelY = y + block.height / 2;
@@ -1473,34 +1629,40 @@ function TwoTriangleCodelengthWalkthrough() {
     null,
   );
   const activeTerm = hoverState?.term ?? null;
-  const activeScope = hoverState?.scope ?? null;
-  const entropyFormulaActive =
-    activeScope !== "one-level" && termIsActive(activeTerm, "h-q", "h-pa", "h-pb");
+  const activeLevel = hoverState?.scope.startsWith("one-level")
+    ? "one-level"
+    : hoverState?.scope.startsWith("two-level")
+      ? "two-level"
+      : null;
+  const oneLevelActiveTerm = activeLevel === "one-level" ? activeTerm : null;
+  const twoLevelActiveTerm = activeLevel === "two-level" ? activeTerm : null;
   const setScopedHoveredTerm =
     (scope: TwoTriangleHoverScope) => (term: TwoTriangleTerm | null) => {
       setHoverState(term === null ? null : { term, scope });
     };
-  const networkTermProps = {
-    activeTerm,
-    setHoveredTerm: setScopedHoveredTerm("network"),
+  const oneLevelNetworkTermProps = {
+    activeTerm: oneLevelActiveTerm,
+    setHoveredTerm: setScopedHoveredTerm("one-level-network"),
   };
-  const areaTermProps = {
-    activeTerm: activeScope === "one-level" ? null : activeTerm,
-    setHoveredTerm: setScopedHoveredTerm("area"),
+  const oneLevelAreaTermProps = {
+    activeTerm: oneLevelActiveTerm,
+    setHoveredTerm: setScopedHoveredTerm("one-level-area"),
   };
   const oneLevelTermProps = {
-    activeTerm:
-      activeScope === "one-level" || activeScope === "network" ? activeTerm : null,
-    setHoveredTerm: setScopedHoveredTerm("one-level"),
+    activeTerm: oneLevelActiveTerm,
+    setHoveredTerm: setScopedHoveredTerm("one-level-calculation"),
+  };
+  const twoLevelNetworkTermProps = {
+    activeTerm: twoLevelActiveTerm,
+    setHoveredTerm: setScopedHoveredTerm("two-level-network"),
+  };
+  const twoLevelAreaTermProps = {
+    activeTerm: twoLevelActiveTerm,
+    setHoveredTerm: setScopedHoveredTerm("two-level-area"),
   };
   const twoLevelTermProps = {
-    activeTerm:
-      activeScope === "two-level" ||
-      activeScope === "area" ||
-      activeScope === "network"
-        ? activeTerm
-        : null,
-    setHoveredTerm: setScopedHoveredTerm("two-level"),
+    activeTerm: twoLevelActiveTerm,
+    setHoveredTerm: setScopedHoveredTerm("two-level-calculation"),
   };
 
   return (
@@ -1523,37 +1685,50 @@ function TwoTriangleCodelengthWalkthrough() {
         </p>
       </div>
 
-      <div className="grid gap-8 xl:grid-cols-[minmax(0,0.72fr)_minmax(0,1.28fr)] xl:items-start">
-        <div className="min-w-0">
-          <h4 className="mb-3 text-base font-semibold text-gray-900">
-            Two triangles, one bridge
-          </h4>
-          <TwoTriangleNetwork {...networkTermProps} />
+      <div className="space-y-4">
+        <h4 className="m-0 text-lg font-bold text-gray-900">
+          One-level partition
+        </h4>
+        <div className="grid gap-8 xl:grid-cols-[minmax(0,0.72fr)_minmax(0,1.28fr)] xl:items-start">
+          <div className="min-w-0">
+            <h5 className="mb-3 text-base font-semibold text-gray-900">
+              One shared network partition
+            </h5>
+            <TwoTriangleNetwork
+              {...oneLevelNetworkTermProps}
+              variant="one-level"
+            />
+          </div>
+          <div className="min-w-0">
+            <h5 className="mb-3 text-base font-semibold text-gray-900">
+              Area = one-level codelength
+            </h5>
+            <TwoTriangleUseArea
+              {...oneLevelAreaTermProps}
+              variant="one-level"
+            />
+          </div>
         </div>
-        <div className="min-w-0">
-          <h4 className="mb-3 text-base font-semibold text-gray-900">
-            Area = codelength contribution
-          </h4>
-          <TwoTriangleUseArea {...areaTermProps} />
-        </div>
-      </div>
-
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] xl:items-start">
         <div className="min-w-0 space-y-1.5">
           <h4 className="m-0 text-base font-semibold text-gray-900">
             One-level calculation
           </h4>
           <div className="mt-1 space-y-0.5">
               <div className="flex flex-wrap items-center gap-y-0 py-0 text-[0.95rem] leading-7 text-gray-900">
-                <EquationInfo explanation="The one-level codelength is the entropy of the full node-visit distribution P. With one shared codebook, every step is encoded by naming the next node from one global list.">
+                <FormulaTerm
+                  id="one-level"
+                  {...oneLevelTermProps}
+                  explanation="The one-level codelength is the entropy of the full node-visit distribution P. With one shared codebook, every step is encoded by naming the next node from one global list."
+                >
                   <TeX math="L_1=H(P)=" />
-                </EquationInfo>
-                <EquationInfo
-                  active={entropyFormulaActive}
+                </FormulaTerm>
+                <FormulaTerm
+                  id="one-level"
+                  {...oneLevelTermProps}
                   explanation="This is the entropy formula. We use this same calculation for H(P), H(Q), H(Pᴬ), and H(Pᴮ): multiply each probability by its log₂ code length contribution and add the terms."
                 >
                   <TeX math="-\sum_{\alpha}p_{\alpha}\log_2 p_{\alpha}" />
-                </EquationInfo>
+                </FormulaTerm>
               </div>
               <p className="m-0 text-sm leading-snug text-gray-600">
                 Hover equation parts for the counting behind each number. In
@@ -1671,7 +1846,32 @@ function TwoTriangleCodelengthWalkthrough() {
               </div>
           </div>
         </div>
+      </div>
 
+      <div className="space-y-4">
+        <h4 className="m-0 text-lg font-bold text-gray-900">
+          Two-level partition
+        </h4>
+        <div className="grid gap-8 xl:grid-cols-[minmax(0,0.72fr)_minmax(0,1.28fr)] xl:items-start">
+          <div className="min-w-0">
+            <h5 className="mb-3 text-base font-semibold text-gray-900">
+              Two module network partition
+            </h5>
+            <TwoTriangleNetwork
+              {...twoLevelNetworkTermProps}
+              variant="two-level"
+            />
+          </div>
+          <div className="min-w-0">
+            <h5 className="mb-3 text-base font-semibold text-gray-900">
+              Area = two-level codelength contributions
+            </h5>
+            <TwoTriangleUseArea
+              {...twoLevelAreaTermProps}
+              variant="two-level"
+            />
+          </div>
+        </div>
         <div className="min-w-0 space-y-1.5">
           <h4 className="m-0 text-base font-semibold text-gray-900">
             Two-level calculation
@@ -1726,7 +1926,7 @@ function TwoTriangleCodelengthWalkthrough() {
                 </FormulaTerm>
                 <TeX math="," />
                 <FormulaTerm id="enter-b" {...twoLevelTermProps}>
-                  <TeX math="Q_B=\frac{1}{2}" />
+                  <TeX math="Q_B=\frac{1}{14}\div\frac{2}{14}=\frac{1}{2}" />
                 </FormulaTerm>
                 <TeX math=",\quad" />
                 <FormulaTerm id="h-q" {...twoLevelTermProps}>
@@ -1734,10 +1934,9 @@ function TwoTriangleCodelengthWalkthrough() {
                 </FormulaTerm>
               </div>
               <p className="m-0 text-sm leading-snug text-gray-600">
-                Once module A&apos;s codebook is active, we only choose among A&apos;s
-                exit and node symbols. Dividing by
-                <TeX math="p_{\circlearrowright}^{A}" /> makes{" "}
-                <TeX math="P^A" /> sum to one.
+                Once a module codebook is active, we only choose among that
+                module&apos;s exit and node symbols. Dividing by its use rate
+                makes the local distribution sum to one.
               </p>
               <div className="flex flex-wrap items-center gap-y-0 py-0 text-[0.95rem] leading-7 text-gray-900">
                 <FormulaTerm id="module-a" {...twoLevelTermProps}>
@@ -1745,7 +1944,7 @@ function TwoTriangleCodelengthWalkthrough() {
                 </FormulaTerm>
                 <TeX math="," />
                 <FormulaTerm id="module-b" {...twoLevelTermProps}>
-                  <TeX math="p_{\circlearrowright}^{B}=\frac{8}{14}" />
+                  <TeX math="p_{\circlearrowright}^{B}=\frac{1}{14}+\frac{7}{14}=\frac{8}{14}" />
                 </FormulaTerm>
               </div>
               <div className="flex flex-wrap items-center gap-y-0 py-0 text-[0.95rem] leading-7 text-gray-900">
@@ -1822,7 +2021,37 @@ function TwoTriangleCodelengthWalkthrough() {
                 <FormulaTerm id="node-3" {...twoLevelTermProps}>
                   <TeX math="\frac{2}{8}\log_2(\frac{2}{8})" />
                 </FormulaTerm>
-                <TeX math="]=H(P^B)=1.906" />
+                <FormulaTerm id="h-pa" {...twoLevelTermProps}>
+                  <TeX math="]=1.906" />
+                </FormulaTerm>
+              </div>
+              <div className="flex flex-wrap items-center gap-y-0 py-0 text-[0.88rem] leading-7 text-gray-900">
+                <FormulaTerm id="h-pb" {...twoLevelTermProps}>
+                  <TeX math="H(P^B)" />
+                </FormulaTerm>
+                <TeX math="=-[" />
+                <FormulaTerm
+                  id="exit-b"
+                  {...twoLevelTermProps}
+                  explanation={getNormalizedExitExplanation("B")}
+                >
+                  <TeX math="\frac{1}{8}\log_2(\frac{1}{8})" />
+                </FormulaTerm>
+                <TeX math="+" />
+                <FormulaTerm id="node-4" {...twoLevelTermProps}>
+                  <TeX math="\frac{3}{8}\log_2(\frac{3}{8})" />
+                </FormulaTerm>
+                <TeX math="+" />
+                <FormulaTerm id="node-5" {...twoLevelTermProps}>
+                  <TeX math="\frac{2}{8}\log_2(\frac{2}{8})" />
+                </FormulaTerm>
+                <TeX math="+" />
+                <FormulaTerm id="node-6" {...twoLevelTermProps}>
+                  <TeX math="\frac{2}{8}\log_2(\frac{2}{8})" />
+                </FormulaTerm>
+                <FormulaTerm id="h-pb" {...twoLevelTermProps}>
+                  <TeX math="]=1.906" />
+                </FormulaTerm>
               </div>
               <div className="flex flex-wrap items-center gap-y-0 py-0 text-[0.95rem] leading-7 text-gray-900">
                 <EquationInfo explanation="This line substitutes the measured use rates and entropies into the two-level map equation. It turns the abstract equation into the predicted average bits per step.">
