@@ -1690,10 +1690,7 @@ function TwoTriangleCodelengthWalkthrough() {
           One-level partition
         </h4>
         <div className="grid gap-8 xl:grid-cols-[minmax(0,0.72fr)_minmax(0,1.28fr)] xl:items-start">
-          <div className="min-w-0">
-            <h5 className="mb-3 text-base font-semibold text-gray-900">
-              One shared network partition
-            </h5>
+          <div className="min-w-0 pt-9">
             <TwoTriangleNetwork
               {...oneLevelNetworkTermProps}
               variant="one-level"
@@ -1701,7 +1698,7 @@ function TwoTriangleCodelengthWalkthrough() {
           </div>
           <div className="min-w-0">
             <h5 className="mb-3 text-base font-semibold text-gray-900">
-              Area = one-level codelength
+              Area = codelength contributions
             </h5>
             <TwoTriangleUseArea
               {...oneLevelAreaTermProps}
@@ -1853,10 +1850,7 @@ function TwoTriangleCodelengthWalkthrough() {
           Two-level partition
         </h4>
         <div className="grid gap-8 xl:grid-cols-[minmax(0,0.72fr)_minmax(0,1.28fr)] xl:items-start">
-          <div className="min-w-0">
-            <h5 className="mb-3 text-base font-semibold text-gray-900">
-              Two module network partition
-            </h5>
+          <div className="min-w-0 pt-9">
             <TwoTriangleNetwork
               {...twoLevelNetworkTermProps}
               variant="two-level"
@@ -1864,7 +1858,7 @@ function TwoTriangleCodelengthWalkthrough() {
           </div>
           <div className="min-w-0">
             <h5 className="mb-3 text-base font-semibold text-gray-900">
-              Area = two-level codelength contributions
+              Area = codelength contributions
             </h5>
             <TwoTriangleUseArea
               {...twoLevelAreaTermProps}
@@ -2355,7 +2349,7 @@ export default function Main() {
         />
 
         <div className="grid gap-10 xl:grid-cols-2 xl:items-start">
-          <div className="min-w-0 space-y-8">
+          <div className="min-w-0 space-y-0">
             <div className="p-5">
               <h3 className="mb-4 text-lg font-bold">One-level reference</h3>
               <div className="mb-4">
@@ -2392,7 +2386,7 @@ export default function Main() {
               </Network>
             </div>
 
-            <div className="p-5">
+            <div className="-mt-24 p-5">
               <h3 className="mb-4 text-lg font-bold">Running code printer</h3>
               <div className="space-y-2">
                 <div className="min-w-0">
