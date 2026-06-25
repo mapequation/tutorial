@@ -2,7 +2,7 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [Demo_exjobb]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -19,8 +19,6 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: Demo_exjobb
 
       - uses: actions/configure-pages@v5
 
@@ -28,7 +26,7 @@ jobs:
         with:
           cache: npm
 
-      - run: npm i
+      - run: npm ci
 
       - run: npm run build
         env:
