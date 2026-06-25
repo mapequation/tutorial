@@ -1,3 +1,14 @@
+/**
+ * modular_wd: Sample directed weighted network in .net format.
+ * 
+ * A 25-node network demonstrating three distinct modules:
+ * - Nodes 1-10: First community (dense internal connections)
+ * - Nodes 11-18: Second community with some bridge connections
+ * - Nodes 19-25: Third community (linked back to first community)
+ * 
+ * Format: Pajek .net (vertices with labels, then weighted directed arcs)
+ * Use case: Testing algorithm behavior on known modular structure.
+ */
 const modular_wd = `*Vertices 25
  1 "1"   
  2 "2"   

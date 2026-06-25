@@ -1,4 +1,4 @@
-import { computed, makeObservable } from "mobx";
+import { computed, makeObservable, observable, action } from "mobx";
 import { scaleLinear } from "d3"
 import Link from "./Link";
 import Node from "./Node";
@@ -20,6 +20,15 @@ import {
 
 type Id = number;
 
+/**
+ * Core `Network` model.
+ *
+ * Represents the topology (nodes and links) and owns several analysis
+ * utilities used in the demo: a random walker, page-rank visit rate
+ * estimator, a Map Equation calculator, a Huffman coder, and a voter used
+ * by iterative algorithms. The class provides helpers for parsing,
+ * coordinate scaling and basic aggregate queries.
+ */
 export default class Network {
   private _nodes: Map<Id, Node> = new Map();
   links: Link[] = [];
@@ -32,10 +41,12 @@ export default class Network {
   visitRates: PageRank;
   voter: IterativeVoter;
   coder: HuffmanCoder;
+  treeUpdateCounter = 0;
 
   constructor(flowModel: FlowModel = FlowModel.Directed) {
     this.flowModel = flowModel;
 
+    // Instantiate analysis helpers bound to this network.
     this.tree = new Tree(this);
     this.walker = new RandomWalker(this);
     this.mapequation = new MapEquation(this.tree);
@@ -44,19 +55,38 @@ export default class Network {
     this.coder = new HuffmanCoder(this);
 
     makeObservable(this, {
+      tree: observable,
+      treeUpdateCounter: observable,
+      finalize: action,
       haveModules: computed,
     });
   }
 
+  /**
+   * Finalize derived state after the network has been constructed or
+   * modified. This triggers visit-rate calculation, tree updates, map
+   * equation calculation, coding and voter initialization so downstream
+   * consumers (UI, visualizations) have consistent derived data.
+   * 
+   * Marked as @action so MobX observers detect all state changes made during
+   * finalization, including tree and code updates.
+   */
   finalize() {
     this.visitRates.calculate();
     this.tree.update()
     this.mapequation.calculate()
     this.coder.code();
     this.voter.initialize();
+    // Increment counter to notify observers that tree has been updated
+    this.treeUpdateCounter++;
     return this;
   }
 
+  /**
+   * Map raw node coordinate ranges into a target SVG coordinate range using
+   * linear scaling. This keeps layout logic in the model and allows the
+   * visualization to assume screen-space coordinates.
+   */
   setNodeExtents(xRange: number[], yRange: number[]) {
     const xDomain = [Infinity, -Infinity];
     const yDomain = [Infinity, -Infinity];
@@ -153,6 +183,11 @@ export default class Network {
     return n;
   };
 
+  /**
+   * Add a link to the network. For undirected networks we also add the
+   * reversed counterpart to the target node's link list. Duplicate links
+   * are merged by increasing weight.
+   */
   addLink = ({ source, target, weight = 1.0 }: {
     source: number;
     target: number;

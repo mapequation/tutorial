@@ -2,6 +2,10 @@ import { observer } from "mobx-react";
 import { animated, to, useSpring } from "react-spring";
 import { RandomWalker } from "../../model/algorithms";
 
+/**
+ * Constructs an SVG path representing a "squishy" walker glyph that points
+ * in the direction of movement and animates between positions.
+ */
 const path = (
   x1: number,
   y1: number,
@@ -45,6 +49,11 @@ interface Props {
   squishy?: boolean;
 }
 
+/**
+ * `Walker` renders an animated glyph representing the random walker on the network.
+ * Uses `react-spring` for smooth transitions and supports a "squishy" animated
+ * mode where the glyph morphs as it moves, or a simple circle mode.
+ */
 function Walker({
   walker,
   r = 10,

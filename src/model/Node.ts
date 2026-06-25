@@ -8,16 +8,25 @@ interface Params {
   x?: number;
   y?: number;
   name?: string;
-  path?: string;
+  path?: string | number[];
   flow?: number;
 }
 
+/**
+ * Model for a single network node.
+ *
+ * Stores layout coordinates, connectivity (outgoing links and neighbors),
+ * module assignment (`topModule`), and runtime statistics used by the
+ * visualization (visit counts, flow). Many fields are observable (MobX)
+ * so UI components can react to updates from walkers and iterative
+ * algorithms.
+ */
 export default class Node implements SimulationNodeDatum {
   id: number;
   name: string;
-  private readonly path: number[];
+  private pathSegments: number[];
   topModule: number = 0;
-  private readonly initialModule: number;
+  private readonly initialPath: number[];
   outLinks: Link[] = [];
   neighbors: Node[] = [];
 
@@ -44,6 +53,7 @@ export default class Node implements SimulationNodeDatum {
       visits: observable,
       voteRate: observable,
       topModule: observable,
+      setPath: action,
       setTopModule: action,
       setInitialModule: action,
       visitRate: computed,
@@ -54,18 +64,44 @@ export default class Node implements SimulationNodeDatum {
     this.x = x;
     this.y = y;
     this.name = name || id.toString();
-    this.path = path.split(":").map(Number);
-    this.topModule = this.path[0];
-    this.initialModule = this.topModule;
+    this.pathSegments = Node.parsePath(path);
+    this.initialPath = [...this.pathSegments];
+    this.topModule = this.pathSegments[0];
     this.flow = flow;
   }
 
+  private static parsePath(path: string | number[]): number[] {
+    const rawSegments = Array.isArray(path)
+      ? path
+      : path
+          .split(":")
+          .map((value) => Number(value.trim()))
+          .filter((value) => Number.isFinite(value));
+
+    return rawSegments.length > 0 ? [...rawSegments] : [0];
+  }
+
+  get path(): number[] {
+    return [...this.pathSegments];
+  }
+
+  get pathString(): string {
+    return this.pathSegments.join(":");
+  }
+
+  setPath(path: string | number[]) {
+    this.pathSegments = Node.parsePath(path);
+    this.topModule = this.pathSegments[0];
+  }
+
   setTopModule(module: number) {
-    this.topModule = module;
+    const nextPath = this.pathSegments.length > 0 ? [...this.pathSegments] : [0];
+    nextPath[0] = module;
+    this.setPath(nextPath);
   }
 
   setInitialModule() {
-    this.topModule = this.initialModule;
+    this.setPath(this.initialPath);
   }
 
   get code(): string {
@@ -113,6 +149,10 @@ export default class Node implements SimulationNodeDatum {
     if (!found) this.neighbors.push(node)
   }
 
+  /**
+   * Choose an outgoing link using the link weights as probabilities.
+   * Returns `null` if there are no outgoing links.
+   */
   randomLink(): Link | null {
     const weights = this.outLinks.map((link) => link.weight);
     const i = weightedRandom(weights);

@@ -1,72 +1,138 @@
 @import url("https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,100;0,300;0,400;0,700;0,900;1,100;1,300;1,400;1,700;1,900&family=Philosopher:ital,wght@0,400;0,700;1,400;1,700&display=swap");
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
-@layer base {
+/* Base Styles */
+:root {
+  --base-path: "/map-demo";
+}
+
+body {
+  background-color: #f8f6f1;
+  background-image: var(--bg-noise-url);
+  background-size: 50px 50px;
+  color: #4b5563;
+  line-height: 1.625;
+  overflow-x: hidden;
+}
+
+@media (min-width: 1280px) {
   body {
-    @apply bg-noise bg-50 text-gray-700 leading-relaxed xl:leading-relaxed
+    line-height: 1.75;
   }
+}
 
-  strong {
-    @apply tracking-wide
-  }
+strong {
+  letter-spacing: 0.05em;
+}
 
-  h1, h2, h3, h4 {
-    @apply font-bold tracking-wide text-gray-900 leading-snug
-  }
+h1,
+h2,
+h3,
+h4 {
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: #111827;
+  line-height: 1.375;
+}
 
+h1 {
+  font-size: 2.25rem;
+  margin: 3rem 0;
+}
+
+@media (min-width: 768px) {
   h1 {
-    @apply text-4xl md:text-5xl my-12
+    font-size: 3rem;
   }
+}
 
+h2 {
+  font-size: 1.875rem;
+  margin: 2.5rem 0;
+}
+
+@media (min-width: 768px) {
   h2 {
-    @apply text-3xl md:text-4xl my-10
-  }
-
-  p {
-    @apply my-5
-  }
-
-  a {
-    @apply text-brand
+    font-size: 2.25rem;
   }
 }
 
-@layer components {
-  .button {
-    @apply px-4 py-2 text-base font-medium tracking-wide
-    rounded-xl shadow
-    bg-white text-gray-800
-    border border-gray-600
-    hover:border-gray-400 hover:text-gray-500
-    active:bg-gray-50
-  }
-
-  .button--primary {
-    @apply shadow-lg
-  }
+p {
+  margin: 1.25rem 0;
 }
 
-@layer utilities {
-  .filter-grayscale-25 {
-    filter: grayscale(25%);
-  }
+a {
+  color: #b22222;
+}
 
-  .filter-grayscale-50 {
-    filter: grayscale(50%);
-  }
+/* Button Styles */
+.button {
+  padding: 0.5rem 1rem;
+  font-size: 1rem;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  border-radius: 0.75rem;
+  background-color: white;
+  color: #1f2937;
+  border: 1px solid #4b5563;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+}
 
-  .filter-grayscale-75 {
-    filter: grayscale(75%);
-  }
+.button:hover {
+  border-color: #9ca3af;
+  color: #6b7280;
+}
 
-  .filter-grayscale {
-    filter: grayscale(100%);
-  }
+.button:active {
+  background-color: #f9fafb;
+}
 
-  .-word-spacing-7 {
-    word-spacing: -7px;
-  }
+.button--primary {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+}
+
+/* GPU Acceleration for SVG animations */
+.network,
+.rateView {
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  perspective: 1000px;
+}
+
+/* Optimize animated SVG elements */
+circle,
+path,
+line,
+rect {
+  will-change: auto;
+}
+
+circle.node,
+path[class*="path"],
+line.link {
+  will-change: opacity, r, d, x1, y1, x2, y2;
+}
+
+/* Custom Utilities */
+.filter-grayscale-25 {
+  filter: grayscale(25%);
+}
+
+.filter-grayscale-50 {
+  filter: grayscale(50%);
+}
+
+.filter-grayscale-75 {
+  filter: grayscale(75%);
+}
+
+.filter-grayscale {
+  filter: grayscale(100%);
+}
+
+.-word-spacing-7 {
+  word-spacing: -7px;
 }

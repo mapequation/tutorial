@@ -1,0 +1,631 @@
+/**
+ * InteractiveNetwork wraps the Network component with direct selection capability.
+ * Users can draw a free-hand lasso on the network visualization itself to select and
+ * reassign nodes to communities.
+ */
+
+import React, { useRef, useState, useCallback, useMemo } from "react";
+import type { Network as NetworkModel, Node as NodeModel } from "../model";
+import { observer } from "mobx-react";
+import { scaleSqrt } from "d3";
+import { getRate, Rate } from "../model";
+import { neutralLinkColor } from "./scheme";
+import Network from "./Network/Network";
+import HelpTooltip from "./HelpTooltip";
+
+interface Props {
+  network: NetworkModel;
+  numCommunities: number;
+  scheme: Record<number, string>;
+  schemeAlt?: Record<number, string>;
+  activeCommunity?: number;
+  onActiveCommunityChange?: (community: number) => void;
+  showCommunitySelector?: boolean;
+  communitySelectorPlacement?: "top" | "bottom" | "overlay";
+  communitySelectorOverlay?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+  communitySelectorScale?: number;
+  topContent?: React.ReactNode;
+  showFeedback?: boolean;
+  showInstructions?: boolean;
+  showLabels?: boolean;
+  showModules?: boolean;
+  showNodeId?: boolean;
+  nodeIdLayer?: "inline" | "top";
+  showVisiting?: boolean;
+  rate?: any;
+  width?: number;
+  height?: number;
+  scaleLinksByWeight?: boolean;
+  getNodeIdFill?: (node: NodeModel, fill: string) => string;
+  showPajekCopyButton?: boolean;
+  underlayChildren?: React.ReactNode;
+  children?: React.ReactNode;
+}
+
+function serializeNetworkToPajek(network: NetworkModel) {
+  const vertices = network.nodes
+    .slice()
+    .sort((left, right) => left.id - right.id)
+    .map((node) => `${node.id} "${node.name || node.id}"`);
+  const edges = network.links
+    .slice()
+    .sort((left, right) =>
+      left.source.id === right.source.id
+        ? left.target.id - right.target.id
+        : left.source.id - right.source.id,
+    )
+    .map((link) => `${link.source.id} ${link.target.id} ${link.weight}`);
+
+  return [
+    `*Vertices ${network.numNodes}`,
+    ...vertices,
+    network.directed ? "*Arcs" : "*Edges",
+    ...edges,
+  ].join("\n");
+}
+
+/**
+ * InteractiveNetwork component that allows direct selection on the network SVG.
+ * Features:
+ * - Community selector buttons (0-n)
+ * - Draw a free-hand lasso on the network to select nodes
+ * - Assign selected nodes to active community
+ * - Visual feedback with lasso and success messages
+ */
+export default observer(function InteractiveNetwork({
+  network,
+  numCommunities,
+  scheme,
+  schemeAlt,
+  activeCommunity,
+  onActiveCommunityChange,
+  showCommunitySelector = true,
+  communitySelectorPlacement = "top",
+  communitySelectorOverlay,
+  communitySelectorScale = 1,
+  topContent,
+  showFeedback = true,
+  showInstructions = true,
+  showLabels = false,
+  showModules = false,
+  showNodeId = true,
+  nodeIdLayer = "inline",
+  showVisiting = true,
+  rate,
+  width = 800,
+  height = 800,
+  scaleLinksByWeight = false,
+  getNodeIdFill,
+  showPajekCopyButton = false,
+  underlayChildren,
+  children,
+}: Props) {
+  const svgRef = useRef<SVGSVGElement>(null);
+  const lassoPointsRef = useRef<[number, number][]>([]);
+  const [uncontrolledActiveCommunity, setUncontrolledActiveCommunity] =
+    useState(0);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [lassoPoints, setLassoPoints] = useState<[number, number][]>([]);
+  const [selectedNodes, setSelectedNodes] = useState<Set<number>>(new Set());
+  const [feedback, setFeedback] = useState<string>("");
+  const [pajekCopyStatus, setPajekCopyStatus] = useState<
+    "idle" | "copied" | "failed"
+  >("idle");
+  const currentActiveCommunity = activeCommunity ?? uncontrolledActiveCommunity;
+  const setCurrentActiveCommunity = useCallback(
+    (community: number) => {
+      if (activeCommunity === undefined) {
+        setUncontrolledActiveCommunity(community);
+      }
+      onActiveCommunityChange?.(community);
+    },
+    [activeCommunity, onActiveCommunityChange],
+  );
+
+  // Node radius scale (same as in Network component)
+  const nodeScale = useMemo(
+    () => scaleSqrt().domain([0, 1]).range([10, 100]),
+    [],
+  );
+
+  // Use exact same radius calculation as Network component
+  const getNodeRate = useMemo(() => getRate(rate), [rate]);
+
+  const getNodeRadius = useCallback(
+    (node: NodeModel): number => {
+      return nodeScale(getNodeRate(node));
+    },
+    [nodeScale, getNodeRate],
+  );
+
+  /**
+   * Get the SVG's bounding rectangle and mouse position in SVG coordinates.
+   * SVG uses viewBox, so we need to convert screen coords to viewBox coords.
+   * Clamps coordinates to stay strictly within SVG bounds.
+   */
+  const getSVGCoordinates = useCallback(
+    (clientX: number, clientY: number): [number, number] | null => {
+      if (!svgRef.current) return null;
+
+      const svg = svgRef.current;
+      const rect = svg.getBoundingClientRect();
+      const scaleX = svg.viewBox.baseVal.width / rect.width;
+      const scaleY = svg.viewBox.baseVal.height / rect.height;
+
+      let x = (clientX - rect.left) * scaleX + svg.viewBox.baseVal.x;
+      let y = (clientY - rect.top) * scaleY + svg.viewBox.baseVal.y;
+
+      // Clamp to SVG viewBox bounds
+      const minX = svg.viewBox.baseVal.x;
+      const maxX = svg.viewBox.baseVal.x + svg.viewBox.baseVal.width;
+      const minY = svg.viewBox.baseVal.y;
+      const maxY = svg.viewBox.baseVal.y + svg.viewBox.baseVal.height;
+
+      x = Math.max(minX, Math.min(maxX, x));
+      y = Math.max(minY, Math.min(maxY, y));
+
+      return [x, y];
+    },
+    [],
+  );
+
+  // Setup global mouse tracking
+  React.useEffect(() => {
+    if (!isDrawing) return;
+
+    const handleGlobalMouseMove = (e: MouseEvent) => {
+      // Prevent text selection while drawing
+      e.preventDefault();
+
+      const coords = getSVGCoordinates(e.clientX, e.clientY);
+      if (!coords) return;
+
+      lassoPointsRef.current.push(coords);
+
+      if (lassoPointsRef.current.length % 3 === 0) {
+        setLassoPoints([...lassoPointsRef.current]);
+
+        if (lassoPointsRef.current.length >= 3) {
+          const nodesInLasso = network.nodes
+            .filter((node) =>
+              isCircleIntersectingPolygon(
+                [node.x, node.y],
+                getNodeRadius(node),
+                lassoPointsRef.current,
+              ),
+            )
+            .map((node) => node.id);
+          setSelectedNodes(new Set(nodesInLasso));
+        }
+      }
+    };
+
+    const handleGlobalMouseUp = () => {
+      setIsDrawing(false);
+
+      if (lassoPointsRef.current.length < 3) {
+        setLassoPoints([]);
+        lassoPointsRef.current = [];
+        return;
+      }
+
+      const selectedNodes = network.nodes.filter((node) =>
+        isCircleIntersectingPolygon(
+          [node.x, node.y],
+          getNodeRadius(node),
+          lassoPointsRef.current,
+        ),
+      );
+
+      setLassoPoints([]);
+      lassoPointsRef.current = [];
+      setSelectedNodes(new Set());
+
+      if (selectedNodes.length === 0) {
+        setFeedback("No nodes selected");
+        setTimeout(() => setFeedback(""), 2000);
+        return;
+      }
+
+      selectedNodes.forEach((node) => {
+        node.setTopModule(currentActiveCommunity);
+      });
+
+      network.finalize();
+
+      setFeedback(
+        `✓ Assigned ${selectedNodes.length} node(s) to community ${currentActiveCommunity}`,
+      );
+      setTimeout(() => setFeedback(""), 2000);
+    };
+
+    const handleSelectStart = (e: Event) => {
+      e.preventDefault();
+    };
+
+    document.addEventListener("mousemove", handleGlobalMouseMove);
+    document.addEventListener("mouseup", handleGlobalMouseUp);
+    document.addEventListener("selectstart", handleSelectStart);
+
+    return () => {
+      document.removeEventListener("mousemove", handleGlobalMouseMove);
+      document.removeEventListener("mouseup", handleGlobalMouseUp);
+      document.removeEventListener("selectstart", handleSelectStart);
+    };
+  }, [
+    isDrawing,
+    network,
+    getNodeRadius,
+    currentActiveCommunity,
+    getSVGCoordinates,
+    getNodeRate,
+  ]);
+
+  /**
+   * Check if a point is inside a polygon using ray casting algorithm.
+   */
+  const isPointInPolygon = (
+    point: [number, number],
+    polygon: [number, number][],
+  ): boolean => {
+    const [x, y] = point;
+    let inside = false;
+
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+      const [xi, yi] = polygon[i];
+      const [xj, yj] = polygon[j];
+
+      if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) {
+        inside = !inside;
+      }
+    }
+    return inside;
+  };
+
+  /**
+   * Check if a circle intersects with a polygon.
+   * Returns true if ANY of these conditions are met:
+   * 1. Circle center is inside the polygon
+   * 2. Any polygon vertex is inside the circle
+   * 3. Any polygon edge intersects the circle
+   */
+  const isCircleIntersectingPolygon = (
+    center: [number, number],
+    radius: number,
+    polygon: [number, number][],
+  ): boolean => {
+    const [cx, cy] = center;
+    const radiusSq = radius * radius;
+
+    // Check 1: Is center inside polygon?
+    if (isPointInPolygon(center, polygon)) return true;
+
+    // Check 2: Is any polygon vertex inside circle?
+    for (const [vx, vy] of polygon) {
+      const dx = vx - cx;
+      const dy = vy - cy;
+      if (dx * dx + dy * dy < radiusSq) return true;
+    }
+
+    // Check 3: Does any polygon edge intersect the circle?
+    for (let i = 0; i < polygon.length; i++) {
+      const [x1, y1] = polygon[i];
+      const [x2, y2] = polygon[(i + 1) % polygon.length];
+
+      const dx = x2 - x1;
+      const dy = y2 - y1;
+      const lengthSq = dx * dx + dy * dy;
+
+      if (lengthSq === 0) continue; // Skip degenerate edges
+
+      // Find closest point on edge to circle center
+      const t = Math.max(
+        0,
+        Math.min(1, ((cx - x1) * dx + (cy - y1) * dy) / lengthSq),
+      );
+      const closestX = x1 + t * dx;
+      const closestY = y1 + t * dy;
+
+      const distX = cx - closestX;
+      const distY = cy - closestY;
+      if (distX * distX + distY * distY < radiusSq) return true;
+    }
+
+    return false;
+  };
+
+  /**
+   * Start drawing lasso on mouse down.
+   */
+  const handleMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
+    // Don't start selection if clicking on interactive elements
+    if (
+      (e.target as SVGElement).tagName === "circle" ||
+      (e.target as SVGElement).tagName === "text"
+    ) {
+      return;
+    }
+
+    const coords = getSVGCoordinates(e.clientX, e.clientY);
+    if (!coords) return;
+
+    lassoPointsRef.current = [coords];
+    setIsDrawing(true);
+  };
+
+  /**
+   * Convert lasso points to SVG path string.
+   */
+  const getPathString = (points: [number, number][]): string => {
+    if (points.length === 0) return "";
+    return "M " + points.map(([x, y]) => `${x},${y}`).join(" L ") + ` Z`;
+  };
+
+  const getButtonStyle = useCallback(
+    (i: number) => {
+      const isSelected = i === currentActiveCommunity;
+      const selectedBorderColor = schemeAlt?.[i] ?? scheme[i];
+
+      return {
+        width: "2rem",
+        height: "2rem",
+        border: `3px solid ${isSelected ? selectedBorderColor : "transparent"}`,
+        borderRadius: "0.25rem",
+        cursor: "pointer",
+        transition: "border-color 0.15s",
+        fontWeight: "bold" as const,
+        fontSize: "0.75rem",
+        color: "#fff",
+        backgroundColor: scheme[i],
+        boxShadow: "none",
+      };
+    },
+    [currentActiveCommunity, scheme, schemeAlt],
+  );
+
+  const pajekNetwork = useMemo(
+    () => serializeNetworkToPajek(network),
+    [network, network.treeUpdateCounter],
+  );
+
+  const handleCopyPajek = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(pajekNetwork);
+      setPajekCopyStatus("copied");
+      window.setTimeout(() => setPajekCopyStatus("idle"), 1500);
+    } catch {
+      setPajekCopyStatus("failed");
+      window.setTimeout(() => setPajekCopyStatus("idle"), 2000);
+    }
+  }, [pajekNetwork]);
+
+  const getLabel = useCallback(
+    (node: NodeModel) =>
+      showModules && network.treeUpdateCounter
+        ? (node.code ?? "")
+        : (undefined as any),
+    [showModules, network.treeUpdateCounter],
+  ) as any;
+  const communitySelectorHelp =
+    "Select a community color, then click, hold, and drag a free-hand lasso around nodes. Release to assign the selected nodes to the active community. The codelength updates after the partition changes.";
+  const overlaySelector = communitySelectorOverlay ?? {
+    x: Math.max(20, width - 500),
+    y: Math.max(20, height - 180),
+    width: 470,
+    height: 120,
+  };
+
+  const communitySelector = (
+    <div
+      style={{
+        display: "flex",
+        gap: "0.5rem",
+        flexWrap: "wrap",
+        alignItems: "center",
+        lineHeight: 1,
+        transform: `scale(${communitySelectorScale})`,
+        transformOrigin: "top left",
+      }}
+    >
+      <strong style={{ display: "inline-flex", alignItems: "center", height: "2rem" }}>
+        Select Community:
+      </strong>
+      <div
+        style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}
+      >
+        {Array.from({ length: numCommunities }).map((_, i) => (
+          <button
+            key={i}
+            style={getButtonStyle(i)}
+            onClick={() => setCurrentActiveCommunity(i)}
+            title={`Community ${i}`}
+          >
+            {i}
+          </button>
+        ))}
+      </div>
+      <span style={{ display: "inline-flex", alignItems: "center", height: "2rem" }}>
+        <HelpTooltip content={communitySelectorHelp} />
+      </span>
+    </div>
+  );
+  const copyPajekButton = (
+    <button
+      type="button"
+      onClick={handleCopyPajek}
+      style={{
+        width: "5.6rem",
+        minHeight: "1.7rem",
+        border: "1px solid #4b5563",
+        borderRadius: "0.45rem",
+        backgroundColor: "#ffffff",
+        boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
+        color: "#1f2937",
+        cursor: "pointer",
+        fontSize: "0.68rem",
+        fontWeight: 700,
+        lineHeight: 1,
+        padding: "0.2rem 0.3rem",
+        textAlign: "center",
+      }}
+    >
+      {pajekCopyStatus === "copied"
+        ? "Copied"
+        : pajekCopyStatus === "failed"
+          ? "Failed"
+          : "Copy Pajek"}
+    </button>
+  );
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+      {topContent && <div>{topContent}</div>}
+
+      {/* Community selector buttons */}
+      {showCommunitySelector &&
+        communitySelectorPlacement === "top" &&
+        communitySelector}
+
+      {/* Network with selection overlay */}
+      <div
+        style={{ position: "relative", display: "inline-block", width: "100%" }}
+      >
+        <svg
+          ref={svgRef}
+          style={{
+            cursor: "crosshair",
+            width: "100%",
+            height: "auto",
+            display: "block",
+            userSelect: "none",
+            overflow: "visible",
+          }}
+          viewBox={`0 0 ${width} ${height}`}
+          xmlns="http://www.w3.org/2000/svg"
+          onMouseDown={handleMouseDown}
+        >
+          <defs>
+            <marker
+              id="arrow"
+              markerWidth="10"
+              markerHeight="10"
+              refX="9"
+              refY="3"
+              orient="auto"
+              markerUnits="strokeWidth"
+            >
+              <path d="M0,0 L0,6 L9,3 z" fill={neutralLinkColor} />
+            </marker>
+          </defs>
+
+          {/* Render the network content */}
+          <Network
+            network={network}
+            scheme={Object.values(scheme)}
+            schemeAlt={schemeAlt ? Object.values(schemeAlt) : undefined}
+            rate={rate}
+            showLabels={showLabels}
+            showModules={showModules}
+            showNodeId={showNodeId}
+            nodeIdLayer={nodeIdLayer}
+            colorIntraModuleLinks={true}
+            showVisiting={showVisiting}
+            width={width}
+            height={height}
+            scaleLinksByWeight={scaleLinksByWeight}
+            getLabel={getLabel}
+            getNodeIdFill={getNodeIdFill}
+            selectedNodeIds={isDrawing ? selectedNodes : undefined}
+            underlayChildren={underlayChildren}
+          >
+            {children}
+          </Network>
+
+          {showCommunitySelector && communitySelectorPlacement === "overlay" && (
+            <foreignObject
+              x={overlaySelector.x}
+              y={overlaySelector.y}
+              width={overlaySelector.width}
+              height={overlaySelector.height}
+            >
+              <div
+                onMouseDown={(event) => event.stopPropagation()}
+                onClick={(event) => event.stopPropagation()}
+                style={{
+                  pointerEvents: "auto",
+                  fontSize: "1rem",
+                  color: "#111827",
+                }}
+              >
+                {communitySelector}
+              </div>
+            </foreignObject>
+          )}
+
+          {showPajekCopyButton && (
+            <foreignObject
+              x={Math.max(0, width - 112)}
+              y={16}
+              width={100}
+              height={40}
+            >
+              <div
+                onMouseDown={(event) => event.stopPropagation()}
+                onClick={(event) => event.stopPropagation()}
+                style={{ pointerEvents: "auto" }}
+              >
+                {copyPajekButton}
+              </div>
+            </foreignObject>
+          )}
+
+          {/* Draw lasso while dragging */}
+          {lassoPoints.length > 0 && (
+            <>
+              {/* Filled polygon showing selection area */}
+              <path
+                d={getPathString(lassoPoints)}
+                fill="rgba(100, 150, 255, 0.1)"
+                stroke="#4a7ff7"
+                strokeWidth="2"
+                strokeDasharray="5,3"
+                style={{ pointerEvents: "none" }}
+              />
+            </>
+          )}
+        </svg>
+      </div>
+
+      {showCommunitySelector && communitySelectorPlacement === "bottom" && (
+        <div style={{ marginTop: "-0.75rem" }}>{communitySelector}</div>
+      )}
+
+      {/* Feedback message */}
+      {showFeedback && (
+        <div
+          aria-live="polite"
+          style={{
+            color: "#2d5f2e",
+            fontWeight: 500,
+            minHeight: "1.25rem",
+          }}
+        >
+          {feedback || "\u00A0"}
+        </div>
+      )}
+
+      {/* Instructions */}
+      {showInstructions && (
+        <div style={{ color: "#666", fontSize: "0.8rem" }}>
+          Select a community, then click, hold, and drag a lasso around nodes.
+          Release to assign the selected nodes.
+        </div>
+      )}
+    </div>
+  );
+});

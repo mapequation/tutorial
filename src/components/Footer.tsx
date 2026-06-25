@@ -1,5 +1,8 @@
 import { HTMLProps } from "react";
 
+/**
+ * Small link item in a footer navigation list.
+ */
 const ListLink = ({ children, ...props }: HTMLProps<HTMLAnchorElement>) => (
   <li>
     <a className="inline-block px-10 py-2 hover:text-gray-600" {...props}>
@@ -8,6 +11,10 @@ const ListLink = ({ children, ...props }: HTMLProps<HTMLAnchorElement>) => (
   </li>
 );
 
+/**
+ * Site footer component. Displays links to mapequation.org, contact page,
+ * and GitHub.
+ */
 export default function Footer() {
   return (
     <footer className="mt-96 h-52 py-10">

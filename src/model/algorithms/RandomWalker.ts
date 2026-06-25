@@ -1,55 +1,126 @@
+/**
+ * RandomWalker performs random walk simulation on a network.
+ *
+ * Simulates a walker that moves through the network by randomly selecting
+ * neighbors weighted by link strength. Supports teleportation (jumping to random
+ * nodes) based on the teleport rate. Tracks the path taken and supports both
+ * continuous (interval-based) and manual stepping modes.
+ *
+ * Key capabilities:
+ * - Random neighbor selection weighted by link strengths
+ * - Teleportation with configurable rate and model (recorded/unrecorded)
+ * - Continuous animation via setInterval or manual stepping
+ * - Full trace history up to 200 steps; visible trace limited to 50 steps
+ * - Observable state (MobX) for reactive UI updates
+ */
 import { action, computed, makeObservable, observable } from "mobx";
 import { Teleportation } from "../enums";
 import { weightedRandom } from "../helpers";
 import { DEFAULT_TELEPORT_MODEL, DEFAULT_TELEPORT_RATE } from ".";
+import { performanceMonitor } from "../../utils/performance";
 import type Network from "../Network";
 import type Node from "../Node";
+import type { TreeNode } from "./Tree";
+
+export interface CodelengthHistoryPoint {
+  step: number;
+  oneLevelBits: number;
+  twoLevelBits: number;
+  hierarchicalBits: number;
+}
+
+export interface WalkerCodeSegment {
+  kind: "enter" | "exit" | "visit";
+  level: number;
+  code: string;
+  modulePath: number[];
+  nodeId?: number;
+}
+
+export interface WalkerEncodedStep {
+  step: number;
+  nodeId: number;
+  oneLevelCode: string;
+  hierarchicalBits: number;
+  hierarchicalSegments: WalkerCodeSegment[];
+}
 
 export default class RandomWalker {
   private network: Network;
 
+  // Current location and previous location in the walk
   current: Node | null = null;
   prev: Node | null = null;
 
+  // Statistics tracking
   totalVisits = 0;
   teleported = false;
+  cumulativeOneLevelBits = 0;
+  cumulativeTwoLevelBits = 0;
+  cumulativeHierarchicalBits = 0;
+  codelengthHistory: CodelengthHistoryPoint[] = [];
+  encodedSteps: WalkerEncodedStep[] = [];
+  latestEncodedStep: WalkerEncodedStep | null = null;
+  private readonly maxCodelengthHistoryLength = 400;
+  private readonly maxEncodedStepLength = 120;
 
+  // Full trace history (up to 200 steps) and visible trace for UI (up to 50 steps)
   trace: number[] = [];
   private readonly maxTraceLength = 200;
   nodeTrace: Node[] = [];
   private readonly maxVisibleLength = 50;
 
+  // Teleportation settings for simulating real-world behavior
+  private readonly defaultTeleportRate: number;
   private teleportRate: number;
   private readonly teleportModel = DEFAULT_TELEPORT_MODEL;
 
+  // Continuous animation control via setInterval
   private readonly intervalStopped = -1 as const;
   intervalId: number = this.intervalStopped;
   interval = 1000 / 3;
 
   constructor(network: Network) {
     this.network = network;
-    this.teleportRate = this.network.directed ? DEFAULT_TELEPORT_RATE : 0.02;
+    this.defaultTeleportRate = this.network.directed
+      ? DEFAULT_TELEPORT_RATE
+      : 0.02;
+    this.teleportRate = this.defaultTeleportRate;
 
-    makeObservable(this, {
+    makeObservable<RandomWalker, "teleportRate">(this, {
       totalVisits: observable,
       current: observable,
       teleported: observable,
+      cumulativeOneLevelBits: observable,
+      cumulativeTwoLevelBits: observable,
+      cumulativeHierarchicalBits: observable,
+      codelengthHistory: observable,
+      encodedSteps: observable,
+      latestEncodedStep: observable.ref,
       trace: observable,
       intervalId: observable,
       interval: observable,
+      teleportRate: observable,
       setInterval: action,
       setSpeed: action,
+      setTeleportRate: action,
+      toggleRandomTeleportation: action,
       start: action,
       stop: action,
       restart: action,
       reset: action,
       step: action,
       isStarted: computed,
+      teleportationEnabled: computed,
     });
   }
 
   get isStarted() {
     return this.intervalId !== this.intervalStopped;
+  }
+
+  get teleportationEnabled() {
+    return this.teleportRate > 0;
   }
 
   setInterval(interval: number) {
@@ -66,6 +137,13 @@ export default class RandomWalker {
   setTeleportRate(teleportRate: number) {
     if (teleportRate < 0) throw new Error("teleportRate must be non-negative");
     this.teleportRate = teleportRate;
+    return this;
+  }
+
+  toggleRandomTeleportation() {
+    this.teleportRate = this.teleportationEnabled
+      ? 0
+      : this.defaultTeleportRate;
     return this;
   }
 
@@ -93,8 +171,15 @@ export default class RandomWalker {
     if (this.isStarted) this.stop();
 
     this.totalVisits = 0;
+    this.cumulativeOneLevelBits = 0;
+    this.cumulativeTwoLevelBits = 0;
+    this.cumulativeHierarchicalBits = 0;
+    this.codelengthHistory.length = 0;
+    this.encodedSteps.length = 0;
+    this.latestEncodedStep = null;
     this.trace.length = 0;
     this.nodeTrace.length = 0;
+    this.teleported = false;
 
     for (const node of this.network.nodes) {
       node.visits = 0;
@@ -104,11 +189,14 @@ export default class RandomWalker {
   }
 
   step(stop = true) {
+    performanceMonitor.mark("walker-step");
+
     if (stop && this.isStarted) this.stop();
 
     if (!this.current) {
       this.setCurrent(this.network.nodes[0]);
       this.recordVisit();
+      performanceMonitor.measure("walker-step");
       return;
     }
 
@@ -116,7 +204,9 @@ export default class RandomWalker {
       Math.random() < this.teleportRate || this.current?.degree === 0;
 
     if (this.teleported) {
-      return this.teleport();
+      const result = this.teleport();
+      performanceMonitor.measure("walker-step");
+      return result;
     }
 
     // degree should always be > 0 here
@@ -129,6 +219,7 @@ export default class RandomWalker {
     this.setCurrent(link.target);
 
     this.recordVisit();
+    performanceMonitor.measure("walker-step");
   }
 
   protected getRandomLink(selfAvoidBias = 2) {
@@ -137,7 +228,8 @@ export default class RandomWalker {
     if (!this.prev || selfAvoidBias === 1) return this.current?.randomLink();
 
     const weights = this.current.outLinks.map((link) =>
-      link.target == this.prev ? link.weight / selfAvoidBias : link.weight);
+      link.target == this.prev ? link.weight / selfAvoidBias : link.weight,
+    );
     const i = weightedRandom(weights);
     return this.current.outLinks[i];
   }
@@ -167,7 +259,129 @@ export default class RandomWalker {
     if (this.trace.length > this.maxTraceLength) {
       this.trace.shift();
     }
+    this.updateCodelengthHistory();
     this.pushCurrent(this.current);
+  }
+
+  private updateCodelengthHistory() {
+    if (!this.current) return;
+
+    const currentTreeNode = this.network.tree.root.getLeaf(this.current.id);
+
+    if (!currentTreeNode) return;
+
+    this.cumulativeOneLevelBits += currentTreeNode.oneLevelCode.length;
+
+    const previousTreeNode = this.prev
+      ? this.network.tree.root.getLeaf(this.prev.id)
+      : null;
+    const hierarchicalSegments = this.buildHierarchicalSegments(
+      currentTreeNode,
+      previousTreeNode,
+    );
+    const hierarchicalIncrement = hierarchicalSegments.reduce(
+      (total, segment) => total + segment.code.length,
+      0,
+    );
+
+    this.cumulativeHierarchicalBits += hierarchicalIncrement;
+    this.cumulativeTwoLevelBits += hierarchicalIncrement;
+    this.latestEncodedStep = {
+      step: this.totalVisits,
+      nodeId: this.current.id,
+      oneLevelCode: currentTreeNode.oneLevelCode,
+      hierarchicalBits: hierarchicalIncrement,
+      hierarchicalSegments,
+    };
+    this.encodedSteps.push(this.latestEncodedStep);
+    if (this.encodedSteps.length > this.maxEncodedStepLength) {
+      this.encodedSteps.shift();
+    }
+    this.codelengthHistory.push({
+      step: this.totalVisits,
+      oneLevelBits: this.cumulativeOneLevelBits,
+      twoLevelBits: this.cumulativeTwoLevelBits,
+      hierarchicalBits: this.cumulativeHierarchicalBits,
+    });
+
+    if (this.codelengthHistory.length > this.maxCodelengthHistoryLength) {
+      this.codelengthHistory.shift();
+    }
+  }
+
+  private getModuleChain(treeNode: TreeNode): TreeNode[] {
+    const chain: TreeNode[] = [];
+    let current = treeNode.parent;
+
+    while (current && !current.isRoot) {
+      chain.push(current);
+      current = current.parent;
+    }
+
+    return chain.reverse();
+  }
+
+  private buildHierarchicalSegments(
+    currentTreeNode: TreeNode,
+    previousTreeNode: TreeNode | null,
+  ): WalkerCodeSegment[] {
+    const currentChain = this.getModuleChain(currentTreeNode);
+    const previousChain = previousTreeNode
+      ? this.getModuleChain(previousTreeNode)
+      : [];
+    let sharedPrefixLength = 0;
+
+    while (
+      sharedPrefixLength < currentChain.length &&
+      sharedPrefixLength < previousChain.length &&
+      currentChain[sharedPrefixLength] === previousChain[sharedPrefixLength]
+    ) {
+      sharedPrefixLength++;
+    }
+
+    const segments: WalkerCodeSegment[] = [];
+
+    for (let index = previousChain.length - 1; index >= sharedPrefixLength; index--) {
+      const module_ = previousChain[index];
+
+      if (!module_.exitCode) {
+        continue;
+      }
+
+      segments.push({
+        kind: "exit",
+        level: module_.depth,
+        code: module_.exitCode,
+        modulePath: [...module_.path],
+      });
+    }
+
+    for (let index = sharedPrefixLength; index < currentChain.length; index++) {
+      const module_ = currentChain[index];
+      const isOnlyTopLevelModule =
+        module_.parent?.isRoot === true && module_.parent.children.size <= 1;
+
+      if (isOnlyTopLevelModule || !module_.enterCode) {
+        continue;
+      }
+
+      segments.push({
+        kind: "enter",
+        level: module_.depth,
+        code: module_.enterCode,
+        modulePath: [...module_.path],
+      });
+    }
+
+    segments.push({
+      kind: "visit",
+      level: (currentTreeNode.parent?.depth ?? 0) + 1,
+      code: currentTreeNode.code,
+      modulePath: [...(currentTreeNode.parent?.path ?? [])],
+      nodeId: currentTreeNode.id,
+    });
+
+    return segments;
   }
 
   private pushCurrent(node: Node) {

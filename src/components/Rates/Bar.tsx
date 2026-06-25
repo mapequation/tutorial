@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { motion, SVGMotionProps } from "framer-motion";
 
 interface Props {
@@ -7,7 +8,7 @@ interface Props {
   animate?: boolean;
 }
 
-export default function Bar({
+const Bar = memo(function Bar({
   y,
   height,
   duration = 100,
@@ -33,4 +34,6 @@ export default function Bar({
       {!animate && <motion.rect y={y} height={height} {...defaultProps} {...props} />}
     </>
   );
-}
+});
+
+export default Bar;

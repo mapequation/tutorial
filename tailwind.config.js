@@ -1,3 +1,6 @@
+/** @type {import('tailwindcss').Config} */
+const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '/map-demo';
+
 module.exports = {
   content: [
     './src/pages/**/*.{js,ts,jsx,tsx}',
@@ -18,21 +21,12 @@ module.exports = {
       colors: {
         brand: '#b22222',
       },
-      backgroundImage: (theme) => ({
-        noise: 'url("/demo/images/noise-100-90-5.png")',
-      }),
+      backgroundImage: {
+        noise: `url("${basePath}/images/noise-100-90-5.png")`,
+      },
       backgroundSize: {
-        // prettier-ignore
         '50': '50px 50px',
       },
-    },
-  },
-  variants: {
-    extend: {
-      backgroundColor: ['active'],
-      textColor: ['active'],
-      borderColor: ['active'],
-      transform: ['hover', 'focus'],
     },
   },
   plugins: [],

@@ -1,6 +1,11 @@
 import { SVGProps } from "react";
+import { memo } from "react";
 import type { Link as LinkModel } from "../../model";
 
+/**
+ * Compute the start and end coordinates for a link line, accounting for
+ * node radii so the line endpoints sit at the node boundaries.
+ */
 const linkPosition = (link: LinkModel, r1: number, r2: number) => {
   const x1 = link.source.x || 0;
   const y1 = link.source.y || 0;
@@ -25,11 +30,17 @@ interface Props {
   targetRadius: number;
 }
 
-export default function Link({
+/**
+ * Link renders an SVG line connecting two nodes in the network. The line
+ * coordinates are computed to start/end at the node boundaries.
+ */
+const Link = memo(function Link({
   link,
   sourceRadius,
   targetRadius,
   ...props
 }: Props & SVGProps<SVGLineElement>) {
   return <line className="link" {...props} {...linkPosition(link, sourceRadius, targetRadius)} />;
-}
+});
+
+export default Link;

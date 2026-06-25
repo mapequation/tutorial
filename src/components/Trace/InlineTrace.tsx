@@ -9,12 +9,19 @@ interface Props {
   showModules?: boolean;
 }
 
+/**
+ * InlineTrace shows a short, animated sequence of most recent codewords. It
+ * is a compact alternative to the full `Trace` component for inline
+ * sections and uses `framer-motion` for a simple entrance animation.
+ */
 function InlineTrace({ network, showModules = false }: Props) {
   const { walker } = network;
 
-  const maxNumCodes = 20;
+  const maxNumCodes = 10;
 
-  const trace = walker.trace.slice(-maxNumCodes).map((id) => network.tree.root.getLeaf(id)!);
+  const visibleTraceIds = walker.trace.slice(-maxNumCodes);
+  const firstVisibleStep = walker.totalVisits - visibleTraceIds.length + 1;
+  const trace = visibleTraceIds.map((id) => network.tree.root.getLeaf(id)!);
   const last = trace.pop();
 
   const duration = walker.interval / 1000;
@@ -22,7 +29,7 @@ function InlineTrace({ network, showModules = false }: Props) {
   return (
     <>
       <div
-        className="px-4 py-2 w-full overflow-y-auto overscroll-contain leading-snug text-sm font-mono -word-spacing-7"
+        className="h-9 w-full overflow-hidden whitespace-nowrap px-4 py-2 text-left font-mono text-sm leading-5 -word-spacing-7"
       >
         {trace.map((node, i, nodes) => (
           <CodeWord
@@ -30,7 +37,7 @@ function InlineTrace({ network, showModules = false }: Props) {
             node={node}
             prev={nodes[i - 1]}
             showModules={showModules}
-            firstEnter={false}
+            firstEnter={firstVisibleStep + i === 1}
           />
         ))}
         <motion.strong
@@ -44,7 +51,7 @@ function InlineTrace({ network, showModules = false }: Props) {
               node={last}
               prev={trace[trace.length - 1]}
               showModules={showModules}
-              firstEnter={false}
+              firstEnter={firstVisibleStep + trace.length === 1}
             />
           )}
         </motion.strong>
@@ -55,6 +62,9 @@ function InlineTrace({ network, showModules = false }: Props) {
 
 export default observer(InlineTrace);
 
+// Helper for rendering a single codeword. When `showModules` is true this
+// helper also renders enter/exit codes colored by module, otherwise it
+// renders the compact one-level code.
 type CodeProps = {
   node: TreeNode;
   prev?: TreeNode;
@@ -67,11 +77,13 @@ function CodeWord({ node, prev, showModules = false, firstEnter = true }: CodePr
 
   const currentModule = node.parent;
   const currentModuleId = currentModule?.id ?? 0;
+  const shouldPrintInitialEnter =
+    firstEnter && (currentModule?.parent?.children.size ?? 0) > 1;
 
   if (!prev)
     return (
       <span style={{ color: schemeAlt[currentModuleId] }}>
-        {firstEnter && currentModule?.enterCode} {node.code}{" "}
+        {shouldPrintInitialEnter && currentModule?.enterCode} {node.code} {" "}
       </span>
     );
 
@@ -81,17 +93,17 @@ function CodeWord({ node, prev, showModules = false, firstEnter = true }: CodePr
   if (prevModuleId === currentModuleId)
     return (
       <span style={{ color: schemeAlt[currentModuleId] }}>
-        {node.code}{" "}
+        {node.code} {" "}
       </span>
     );
 
   return (
     <>
       <span style={{ color: schemeAlt[prevModuleId] }}>
-        {prevModule?.exitCode}{" "}
+        {prevModule?.exitCode} {" "}
       </span>
       <span style={{ color: schemeAlt[currentModuleId] }}>
-        {currentModule?.enterCode} {node.code}{" "}
+        {currentModule?.enterCode} {node.code} {" "}
       </span>
     </>
   );
