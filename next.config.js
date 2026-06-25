@@ -4,6 +4,7 @@ const webpack = require('webpack');
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '/map-demo';
 
 module.exports = {
+  output: 'export',
   reactStrictMode: true,
   basePath: '/tutorial',
   typescript: {
