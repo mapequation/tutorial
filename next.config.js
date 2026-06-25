@@ -5,8 +5,7 @@ const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '/map-demo';
 
 module.exports = {
   reactStrictMode: true,
-  basePath: basePath,
-  output: 'export',
+  basePath: '/tutorial',
   typescript: {
     ignoreBuildErrors: true,
   },
