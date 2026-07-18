@@ -1,9 +1,9 @@
 /**
  * Get the base path for image and asset URLs.
- * Uses NEXT_PUBLIC_BASE_PATH environment variable, defaults to '/map-demo'
+ * Uses NEXT_PUBLIC_BASE_PATH environment variable, defaults to '/tutorial'
  */
 export function getBasePath(): string {
-    return process.env.NEXT_PUBLIC_BASE_PATH || '/map-demo';
+    return process.env.NEXT_PUBLIC_BASE_PATH || '/tutorial';
 }
 
 /**

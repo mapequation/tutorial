@@ -2,7 +2,7 @@
 
 ## Overview
 
-A comprehensive, real-time performance monitoring system has been integrated into your map-demo application. It provides **objective measurements** of:
+A comprehensive, real-time performance monitoring system has been integrated into your tutorial application. It provides **objective measurements** of:
 
 - **Frame Rate**: FPS, frame time, and jank detection
 - **Operation Timing**: Computation times for key operations

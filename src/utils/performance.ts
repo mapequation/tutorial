@@ -1,5 +1,5 @@
 /**
- * Performance monitoring utilities for the map-demo application.
+ * Performance monitoring utilities for the tutorial application.
  * Tracks rendering, computation, and interaction metrics.
  */
 
@@ -10,17 +10,17 @@ export interface PerformanceMetrics {
   huffmanComputationTime: number;
   lassoSelectionTime: number;
   walkerStepTime: number;
-  
+
   // Frame rate metrics
   fps: number;
   frameDrops: number;
   avgFrameTime: number;
-  
+
   // Memory metrics (bytes)
   usedJsHeapSize: number;
   jsHeapSizeLimit: number;
   jsHeapSizePercent: number;
-  
+
   // Interaction metrics
   lassoDrawTime: number;
   nodeSelectionCount: number;
@@ -66,23 +66,23 @@ class PerformanceMonitor {
     this.ensureFrameMonitoringStarted();
     const markKey = markLabel || label;
     const startTime = this.marks.get(markKey);
-    
+
     if (!startTime) {
       console.warn(`Mark "${markKey}" not found`);
       return 0;
     }
 
     const duration = performance.now() - startTime;
-    
+
     // Record metric
     if (!this.metrics.has(label)) {
       this.metrics.set(label, []);
     }
     this.metrics.get(label)!.push(duration);
-    
+
     // Clean up old marks
     this.marks.delete(markKey);
-    
+
     return duration;
   }
 
@@ -97,7 +97,7 @@ class PerformanceMonitor {
     count: number;
   } | null {
     const values = this.metrics.get(label);
-    
+
     if (!values || values.length === 0) {
       return null;
     }
@@ -130,11 +130,11 @@ class PerformanceMonitor {
    */
   getMetricsSummary(): Record<string, ReturnType<typeof this.getMetricStats>> {
     const summary: Record<string, ReturnType<typeof this.getMetricStats>> = {};
-    
+
     for (const [label] of this.metrics) {
       summary[label] = this.getMetricStats(label);
     }
-    
+
     return summary;
   }
 
@@ -148,18 +148,18 @@ class PerformanceMonitor {
     const measureFrames = () => {
       const currentTime = performance.now();
       const deltaTime = currentTime - lastTime;
-      
+
       // Track frame time
       if (this.lastFrameTime > 0) {
         const frameTime = currentTime - this.lastFrameTime;
         this.frameTimestamps.push(frameTime);
-        
+
         // Keep only last 300 frames (~5 seconds at 60fps)
         if (this.frameTimestamps.length > 300) {
           this.frameTimestamps.shift();
         }
       }
-      
+
       this.lastFrameTime = currentTime;
       frameCount++;
 
@@ -169,7 +169,7 @@ class PerformanceMonitor {
           this.metrics.set('fps', []);
         }
         this.metrics.get('fps')!.push(frameCount);
-        
+
         frameCount = 0;
         lastTime = currentTime;
       }
@@ -191,7 +191,7 @@ class PerformanceMonitor {
   } {
     const fpsMetrics = this.metrics.get('fps');
     const currentFps = fpsMetrics ? fpsMetrics[fpsMetrics.length - 1] : 0;
-    
+
     const avgFrameTime = this.frameTimestamps.length > 0
       ? this.frameTimestamps.reduce((a, b) => a + b, 0) / this.frameTimestamps.length
       : 0;
@@ -256,10 +256,10 @@ class PerformanceMonitor {
    */
   logReport(): void {
     const report = this.getReport();
-    
+
     console.group('📊 Performance Report');
     console.log('Timestamp:', report.timestamp);
-    
+
     console.group('⏱️ Timing Metrics (ms)');
     for (const [label, stats] of Object.entries(report.metrics)) {
       if (stats) {
@@ -269,20 +269,20 @@ class PerformanceMonitor {
       }
     }
     console.groupEnd();
-    
+
     console.group('🎬 Frame Metrics');
     console.log(`FPS: ${report.frameMetrics.currentFps}`);
     console.log(`Avg Frame Time: ${report.frameMetrics.avgFrameTime.toFixed(2)}ms`);
     console.log(`Frame Drops: ${report.frameMetrics.frameDrops} (${report.frameMetrics.dropPercentage.toFixed(1)}%)`);
     console.groupEnd();
-    
+
     if (report.memory) {
       console.group('💾 Memory Usage');
       console.log(`Heap: ${(report.memory.usedJsHeapSize / 1024 / 1024).toFixed(2)}MB / ${(report.memory.jsHeapSizeLimit / 1024 / 1024).toFixed(2)}MB`);
       console.log(`Usage: ${report.memory.usagePercent.toFixed(1)}%`);
       console.groupEnd();
     }
-    
+
     console.groupEnd();
   }
 }

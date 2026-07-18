@@ -1,5 +1,5 @@
 /** @type {import('tailwindcss').Config} */
-const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '/map-demo';
+const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '/tutorial';
 
 module.exports = {
   content: [

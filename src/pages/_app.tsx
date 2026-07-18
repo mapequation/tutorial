@@ -16,7 +16,7 @@ import { useEffect } from "react";
 function MyApp({ Component, pageProps }: AppProps) {
   useEffect(() => {
     // Set CSS variables based on environment
-    const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "/map-demo";
+    const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "/tutorial";
     document.documentElement.style.setProperty(
       "--bg-noise-url",
       `url("${basePath}/images/noise-100-90-5.png")`,

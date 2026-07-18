@@ -2,7 +2,7 @@
 
 ## What Was Added
 
-A comprehensive performance monitoring system for the map-demo application with real-time metrics collection and visualization.
+A comprehensive performance monitoring system for the tutorial application with real-time metrics collection and visualization.
 
 ## New Files Created
 
